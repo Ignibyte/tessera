@@ -1,0 +1,33 @@
+<!--page {"title":"Attributes","layout":"app"}-->
+<!--slot content-->
+    <h1 id="heading">Attributes</h1>
+    <section id="vocabulary" data-signals="{name: 'Ada', count: 0, open: false, color: 'red', tags: ['a'], size: 'm', choice: 'two', many: ['x'], note: 'hi', agree: false, qty: 1, typed: '', pressed: 0, outside: 0}">
+      <p id="greeting" data-computed:greeting="'Hello, ' + $name" data-text="$greeting"></p>
+      <input id="name" data-bind:name>
+      <input id="qty" type="number" data-bind:qty>
+      <input id="agree" type="checkbox" data-bind:agree>
+      <label><input id="tag-a" type="checkbox" value="a" data-bind:tags> a</label>
+      <label><input id="tag-b" type="checkbox" value="b" data-bind:tags> b</label>
+      <label><input id="size-s" type="radio" name="size" value="s" data-bind:size> s</label>
+      <label><input id="size-m" type="radio" name="size" value="m" data-bind:size> m</label>
+      <select id="choice" data-bind:choice><option value="one">One</option><option value="two">Two</option></select>
+      <select id="many" multiple data-bind:many><option>x</option><option>y</option></select>
+      <textarea id="note" data-bind:note></textarea>
+      <output id="state" data-text="JSON.stringify({name: $name, qty: $qty, agree: $agree, tags: $tags, size: $size, choice: $choice, many: $many, note: $note})"></output>
+      <button id="toggle" data-on:click="$open = !$open; $count++" data-attr:aria-expanded="String($open)">Toggle</button>
+      <div id="panel" data-show="$open" data-class="{open: $open}" data-style:color="$color">Panel</div>
+      <span id="count" data-text="$count"></span>
+      <input id="keys" data-on:keydown__enter="$pressed++">
+      <span id="pressed" data-text="$pressed"></span>
+      <a id="link" href="/about" data-on:click__prevent="$count += 10">About</a>
+      <div id="menu" data-on:click__outside="$outside++"><span id="inside">menu</span></div>
+      <span id="outside" data-text="$outside"></span>
+      <input id="search" data-on:input__debounce.100ms="$typed = el.value">
+      <span id="typed" data-text="$typed"></span>
+      <span id="ref" data-ref:target data-text="$target.id"></span>
+      <button id="save" data-on:click="@post('/save', {count: $count})">Save</button>
+      <div data-ignore><span id="ignored" data-text="'changed'">untouched</span></div>
+      <p id="init" data-init="el.textContent = 'initialized'"></p>
+      <p id="effect" data-effect="el.textContent = 'count is ' + $count"></p>
+    </section>
+    <script src="/assets/harness.js"></script>

@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- The attributes (`src/attributes.ts`, `src/builtins.ts`, rewritten from jqstar's `declarative.ts`):
+  Datastar's vocabulary on the DOM, each built-in a registry definition, every listener, effect
+  and cleanup owned through the kernel and released exactly once, `data-ref`, and `tessera:error`
+  for failures. Values read from signals are reactive only when they are plain objects or arrays
+  (#7).
 - Expressions and the directive registry (`src/expression.ts`, `src/directive.ts`, `src/actions.ts`,
   ported from jqstar): a closed scope with no fall-through to page globals, `@get` to `@delete`
   anywhere in an expression through an action seam, and directive names parsed into a key and

@@ -22,6 +22,7 @@ const baseURL = `http://127.0.0.1:${process.env.TESSERA_TEST_PORT}`;
 
 export default defineConfig({
   testDir: "test/browser",
+  globalSetup: "./test/browser/global-setup.ts",
   forbidOnly: true,
   fullyParallel: true,
   reporter: "list",

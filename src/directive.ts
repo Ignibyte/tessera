@@ -38,6 +38,13 @@ export interface DirectiveContext<Parsed = string> {
   readonly previous?: ParsedDirectiveAttribute<Parsed>;
   readonly cleanup: (cleanup: DirectiveCleanup) => DirectiveCleanup;
   readonly effect: (run: () => void) => DirectiveCleanup;
+  /** An event listener owned with the element: released with the directive. */
+  readonly listen: (
+    target: EventTarget,
+    type: string,
+    listener: (event: Event) => void,
+    options?: AddEventListenerOptions,
+  ) => DirectiveCleanup;
   readonly report: (error: unknown) => void;
   readonly task: (task: DirectiveTask) => DirectiveCleanup;
 }
