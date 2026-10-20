@@ -3,11 +3,12 @@ number: 8
 uuid: 5388d8bc-c160-4ac0-aa63-b230d93df4e9
 title: "Signal scopes: component, region and document"
 type: feature
-status: in-progress
+status: done
 tags: ["signals"]
 created: 2026-10-20T18:00:00Z
-updated: 2026-10-20T23:26:16Z
+updated: 2026-10-20T23:26:31Z
 phase: "docs"
+closed: 2026-10-20T23:26:31Z
 ---
 
 Make scopes explicit, the fix for the global-namespace collisions old AIC hit with Datastar (AIC
@@ -79,3 +80,7 @@ a scope, kept versus reset scopes across a morph (same marker, rewritten key, tr
 marker), and the payload holding only the chain with every exclusion.
 `test/property/signals-payload.test.ts` (fixed seed): any value tree encodes to ASCII that
 parses back to the payload, which holds only JSON values and no `_` names.
+
+### 2026-10-20T23:26:31Z
+
+Delivered via PR #9 (1b0dcd4). Scopes for components, regions and the document; the payload holds only the chain and leaves out _ names, computed signals and non-JSON values.
