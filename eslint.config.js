@@ -44,6 +44,12 @@ export default tseslint.config(
     },
   },
   {
+    // The trusted expression engine compiles expressions with `new Function`; docs/design.md
+    // keeps it and docs/decisions.md records this exception. This one file, this one rule.
+    files: ["src/expression.ts"],
+    rules: { "@typescript-eslint/no-implied-eval": "off" },
+  },
+  {
     // A test may prove a type error, with a reason.
     files: ["test/**/*.ts"],
     rules: {
