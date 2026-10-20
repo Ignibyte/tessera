@@ -1,0 +1,617 @@
+// The transport against a fake fetch: one block per bullet of ticket #11, then the request
+// headers and the protocol's answers. In jsdom's own document, as the patcher needs.
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { createActionRecorder } from "../../src/actions.ts";
+import { mountAttributes } from "../../src/attributes.ts";
+import { registerBuiltins } from "../../src/builtins.ts";
+import { createDirectiveRegistry } from "../../src/directive.ts";
+import { createTrustedExpressionEngine } from "../../src/expression.ts";
+import { Kernel } from "../../src/kernel.ts";
+import { createPatcher } from "../../src/patch.ts";
+import { Scheduler } from "../../src/reactivity.ts";
+import { ACCEPT, createTransport, EXPIRED_EVENT } from "../../src/transport.ts";
+import type { RequestOutcome, TransportOptions } from "../../src/transport.ts";
+
+interface Call {
+  url: string;
+  method: string;
+  headers: Record<string, string>;
+  body: unknown;
+  redirect: string | undefined;
+  signal: AbortSignal;
+}
+
+type Responder = (call: Call) => Response | Promise<Response>;
+
+let kernel: Kernel | undefined;
+
+afterEach(() => {
+  vi.useRealTimers();
+  if (kernel && !kernel.disposed) kernel.dispose();
+  kernel = undefined;
+  document.head.innerHTML = "";
+  document.body.innerHTML = "";
+});
+
+const ORIGIN = window.location.origin;
+
+function fragments(body: string, init: { status?: number; headers?: Record<string, string> } = {}): Response {
+  return new Response(body, {
+    status: init.status ?? 200,
+    headers: { "Content-Type": "text/vnd.tessera+html; charset=utf-8", "Tessera-Protocol": "0", ...init.headers },
+  });
+}
+
+function empty(status: number, headers: Record<string, string> = {}): Response {
+  return new Response(null, { status, headers });
+}
+
+/** A responder that never answers, until the request is aborted. */
+const hang: Responder = (call) =>
+  new Promise((_resolve, reject) => {
+    call.signal.addEventListener("abort", () => {
+      reject(call.signal.reason as Error);
+    });
+  });
+
+const networkFailure: Responder = () => Promise.reject(new TypeError("Failed to fetch"));
+
+function bodyText(body: unknown): string {
+  if (body instanceof URLSearchParams) return body.toString();
+  if (body instanceof FormData) {
+    return new URLSearchParams(Array.from(body, ([name, value]) => [name, typeof value === "string" ? value : value.name])).toString();
+  }
+  return typeof body === "string" ? body : "";
+}
+
+function setup(html: string, options: Partial<TransportOptions> = {}, head = `<meta name="tessera-layout" content="app"><meta name="tessera-csrf-token" content="tok">`) {
+  document.head.innerHTML = head;
+  document.body.innerHTML = html;
+  const scheduler = new Scheduler();
+  const current = new Kernel(document, { flush: () => scheduler.nextUpdate() });
+  kernel = current;
+  const registry = createDirectiveRegistry();
+  registerBuiltins(registry);
+  const mount = mountAttributes(document.body, {
+    kernel: current,
+    scheduler,
+    expressions: createTrustedExpressionEngine(),
+    registry,
+    actions: createActionRecorder().seam,
+    report: () => undefined,
+  });
+  const patcher = createPatcher({ kernel: current, scopes: mount.scopes, refresh: (elements) => { mount.refresh(elements); } });
+  const calls: Call[] = [];
+  const responders: Responder[] = [];
+  const fetch = vi.fn(async (input: RequestInfo | URL, init: RequestInit = {}) => {
+    const call: Call = {
+      url: typeof input === "string" ? input : input instanceof URL ? input.href : input.url,
+      method: init.method ?? "GET",
+      headers: Object.fromEntries(new Headers(init.headers)),
+      body: init.body,
+      redirect: init.redirect,
+      signal: init.signal ?? new AbortController().signal,
+    };
+    calls.push(call);
+    const respond = responders.shift() ?? (() => fragments(""));
+    return respond(call);
+  });
+  const navigated: string[] = [];
+  const pushed: string[] = [];
+  const reported: unknown[] = [];
+  const transport = createTransport({
+    kernel: current,
+    patcher,
+    scopes: mount.scopes,
+    fetch,
+    navigate: (url) => navigated.push(url),
+    pushUrl: (url) => pushed.push(url),
+    report: (error) => reported.push(error),
+    reload: vi.fn(),
+    confirm: vi.fn(() => false),
+    bufferMs: 0,
+    retryDelayMs: 1,
+    ...options,
+  });
+  const find = (selector: string): HTMLElement => {
+    const element = document.querySelector<HTMLElement>(selector);
+    if (!element) throw new Error(`no ${selector}`);
+    return element;
+  };
+  const form = (selector: string): HTMLFormElement => find(selector) as HTMLFormElement;
+  const respond = (...next: Responder[]): void => {
+    responders.push(...next);
+  };
+  return { kernel: current, mount, patcher, transport, calls, respond, fetch, navigated, pushed, reported, find, form };
+}
+
+const content = `<main data-region="content"><p id="text">old</p></main>`;
+const contentFragment = (text: string) => `<template data-target="content"><main data-region="content"><p id="text">${text}</p></main></template>`;
+
+describe("no replay: a write is sent once", () => {
+  it("reports a POST indeterminate when the network fails after dispatch, and never resends it", async () => {
+    const { transport, calls, respond, reported } = setup(content);
+    respond(networkFailure, () => fragments(contentFragment("second")));
+    const outcome = await transport.request({ kind: "submit", method: "POST", url: "/save", targets: ["content"], body: "a=1" });
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(outcome.status).toBe("indeterminate");
+    expect(calls.map(({ method }) => method)).toEqual(["POST"]);
+    expect(reported).toHaveLength(1);
+  });
+
+  it.each(["PUT", "PATCH", "DELETE"] as const)("does the same for %s", async (method) => {
+    const { transport, calls, respond } = setup(content);
+    respond(networkFailure);
+    expect((await transport.request({ kind: "action", method, url: "/x" })).status).toBe("indeterminate");
+    expect(calls).toHaveLength(1);
+  });
+
+  it("retries a GET twice after network failures, with backoff", async () => {
+    const { transport, calls, respond, find } = setup(content);
+    respond(networkFailure, networkFailure, () => fragments(contentFragment("third")));
+    const outcome = await transport.request({ kind: "refresh", url: "/content", targets: ["content"] });
+    expect(outcome.status).toBe("committed");
+    expect(calls).toHaveLength(3);
+    expect(find("#text").textContent).toBe("third");
+  });
+
+  it("gives up on a GET after its retries, as failed", async () => {
+    const { transport, calls, respond } = setup(content);
+    respond(networkFailure, networkFailure, networkFailure);
+    expect((await transport.request({ kind: "refresh", url: "/content" })).status).toBe("failed");
+    expect(calls).toHaveLength(3);
+  });
+
+  it("reports a dispatched write that disposal aborts as indeterminate", async () => {
+    const { transport, calls, respond, kernel: current } = setup(content);
+    respond(hang);
+    const pending = transport.request({ kind: "submit", method: "POST", url: "/save", body: "a=1" });
+    await vi.waitFor(() => {
+      expect(calls).toHaveLength(1);
+    });
+    current.dispose();
+    expect((await pending).status).toBe("indeterminate");
+  });
+
+  it("does not send a write that disposal stops in the buffer", async () => {
+    const { transport, calls, kernel: current } = setup(content, { bufferMs: 50 });
+    const pending = transport.request({ kind: "submit", method: "POST", url: "/save", body: "a=1" });
+    current.dispose();
+    expect((await pending).status).toBe("aborted");
+    expect(calls).toEqual([]);
+  });
+});
+
+describe("redirects", () => {
+  it("sends writes with redirect manual and reads with redirect follow", async () => {
+    const { transport, calls } = setup(content);
+    await transport.request({ kind: "submit", method: "POST", url: "/save", body: "" });
+    await transport.request({ kind: "refresh", url: "/content" });
+    expect(calls.map(({ redirect }) => redirect)).toEqual(["manual", "follow"]);
+  });
+
+  it("follows Tessera-Location with a fresh GET visit carrying the targets, never the body", async () => {
+    const { transport, calls, respond, find, pushed } = setup(content);
+    respond(() => empty(200, { "Tessera-Location": "/done", "Tessera-Protocol": "0" }), () => fragments(contentFragment("done")));
+    const outcome = await transport.request({ kind: "submit", method: "POST", url: "/save", targets: ["content"], body: "secret=1" });
+    expect(outcome).toMatchObject({ status: "committed", redirectedTo: `${ORIGIN}/done` });
+    expect(calls[1]).toMatchObject({ url: `${ORIGIN}/done`, method: "GET", body: undefined });
+    expect(calls[1]?.headers).toMatchObject({ "tessera-request": "visit", "tessera-targets": "content" });
+    expect(find("#text").textContent).toBe("done");
+    expect(pushed).toEqual([`${ORIGIN}/done`]);
+  });
+
+  it("hands a Tessera-Location on another origin to the browser", async () => {
+    const { transport, respond, navigated, calls } = setup(content);
+    respond(() => empty(200, { "Tessera-Location": "https://elsewhere.example/x" }));
+    expect((await transport.request({ kind: "submit", method: "POST", url: "/save", body: "" })).status).toBe("full-load");
+    expect(navigated).toEqual(["https://elsewhere.example/x"]);
+    expect(calls).toHaveLength(1);
+  });
+
+  it("reports a write answered by a real redirect (a 303 or a 307 from a proxy) as indeterminate", async () => {
+    const { transport, respond, calls } = setup(content);
+    respond(() => {
+      const response = new Response(null, { status: 200 });
+      Object.defineProperty(response, "type", { value: "opaqueredirect" });
+      return response;
+    });
+    expect((await transport.request({ kind: "submit", method: "POST", url: "/save", body: "" })).status).toBe("indeterminate");
+    expect(calls).toHaveLength(1);
+  });
+});
+
+describe("answers with errors render", () => {
+  it.each([422, 409])("commits a %s's fragments in place, without a history entry", async (status) => {
+    const { transport, respond, find, pushed } = setup(content);
+    respond(() => fragments(contentFragment("errors"), { status }));
+    const outcome = await transport.request({ kind: "visit", url: "/form", targets: ["content"] });
+    expect(outcome).toMatchObject({ status: "committed", httpStatus: status });
+    expect(find("#text").textContent).toBe("errors");
+    expect(pushed).toEqual([]);
+  });
+
+  it.each([404, 500])("commits a %s's fragments and, for a visit, records its URL", async (status) => {
+    const { transport, respond, find, pushed } = setup(content);
+    respond(() => fragments(contentFragment(`error ${status}`), { status }));
+    expect((await transport.request({ kind: "visit", url: "/missing", targets: ["content"] })).status).toBe("committed");
+    expect(find("#text").textContent).toBe(`error ${status}`);
+    expect(pushed).toEqual([`${ORIGIN}/missing`]);
+  });
+
+  it("treats a body it cannot use as an error: a visit loads in full, a write is indeterminate", async () => {
+    const { transport, respond, navigated } = setup(content);
+    const json = () => new Response("{}", { headers: { "Content-Type": "application/json" } });
+    respond(json, json, json);
+    expect((await transport.request({ kind: "visit", url: "/x" })).status).toBe("full-load");
+    expect(navigated).toEqual([`${ORIGIN}/x`]);
+    expect((await transport.request({ kind: "submit", method: "POST", url: "/x", body: "" })).status).toBe("indeterminate");
+    expect((await transport.request({ kind: "refresh", url: "/x" })).status).toBe("failed");
+  });
+});
+
+describe("forms: the submitter and its overrides", () => {
+  const formHtml = `<main data-region="content"><form id="f" method="post" action="/save">
+      <input name="title" value="Hi">
+      <button id="draft" name="intent" value="draft">Draft</button>
+      <button id="publish" name="intent" value="publish" formaction="/publish">Publish</button>
+      <button id="search" formmethod="get" formaction="/search">Search</button>
+      <button id="multi" formenctype="multipart/form-data">Multipart</button>
+      <button id="plain" formenctype="text/plain">Plain</button>
+      <button id="dialog" formmethod="dialog">Dialog</button>
+    </form></main>`;
+
+  it("puts the submitter's name and value in the data and honours formaction", async () => {
+    const { transport, calls, find, form } = setup(formHtml);
+    await transport.submit(form("#f"), find("#publish"));
+    expect(calls[0]).toMatchObject({ url: `${ORIGIN}/publish`, method: "POST" });
+    expect(calls[0]?.headers).toMatchObject({ "tessera-request": "submit", "tessera-targets": "content" });
+    expect(bodyText(calls[0]?.body)).toBe("title=Hi&intent=publish");
+  });
+
+  it("makes a GET form, or formmethod get, a visit with the data in the query", async () => {
+    const { transport, calls, find, form } = setup(formHtml);
+    await transport.submit(form("#f"), find("#search"));
+    expect(calls[0]).toMatchObject({ url: `${ORIGIN}/search?title=Hi`, method: "GET", body: undefined });
+    expect(calls[0]?.headers["tessera-request"]).toBe("visit");
+  });
+
+  it("honours formenctype: multipart sends FormData, text/plain sends lines", async () => {
+    const { transport, calls, find, form } = setup(formHtml);
+    await transport.submit(form("#f"), find("#multi"));
+    await transport.submit(form("#f"), find("#plain"));
+    expect(calls[0]?.body).toBeInstanceOf(FormData);
+    expect(calls[1]?.body).toBe("title=Hi\r\n");
+  });
+
+  it("leaves a dialog form to the browser", async () => {
+    const { transport, calls, find, form } = setup(formHtml);
+    expect((await transport.submit(form("#f"), find("#dialog"))).status).toBe("failed");
+    expect(calls).toEqual([]);
+  });
+
+  it("takes data-target from the submitter, then the form", async () => {
+    const { transport, calls, find, form } = setup(
+      `<main data-region="content"><form id="f" method="post" action="/s" data-target="content sidebar"><button id="b" data-target="sidebar">Go</button></form></main><nav data-region="sidebar"></nav>`,
+    );
+    await transport.submit(form("#f"), find("#b"));
+    await transport.submit(form("#f"));
+    expect(calls.map(({ headers }) => headers["tessera-targets"])).toEqual(["sidebar", "content, sidebar"]);
+  });
+});
+
+describe("supersession by target", () => {
+  it("never sends a read superseded within the buffer", async () => {
+    const { transport, calls } = setup(content, { bufferMs: 20 });
+    const first = transport.request({ kind: "refresh", url: "/a", targets: ["content"] });
+    const second = transport.request({ kind: "refresh", url: "/b", targets: ["content"] });
+    expect((await first).status).toBe("superseded");
+    expect((await second).status).toBe("committed");
+    expect(calls.map(({ url }) => url)).toEqual([`${ORIGIN}/b`]);
+  });
+
+  it("aborts an older read in flight for the same target, by target and not by URL", async () => {
+    const { transport, calls, respond } = setup(`${content}<nav data-region="sidebar"></nav>`);
+    respond(hang, hang);
+    const older = transport.request({ kind: "refresh", url: "/same", targets: ["content"] });
+    const other = transport.request({ kind: "refresh", url: "/same", targets: ["sidebar"] });
+    await vi.waitFor(() => {
+      expect(calls).toHaveLength(2);
+    });
+    const newer = transport.request({ kind: "visit", url: "/other", targets: ["content"] });
+    expect((await older).status).toBe("superseded");
+    expect((await newer).status).toBe("committed");
+    expect(calls[0]?.signal.aborted).toBe(true);
+    expect(calls[1]?.signal.aborted).toBe(false);
+    void other;
+  });
+
+  it("never aborts a write for a newer request", async () => {
+    const { transport, calls, respond } = setup(content);
+    let answer: (response: Response) => void = () => undefined;
+    respond(() => new Promise<Response>((resolve) => { answer = resolve; }));
+    const write = transport.request({ kind: "submit", method: "POST", url: "/save", targets: ["content"], body: "" });
+    await vi.waitFor(() => {
+      expect(calls).toHaveLength(1);
+    });
+    await transport.request({ kind: "refresh", url: "/content", targets: ["content"] });
+    expect(calls[0]?.signal.aborted).toBe(false);
+    answer(fragments(contentFragment("saved")));
+    expect((await write).status).toBe("committed");
+  });
+});
+
+describe("headers", () => {
+  it("sends the protocol's headers, with props tokens from the markers", async () => {
+    const { transport, calls } = setup(`<main data-region="content"><!--t:c cart eyJpZCI6MX0.c2ln--><p></p><!--/t:c--></main>`);
+    await transport.request({ kind: "refresh", url: "/cart", targets: ["content/cart"] });
+    expect(calls[0]?.headers).toEqual({
+      accept: ACCEPT,
+      "tessera-request": "refresh",
+      "tessera-protocol": "0",
+      "tessera-targets": "content/cart eyJpZCI6MX0.c2ln",
+      "tessera-layout": "app",
+    });
+  });
+
+  it("leaves Tessera-Targets out for the page and Tessera-Layout out without its meta", async () => {
+    const { transport, calls } = setup(content, {}, "");
+    await transport.request({ kind: "visit", url: "/x" });
+    expect(Object.keys(calls[0]?.headers ?? {}).sort()).toEqual(["accept", "tessera-protocol", "tessera-request"]);
+  });
+
+  it("sends the CSRF token on unsafe requests only, under the page's header name", async () => {
+    const { transport, calls } = setup(content, {}, `<meta name="tessera-csrf-token" content="tok"><meta name="tessera-csrf-header" content="X-XSRF-Token">`);
+    await transport.request({ kind: "submit", method: "POST", url: "/a", body: "" });
+    await transport.request({ kind: "action", method: "DELETE", url: "/a" });
+    await transport.request({ kind: "refresh", url: "/a" });
+    expect(calls.map(({ headers }) => headers["x-xsrf-token"])).toEqual(["tok", "tok", undefined]);
+  });
+
+  it("reads the CSRF token when the request is made", async () => {
+    const { transport, calls, find } = setup(content);
+    (find('meta[name="tessera-csrf-token"]') as HTMLMetaElement).content = "fresh";
+    await transport.request({ kind: "submit", method: "POST", url: "/a", body: "" });
+    expect(calls[0]?.headers["x-csrf-token"]).toBe("fresh");
+  });
+
+  it("sends the signals of the element's chain on actions only", async () => {
+    const { transport, calls, find } = setup(
+      `<main data-region="content" data-signals="{qty: 2, _local: 1}"><!--t:c line--><button id="b" data-signals="{open: true}"></button><!--/t:c--></main>`,
+    );
+    await transport.actions({ method: "post", url: "/qty", options: undefined, element: find("#b"), event: undefined });
+    expect(calls[0]?.headers).toMatchObject({ "tessera-request": "action", "tessera-targets": "content/line", "tessera-signals": '{"qty":2,"open":true}' });
+    await transport.request({ kind: "refresh", url: "/x", element: find("#b"), signals: true });
+    expect(calls[1]?.headers["tessera-signals"]).toBeUndefined();
+  });
+
+  it("refuses an action whose signals exceed 4,096 bytes, unsent", async () => {
+    const { transport, calls, find, reported } = setup(`<main data-region="content"><button id="b" data-signals="{text: '${"x".repeat(5000)}'}"></button></main>`);
+    const outcome = (await transport.actions({ method: "post", url: "/x", options: undefined, element: find("#b"), event: undefined })) as RequestOutcome;
+    expect(outcome.status).toBe("failed");
+    expect(calls).toEqual([]);
+    expect(String(reported[0])).toContain("the limit is 4096");
+  });
+});
+
+describe("the 419 prompt", () => {
+  it("raises tessera:expired and, unless it is cancelled, offers a reload", async () => {
+    const reload = vi.fn();
+    const confirm = vi.fn(() => true);
+    const { transport, respond } = setup(content, { reload, confirm });
+    respond(() => empty(419), () => empty(419));
+    const seen = vi.fn();
+    document.addEventListener(EXPIRED_EVENT, seen);
+    expect((await transport.request({ kind: "submit", method: "POST", url: "/a", body: "" })).status).toBe("expired");
+    expect([seen.mock.calls.length, confirm.mock.calls.length, reload.mock.calls.length]).toEqual([1, 1, 1]);
+
+    const cancel = (event: Event): void => { event.preventDefault(); };
+    document.addEventListener(EXPIRED_EVENT, cancel);
+    await transport.request({ kind: "submit", method: "POST", url: "/a", body: "" });
+    expect(confirm).toHaveBeenCalledOnce();
+    document.removeEventListener(EXPIRED_EVENT, seen);
+    document.removeEventListener(EXPIRED_EVENT, cancel);
+  });
+});
+
+describe("the 5 ms buffer", () => {
+  it("holds a request for the buffer before sending it", async () => {
+    vi.useFakeTimers();
+    const { transport, calls } = setup(content, { bufferMs: 5 });
+    const pending = transport.request({ kind: "refresh", url: "/x" });
+    await vi.advanceTimersByTimeAsync(4);
+    expect(calls).toEqual([]);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(calls).toHaveLength(1);
+    await pending;
+  });
+});
+
+describe("interceptors", () => {
+  it("run once per logical request: before may add headers but not change the protocol's", async () => {
+    const { transport, calls, respond } = setup(content);
+    respond(networkFailure, () => fragments(""));
+    const before = vi.fn(({ headers }: { headers: Headers }) => {
+      headers.set("X-Trace", "1");
+      headers.set("Tessera-Request", "forged");
+    });
+    const after = vi.fn();
+    const remove = transport.intercept({ before, after });
+    await transport.request({ kind: "refresh", url: "/x" });
+    expect(before).toHaveBeenCalledOnce();
+    expect(after.mock.calls.map(([context]) => (context as { outcome: RequestOutcome }).outcome.status)).toEqual(["committed"]);
+    expect(calls.map(({ headers }) => [headers["x-trace"], headers["tessera-request"]])).toEqual([
+      ["1", "refresh"],
+      ["1", "refresh"],
+    ]);
+    remove();
+    await transport.request({ kind: "refresh", url: "/x" });
+    expect(before).toHaveBeenCalledOnce();
+  });
+
+  it("hand an indeterminate write to error", async () => {
+    const { transport, respond } = setup(content);
+    respond(networkFailure);
+    const error = vi.fn();
+    transport.intercept({ error });
+    await transport.request({ kind: "submit", method: "POST", url: "/x", body: "" });
+    expect(error).toHaveBeenCalledOnce();
+  });
+});
+
+describe("lifetime", () => {
+  it("aborts a read in flight on disposal, and whenEnhanced waits for requests", async () => {
+    const { transport, calls, respond, kernel: current } = setup(content);
+    respond(hang);
+    const pending = transport.request({ kind: "refresh", url: "/x" });
+    let settled = false;
+    void current.whenEnhanced().then(() => {
+      settled = true;
+    });
+    await vi.waitFor(() => {
+      expect(calls).toHaveLength(1);
+    });
+    expect(settled).toBe(false);
+    current.dispose();
+    expect((await pending).status).toBe("aborted");
+  });
+
+  it("waits while the page is hidden before sending a GET", async () => {
+    const { transport, calls } = setup(content);
+    const state = vi.spyOn(document, "visibilityState", "get").mockReturnValue("hidden");
+    try {
+      // Different targets, so the newer write does not supersede the waiting read.
+      const pending = transport.request({ kind: "refresh", url: "/x", targets: ["content"] });
+      const write = transport.request({ kind: "submit", method: "POST", url: "/y", targets: ["other"], body: "" });
+      await write;
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      expect(calls.map(({ method }) => method)).toEqual(["POST"]);
+      state.mockReturnValue("visible");
+      document.dispatchEvent(new Event("visibilitychange"));
+      await pending;
+      expect(calls.map(({ method }) => method)).toEqual(["POST", "GET"]);
+    } finally {
+      state.mockRestore();
+    }
+  });
+});
+
+describe("the protocol's answers", () => {
+  it("does nothing for a 204", async () => {
+    const { transport, respond, find } = setup(content);
+    respond(() => empty(204));
+    expect((await transport.request({ kind: "refresh", url: "/x", targets: ["content"] })).status).toBe("unchanged");
+    expect(find("#text").textContent).toBe("old");
+  });
+
+  it("hands Tessera-Full-Visit to the browser, http and https only", async () => {
+    const { transport, respond, navigated } = setup(content);
+    respond(() => empty(401, { "Tessera-Full-Visit": "/login?next=%2Fcart" }), () => empty(401, { "Tessera-Full-Visit": "javascript:alert(1)" }));
+    expect((await transport.request({ kind: "refresh", url: "/x" })).status).toBe("full-load");
+    expect(navigated).toEqual([`${ORIGIN}/login?next=%2Fcart`]);
+    expect((await transport.request({ kind: "refresh", url: "/x" })).status).toBe("failed");
+  });
+
+  it("loads in full on a 400 for another protocol version, and on a fragment response without version 0", async () => {
+    const { transport, respond, navigated } = setup(content);
+    respond(
+      () => empty(400, { "Tessera-Protocol": "1, 2" }),
+      () => new Response("", { headers: { "Content-Type": "text/vnd.tessera+html" } }),
+    );
+    await transport.request({ kind: "visit", url: "/a" });
+    await transport.request({ kind: "visit", url: "/b" });
+    expect(navigated).toEqual([`${ORIGIN}/a`, `${ORIGIN}/b`]);
+  });
+
+  it("hands a whole document to commitDocument, or loads in full without it", async () => {
+    const commitDocument = vi.fn();
+    const html = () => new Response("<!doctype html><title>x</title>", { headers: { "Content-Type": "text/html; charset=utf-8" } });
+    const first = setup(content, { commitDocument });
+    first.respond(html);
+    expect((await first.transport.request({ kind: "visit", url: "/doc" })).status).toBe("committed");
+    expect(commitDocument).toHaveBeenCalledWith("<!doctype html><title>x</title>", `${ORIGIN}/doc`, expect.anything());
+    kernel?.dispose();
+    const second = setup(content);
+    second.respond(html);
+    expect((await second.transport.request({ kind: "visit", url: "/doc" })).status).toBe("full-load");
+  });
+
+  it("commits templates, signal patches, the title and the CSRF token", async () => {
+    const { transport, respond, find, mount } = setup(`${content}<nav data-region="sidebar"></nav>`);
+    respond(() =>
+      fragments(`<title>New · Shop</title><meta name="tessera-csrf-token" content="next">
+        ${contentFragment("new")}<template data-target="sidebar" data-mode="append"><a>link</a></template>
+        <script type="application/json" data-scope="page">{"unread":4}</script>`),
+    );
+    expect((await transport.request({ kind: "visit", url: "/n", targets: ["content"] })).status).toBe("committed");
+    expect(find("#text").textContent).toBe("new");
+    expect(find("nav").innerHTML).toBe("<a>link</a>");
+    expect(document.title).toBe("New · Shop");
+    expect((find('meta[name="tessera-csrf-token"]') as HTMLMetaElement).content).toBe("next");
+    expect(mount.scopes.document).toEqual({ unread: 4 });
+  });
+
+  it("commits nothing for a malformed response or overlapping targets", async () => {
+    const { transport, respond, find } = setup(content);
+    respond(
+      () => fragments(`${contentFragment("x")}<div>stray</div>`),
+      () => fragments(`${contentFragment("x")}<template data-target="content" data-mode="inner"><p>y</p></template>`),
+      () => fragments(`<template data-target="page"><p></p></template>`),
+    );
+    for (let index = 0; index < 3; index++) {
+      expect((await transport.request({ kind: "refresh", url: "/x" })).status).toBe("failed");
+    }
+    expect(find("#text").textContent).toBe("old");
+  });
+
+  it("drops a requested target that left the page, and loads a visit in full for another missing one", async () => {
+    const { transport, respond, find, navigated } = setup(`${content}<nav data-region="sidebar"><p id="side">old</p></nav>`);
+    respond(
+      () => fragments(`<template data-target="gone"><div data-region="gone"></div></template><template data-target="sidebar"><nav data-region="sidebar"><p id="side">new</p></nav></template>`),
+      () => fragments(`<template data-target="unknown"><div data-region="unknown"></div></template>`),
+    );
+    expect((await transport.request({ kind: "refresh", url: "/x", targets: ["gone", "sidebar"] })).status).toBe("committed");
+    expect(find("#side").textContent).toBe("new");
+    expect((await transport.request({ kind: "visit", url: "/v", targets: ["content"] })).status).toBe("full-load");
+    expect(navigated).toEqual([`${ORIGIN}/v`]);
+  });
+
+  it("loads in full when the tracked assets changed", async () => {
+    const { transport, respond, navigated, find } = setup(content, {}, `<script src="/app.1.js" data-track></script>`);
+    respond(() => fragments(`<script src="/app.2.js" data-track></script>${contentFragment("x")}`), () => fragments(`<script src="/app.1.js" data-track></script>${contentFragment("y")}`));
+    expect((await transport.request({ kind: "visit", url: "/v", targets: ["content"] })).status).toBe("full-load");
+    expect(navigated).toEqual([`${ORIGIN}/v`]);
+    expect((await transport.request({ kind: "visit", url: "/v", targets: ["content"] })).status).toBe("committed");
+    expect(find("#text").textContent).toBe("y");
+  });
+
+  it("never fetches another origin: a visit loads in full, anything else fails", async () => {
+    const { transport, calls, navigated } = setup(content);
+    expect((await transport.request({ kind: "visit", url: "https://elsewhere.example/" })).status).toBe("full-load");
+    expect((await transport.request({ kind: "submit", method: "POST", url: "https://elsewhere.example/", body: "" })).status).toBe("failed");
+    expect(calls).toEqual([]);
+    expect(navigated).toEqual(["https://elsewhere.example/"]);
+  });
+});
+
+describe("the action seam", () => {
+  it("targets the innermost component or region by default, or the target option", async () => {
+    const { transport, calls, find } = setup(`<main data-region="content"><!--t:c card--><button id="in"></button><!--/t:c--><button id="out"></button></main><p id="loose"></p>`);
+    const call = (element: Element, options?: Record<string, unknown>) =>
+      transport.actions({ method: "get", url: "/x", options, element, event: undefined }) as Promise<RequestOutcome>;
+    await call(find("#in"));
+    await call(find("#out"));
+    await call(find("#loose"));
+    await call(find("#in"), { target: "content sidebar" });
+    expect(calls.map(({ headers }) => headers["tessera-targets"])).toEqual(["content/card", "content", undefined, "content, sidebar"]);
+  });
+
+  it("sends a form's data with { form: true }, and refuses unknown options", async () => {
+    const { transport, calls, find } = setup(`<main data-region="content"><form><input name="q" value="lamp"><button id="b"></button></form></main>`);
+    await transport.actions({ method: "post", url: "/search", options: { form: true }, element: find("#b"), event: undefined });
+    expect(bodyText(calls[0]?.body)).toBe("q=lamp");
+    expect(() => transport.actions({ method: "post", url: "/x", options: { retry: 3 }, element: find("#b"), event: undefined })).toThrow(
+      "@post has no option retry; it takes target and form.",
+    );
+  });
+});

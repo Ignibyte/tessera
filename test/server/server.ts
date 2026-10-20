@@ -150,6 +150,7 @@ const simplePages: Readonly<Record<string, string>> = {
   "/attributes": "attributes",
   "/bare": "bare",
   "/patch": "patch",
+  "/transport": "transport",
 };
 
 /** Answers every route that is not a stream, the controller or its control interface. */
@@ -245,13 +246,25 @@ export interface RunningServer {
 }
 
 /** Starts the server; port 0 (the default) takes a free port. */
-export async function startServer(options: { port?: number; host?: string } = {}): Promise<RunningServer> {
+export interface ServerOptions {
+  port?: number;
+  host?: string;
+  /**
+   * Closes every connection after its response. Browsers resend a request on their own when a
+   * reused keep-alive connection closes before any answer; with no connection to reuse, a
+   * connection the controller drops is always a fresh one, so a test counts what Tessera sent.
+   */
+  closeConnections?: boolean;
+}
+
+export async function startServer(options: ServerOptions = {}): Promise<RunningServer> {
   const secrets: Secrets = {
     key: randomBytes(32).toString("hex"),
     csrf: randomBytes(16).toString("hex"),
   };
   const controller = new Controller((request) => respond(request, secrets));
   const server = createServer((req, res) => {
+    if (options.closeConnections) res.shouldKeepAlive = false;
     dispatch(req, res, secrets, controller).catch((error: unknown) => {
       console.error(error);
       if (res.headersSent) res.destroy();

@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- The transport (`src/transport.ts`, rewritten from jqstar's `fetch.ts`; `src/body.ts`): requests as
+  protocol section 4 builds them, writes sent once and reported indeterminate on any failure after
+  dispatch, only GETs retried, `Tessera-Location` followed as a fresh GET visit, 4xx and 5xx
+  fragments committed, the submitter and its overrides in form data, supersession by target, the
+  CSRF header, `tessera:expired` for 419, the 5 ms buffer and interceptors. The reference server
+  can drop a held connection and close every connection (#11).
 - The SSE parser (`src/sse.ts`, ported from jqstar): incremental over bytes or text split anywhere,
   CRLF, LF and bare CR line endings, a leading BOM, `id` and `retry` as the WHATWG algorithm
   has them, and `dataFields` for the protocol's `data: KEY VALUE` lines (#10).

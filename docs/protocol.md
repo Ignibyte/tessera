@@ -304,7 +304,10 @@ form's data in the form's encoding. A GET or DELETE action has no body.
 - No resent write. A write is dispatched once. A network failure, a timeout or an abort after
   dispatch is reported as **indeterminate** (it may have been saved) and is never retried, and a
   redirect answering a write is never followed by resending the body (section 5.4). Tessera may
-  retry a GET.
+  retry a GET. One resend is outside Tessera's reach: a browser resends a request by itself when
+  a reused keep-alive connection closes before any answer, on the view that the server never saw
+  it. A server that must apply a write once should therefore be ready to see the same write
+  twice when it drops a connection without answering.
 - No second submission of a form while its first is in flight.
 - No CSRF header on a GET, or to another origin.
 - No signals except on actions, and never `_`-prefixed ones.
@@ -462,7 +465,7 @@ the current page's URL for anything else. A full load is always a GET; it never 
 | `307`, `308` | Resend the request elsewhere. | A read follows it. A write is reported as indeterminate and never resent. |
 | `400` with a `Tessera-Protocol` header not listing `0` | This server does not speak your version. | Full load (section 1). |
 | `409`, `422` | The write was refused; here is why. | Commits the fragments in place: the form's region with its errors. No history entry; the URL stays. Focus goes to `data-error-summary`, else the first `aria-invalid="true"` field. |
-| `419` | The page expired (the session or the CSRF token is stale). | Raises a "page expired" event. Its default prompt offers a reload of the current page. Nothing is resent. |
+| `419` | The page expired (the session or the CSRF token is stale). | Raises a "page expired" event (`tessera:expired`, cancelable, on the document). Its default prompt offers a reload of the current page. Nothing is resent. |
 | other `4xx` with a recognized body | The request failed; here is the page or region to show (a `404` page, a `403` notice). | Commits it as for `200`. A visit pushes its URL, as the browser would show the error page at that URL. |
 | `5xx` with a recognized body | The server failed and rendered an error. | Commits it as for a `4xx`. |
 | any status without a recognized body | A response Tessera cannot use. | Reports an error. A visit does a full load; a write is reported as indeterminate. |

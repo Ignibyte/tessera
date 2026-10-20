@@ -1,0 +1,15 @@
+<!--page {"title":"Transport","layout":"app"}-->
+<!--slot content-->
+    <h1>Transport</h1>
+    <form id="plain" method="post" action="/form">
+      <input type="hidden" name="_token" value="{{csrf}}">
+      <label for="name">Name</label>
+      <input id="name" name="name" value="">
+      <button type="submit">Send</button>
+    </form>
+    <form id="held" method="post" action="/controlled/unset/save">
+      <input name="title" value="Lamp">
+      <button id="draft" name="intent" value="draft">Draft</button>
+      <button id="publish" name="intent" value="publish">Publish</button>
+    </form>
+    <script src="/assets/harness.js"></script>

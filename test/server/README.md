@@ -8,7 +8,10 @@ npm run serve:test              # a free port; prints the URL
 node test/server/main.ts --port 4180
 ```
 
-Playwright starts it itself (`webServer` in `playwright.config.ts`).
+Playwright starts it itself (`webServer` in `playwright.config.ts`) with `--close-connections`,
+which closes every connection after its response. A browser resends a request by itself when a
+reused keep-alive connection closes before any answer, so without it a connection the controller
+drops would show the browser's resend, not what Tessera sent.
 
 ## Files
 
@@ -41,6 +44,7 @@ all on the page (and, for a visit, the layout matches), and the full document ot
 | `GET /about` | A second page on `app` |
 | `GET /attributes` | The attribute vocabulary of #7 on one page, booted by `/assets/harness.js` |
 | `GET /patch` | Region `form-area` with an input, for patches driven through `/assets/harness.js` |
+| `GET /transport` | A form posting to `/form` and one posting to the controller, for the transport's tests |
 | `GET /bare` | A page on the `bare` layout, so a visit from `app` gets the full document |
 | `GET /form` | A form posting `name` and `_token` to `/form` |
 | `POST /form` | `419` on a CSRF token matching neither `X-CSRF-Token` nor `_token`; `422` with the errors for an empty name; `409` for the name `taken`; else `303` to `/form/done?name=…`, or `200` with `Tessera-Location` for a Tessera request |
@@ -77,13 +81,14 @@ own, since tests run in parallel against one server.
 | Request | Effect |
 |---|---|
 | `POST /_control/CHANNEL/release` | Answers the oldest held request, or with `path` (path and query, exactly) and `method`, the oldest held one that matches. Waits up to `timeout` ms (default 5000, at most 30000) for one to arrive; with none, `408` and the held list. On success, `200` with `{seq, method, url, status}`. |
-| `GET /_control/CHANNEL/requests` | `{requests: [{seq, method, url, headers, body, state}]}` in arrival order; `state` is `held`, `answered` or `aborted` (the client went away) |
+| `GET /_control/CHANNEL/requests` | `{requests: [{seq, method, url, headers, body, state}]}` in arrival order; `state` is `held`, `answered`, `aborted` (the client went away) or `dropped` (a release with `drop`) |
 | `POST /_control/CHANNEL/reset` | Answers every held request `503`, forgets the channel, returns `{held: N}` |
 
 The release body is JSON: either `status` (default 200), `headers` and `body` (default empty),
 or `serve`, a URL whose answer the server gives to the held request's method, headers and body
-(`{"serve": "/about"}` answers a held visit with the About page's fragments). An unknown field or
-a bad value is a `400`.
+(`{"serve": "/about"}` answers a held visit with the About page's fragments), or `drop: true`, which
+destroys the held connection without an answer, so the client sees a network failure after
+dispatch (its state becomes `dropped`). An unknown field or a bad value is a `400`.
 
 ```js
 // Answer two visits in the reverse of their order.
