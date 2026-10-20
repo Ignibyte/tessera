@@ -3,11 +3,12 @@ number: 10
 uuid: f4851041-6fd1-4e46-a0bf-b51d1953c12c
 title: "The SSE parser"
 type: feature
-status: in-progress
+status: done
 tags: ["sse","port"]
 created: 2026-10-20T18:00:00Z
-updated: 2026-10-20T23:43:03Z
+updated: 2026-10-20T23:43:21Z
 phase: "docs"
+closed: 2026-10-20T23:43:21Z
 ---
 
 Port `src/sse.ts` (93 lines), the incremental parser, to the WHATWG event-stream grammar.
@@ -55,3 +56,7 @@ chunking at byte level (inside CRLF pairs and multi-byte characters) yields the 
 last event ID and retry as feeding the whole; a serialised event list parses back to itself;
 jqstar's chunk-boundary and data-field properties. `test/property/regressions.json` holds
 counterexamples as named cases, replayed by a test: jqstar's `sse-crlf-boundary` is the first.
+
+### 2026-10-20T23:43:21Z
+
+Delivered via PR #11 (ef745eb). The incremental SSE parser to the WHATWG algorithm, with chunking property tests and a regression file.
