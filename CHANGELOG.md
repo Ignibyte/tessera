@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Patching (`src/patch.ts`, ported from jqstar): fragments morphed into a region or a component
+  found by identity, in the modes morph, inner, append, prepend and remove, through one render
+  transaction each; blocks pair by position, `data-ignore-morph` survives, focus and typed values
+  stay, directives re-apply after a morph, and signal scopes survive a morph that replaces their
+  marker. Signal patches merge into a target's scope (#9).
 - Signal scopes (`src/scopes.ts`): the document, each region and each component own one; reads go
   innermost first, declarations shadow, `data-signals__region` and `__document` reach out, scopes
   are owned through the kernel and survive moves, and `payload` with `encodeSignals` builds

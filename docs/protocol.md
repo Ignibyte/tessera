@@ -368,7 +368,7 @@ A fragment response cannot target `page`: to update the whole document, send a f
 
 | Mode | Template content | Effect on a region | Effect on a component |
 |---|---|---|---|
-| `morph` | the whole target as the page would render it | Exactly one element, carrying `data-region` with the target's name. Its attributes and children are morphed into the live region element. | Exactly one opening marker with the target's key, its content and its closing marker. The markers' props and the content between them are morphed in. |
+| `morph` | the whole target as the page would render it | Exactly one element, carrying `data-region` with the target's name and the same tag as the live region element. Its attributes and children are morphed into the live region element. | Exactly one opening marker with the target's key, its content and its closing marker. The markers' props and the content between them are morphed in. |
 | `inner` | the target's new children | The children are morphed; the element's own attributes stay. | The nodes between the markers are morphed; the markers and their props stay. |
 | `append` | nodes to add | Added after the last child. | Added before the closing marker. |
 | `prepend` | nodes to add | Added before the first child. | Added after the opening marker. |
