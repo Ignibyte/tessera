@@ -40,6 +40,7 @@ all on the page (and, for a visit, the layout matches), and the full document ot
 | `GET /` | Home: regions `sidebar`, `content` and `notes` (inside `content`); components `content/greeting`, `content/greeting/count`, `notes/note-1`, `notes/note-2`, `page/crumb` |
 | `GET /about` | A second page on `app` |
 | `GET /attributes` | The attribute vocabulary of #7 on one page, booted by `/assets/harness.js` |
+| `GET /patch` | Region `form-area` with an input, for patches driven through `/assets/harness.js` |
 | `GET /bare` | A page on the `bare` layout, so a visit from `app` gets the full document |
 | `GET /form` | A form posting `name` and `_token` to `/form` |
 | `POST /form` | `419` on a CSRF token matching neither `X-CSRF-Token` nor `_token`; `422` with the errors for an empty name; `409` for the name `taken`; else `303` to `/form/done?name=…`, or `200` with `Tessera-Location` for a Tessera request |

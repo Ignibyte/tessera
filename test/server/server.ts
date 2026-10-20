@@ -149,6 +149,7 @@ const simplePages: Readonly<Record<string, string>> = {
   "/about": "about",
   "/attributes": "attributes",
   "/bare": "bare",
+  "/patch": "patch",
 };
 
 /** Answers every route that is not a stream, the controller or its control interface. */

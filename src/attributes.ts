@@ -48,6 +48,11 @@ export interface AttributesMount extends Mount {
   /** The document's scope. */
   readonly signals: Record<string, unknown>;
   readonly scopes: Scopes;
+  /**
+   * Re-runs the effects of the directives on these elements, for a patch that morphed them back
+   * to the server's markup (a morph empties what `data-text` wrote, drops what `data-class` added).
+   */
+  refresh(elements: Iterable<Element>): void;
 }
 
 interface MountedDirective {
@@ -58,6 +63,7 @@ interface MountedDirective {
   /** The element's scope chain when it mounted; a move that changes it remounts. */
   readonly owners: readonly ScopeOwner[];
   readonly releases: (() => void)[];
+  readonly effects: ReactiveEffect[];
 }
 
 let mountId = 0;
@@ -227,6 +233,7 @@ class Attributes implements AttributesMount, MountLifecycle {
       element,
       owners: this.scopes.owners(element),
       releases: [],
+      effects: [],
     };
     let records = this.#byElement.get(element);
     if (!records) {
@@ -315,6 +322,7 @@ class Attributes implements AttributesMount, MountLifecycle {
         });
         try {
           runner = scheduler.effect(run, { owner, onError: report });
+          record.effects.push(runner);
         } catch (error) {
           release();
           throw error;
@@ -411,6 +419,21 @@ class Attributes implements AttributesMount, MountLifecycle {
       }
     }
     throwCollectedErrors(errors, "Tessera attributes move failed.");
+  }
+
+  refresh(elements: Iterable<Element>): void {
+    for (const element of elements) {
+      for (const record of this.#byElement.get(element)?.values() ?? []) {
+        for (const runner of record.effects) {
+          if (!runner.active) continue;
+          try {
+            runner();
+          } catch (error) {
+            this.#report(error, element, record.attribute.name, record.attribute.value);
+          }
+        }
+      }
+    }
   }
 
   #releaseElement(element: Element): void {

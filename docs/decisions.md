@@ -149,6 +149,21 @@ default so work could go on; Chad confirms or changes it, and until then the cod
   at any depth, computed signals, and values JSON cannot carry (nodes, functions, `undefined`,
   symbols, bigints, non-finite numbers, class instances), omitted in objects and `null` in
   arrays; a cycle is an error. Written into `docs/protocol.md` section 4.4.
+- **How the patcher morphs** (**Provisional**, ticket #9, 2026-10-20): a region morphs with
+  Idiomorph's outer morph on the region element, so the element survives; a fragment for it
+  must use the same tag (now in `docs/protocol.md` section 5.3). A component morphs by morphing
+  its markers' parent against a copy of the parent's children in which only the component's run
+  is new, since Idiomorph's public `morph` takes one node; the cost grows with the parent's
+  size, not only the component's. `data-ignore-morph` nodes are neither morphed nor removed and
+  are the render's preserved roots. After a morph, the directives on every morphed element run
+  again, so what the server's markup undid (`data-text`'s text, `data-class`'s classes) comes
+  back. An unknown target, a duplicate and a fragment that does not fit its mode are errors, and
+  nothing changes.
+- **Scopes survive a morph that replaces their owner** (**Provisional**, ticket #9, 2026-10-20):
+  the patcher holds back the removal of any node that owns a scope until the morph is done,
+  then hands each scope whose owner's path (protocol section 2.4) reappears on another node to
+  that node with `scopes.transfer`, all pairs at once so components that trade places keep
+  their own scopes, and only then tears down and removes the held nodes, still connected.
 
 ## Open
 

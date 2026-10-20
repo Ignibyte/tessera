@@ -28,6 +28,16 @@ function componentKey(comment: Comment): string | undefined {
   return OPENER.exec(comment.data)?.[1];
 }
 
+/** What a scope remembers of its owner: a component's key, a region's name. */
+function keyOf(owner: Element | Comment): string | undefined {
+  return owner.nodeType === 8 ? componentKey(owner as Comment) : ((owner as Element).getAttribute("data-region") ?? undefined);
+}
+
+/** Whether a node owns a scope: a component's opening comment, or a region element. */
+export function isScopeOwner(node: Node): node is Element | Comment {
+  return node.nodeType === 8 ? OPENER.test((node as Comment).data) : node.nodeType === 1 && (node as Element).hasAttribute("data-region");
+}
+
 function isComment(node: Node): node is Comment {
   return node.nodeType === 8;
 }
@@ -52,10 +62,13 @@ export class Scopes {
     this.document = documentSignals;
   }
 
-  /** The owners of an element's scopes, innermost first, ending with the document. */
-  owners(element: Element): ScopeOwner[] {
+  /**
+   * The owners of a node's scopes, innermost first, ending with the document. For a
+   * component's opening comment the chain starts with the components around it.
+   */
+  owners(start: Element | Comment): ScopeOwner[] {
     const owners: ScopeOwner[] = [];
-    for (let node: Node | null = element; node && node.nodeType !== 9; node = node.parentNode) {
+    for (let node: Node | null = start; node && node.nodeType !== 9; node = node.parentNode) {
       if (isElement(node) && node.hasAttribute("data-region")) owners.push(node);
       let depth = 0;
       for (let sibling = node.previousSibling; sibling; sibling = sibling.previousSibling) {
@@ -67,15 +80,33 @@ export class Scopes {
         }
       }
     }
-    owners.push(element.ownerDocument);
+    owners.push(start.ownerDocument);
     return owners;
+  }
+
+  /**
+   * The target spelling of a scope's owner (docs/protocol.md, section 2.4): a region's name, or a
+   * component's path from its nearest region (or `page`).
+   */
+  pathOf(owner: Element | Comment): string {
+    if (isElement(owner)) return owner.getAttribute("data-region") ?? "";
+    const keys = [componentKey(owner) ?? ""];
+    let base = "page";
+    for (const enclosing of this.owners(owner)) {
+      if (enclosing.nodeType === 8) keys.unshift(componentKey(enclosing as Comment) ?? "");
+      else if (enclosing.nodeType === 1) {
+        base = (enclosing as Element).getAttribute("data-region") ?? "";
+        break;
+      }
+    }
+    return [base, ...keys].join("/");
   }
 
   /** The scope an owner holds, created on first use, started afresh if a component's key changed. */
   scopeOf(owner: ScopeOwner): Record<string, unknown> {
     if (owner.nodeType === 9) return this.document;
     const node = owner as Element | Comment;
-    const key = isComment(node) ? componentKey(node) : undefined;
+    const key = keyOf(node);
     const current = this.#records.get(node);
     if (current && current.key === key) return current.signals;
     if (current) this.#dispose(node, current);
@@ -134,16 +165,29 @@ export class Scopes {
     });
   }
 
-  /** Hands a component's scope to a new opening comment with the same key. */
-  transfer(from: Comment, to: Comment): void {
-    const record = this.#records.get(from);
-    if (!record) return;
-    this.#records.delete(from);
-    if (record.key !== componentKey(to) || this.#records.has(to)) {
-      record.release();
-      return;
+  /**
+   * Hands a scope to the node replacing its owner: a component's opening comment with the same
+   * key, or a region element with the same name. Any other replacement starts afresh. A list of
+   * pairs moves together, so two owners can trade places (a morph that reorders components).
+   */
+  transfer(from: Element | Comment, to: Element | Comment): void;
+  transfer(pairs: readonly (readonly [Element | Comment, Element | Comment])[]): void;
+  transfer(
+    first: Element | Comment | readonly (readonly [Element | Comment, Element | Comment])[],
+    second?: Element | Comment,
+  ): void {
+    const pairs: readonly (readonly [Element | Comment, Element | Comment])[] =
+      "nodeType" in first ? (second ? [[first, second]] : []) : first;
+    const moving = pairs.flatMap(([from, to]) => {
+      const record = this.#records.get(from);
+      if (!record) return [];
+      this.#records.delete(from);
+      return [{ record, from, to }];
+    });
+    for (const { record, from, to } of moving) {
+      if (from.nodeType !== to.nodeType || record.key !== keyOf(to) || this.#records.has(to)) record.release();
+      else this.#records.set(to, record);
     }
-    this.#records.set(to, record);
   }
 
   /**
