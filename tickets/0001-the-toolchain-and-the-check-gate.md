@@ -3,11 +3,12 @@ number: 1
 uuid: 3e8f9fcf-b79b-4298-b797-8ff1a76fc0e9
 title: "The toolchain and the check gate"
 type: chore
-status: in-progress
+status: done
 tags: ["foundation"]
 created: 2026-10-20T18:00:00Z
-updated: 2026-10-20T22:00:12Z
+updated: 2026-10-20T22:00:53Z
 phase: "check"
+closed: 2026-10-20T22:00:53Z
 ---
 
 Set up the TypeScript project every later ticket builds on.
@@ -58,3 +59,7 @@ Files:
 Acceptance: run `npm ci && npm run check` in a fresh clone of the branch; plant a `// @ts-ignore`, a type error and a failing test one at a time, record that each fails `check` at the expected step, then remove them. The PR says so.
 
 Decision: the output file names, the IIFE file name in particular, go in `docs/decisions.md` as Provisional.
+
+### 2026-10-20T22:00:53Z
+
+Delivered via PR #1 (d0e7eb3). npm run check (typecheck, lint, test, build, size) passes from a clean clone, and planted @ts-ignore, type-error and failing-test changes each fail it.
