@@ -3,11 +3,12 @@ number: 2
 uuid: 3d88eba9-e521-4ee4-844e-54f9ed090d6f
 title: "The protocol, version 0"
 type: docs
-status: in-progress
+status: done
 tags: ["protocol"]
 created: 2026-10-20T18:00:00Z
-updated: 2026-10-20T22:14:30Z
+updated: 2026-10-20T22:15:04Z
 phase: "check"
+closed: 2026-10-20T22:15:04Z
 ---
 
 Write `docs/protocol.md`: everything a server must do to speak Tessera, precise enough that AIC
@@ -67,3 +68,7 @@ Decisions, each recorded as Provisional:
 - Signals go only with actions, in a header, as ASCII-only JSON, at most 4,096 bytes.
 
 Acceptance: a table at the end maps every row of the design's request table to its section and example; a pass over the document checks each header, event and attribute appears under one name only; `docs/decisions.md` lists the provisional choices. `npm run check` passes (a docs-only change, run anyway).
+
+### 2026-10-20T22:15:04Z
+
+Delivered via PR #2 (d5524ee). docs/protocol.md specifies version 0 for servers; its choices are Provisional in docs/decisions.md.
