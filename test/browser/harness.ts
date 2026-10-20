@@ -25,5 +25,11 @@ const mount = mountAttributes(document.body, {
 });
 
 Object.assign(window, {
-  tesseraHarness: { signals: mount.signals, calls: recorder.calls, failures, settle: () => kernel.whenEnhanced() },
+  tesseraHarness: {
+    signals: mount.signals,
+    scopes: mount.scopes,
+    calls: recorder.calls,
+    failures,
+    settle: () => kernel.whenEnhanced(),
+  },
 });

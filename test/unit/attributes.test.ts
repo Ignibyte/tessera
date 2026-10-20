@@ -3,61 +3,15 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createActionRecorder } from "../../src/actions.ts";
 import { ERROR_EVENT, mountAttributes } from "../../src/attributes.ts";
-import type { AttributeFailure, AttributesOptions } from "../../src/attributes.ts";
+import type { AttributeFailure } from "../../src/attributes.ts";
 import { registerBuiltins } from "../../src/builtins.ts";
 import { createDirectiveRegistry } from "../../src/directive.ts";
 import { createTrustedExpressionEngine } from "../../src/expression.ts";
 import { Kernel } from "../../src/kernel.ts";
 import { reactive, Scheduler } from "../../src/reactivity.ts";
+import { disposeFixtures, frames, setup } from "./attributes-fixture.ts";
 
-const frames: { frame: HTMLIFrameElement; kernel: Kernel }[] = [];
-
-afterEach(() => {
-  vi.useRealTimers();
-  for (const { frame, kernel } of frames.splice(0)) {
-    if (!kernel.disposed) kernel.dispose();
-    frame.remove();
-  }
-});
-
-function setup(html: string, options: { signals?: Record<string, unknown>; report?: boolean } = {}) {
-  const frame = document.createElement("iframe");
-  document.body.append(frame);
-  const window = frame.contentWindow as (Window & typeof globalThis) | null;
-  const doc = frame.contentDocument;
-  if (!window || !doc) throw new Error("no frame");
-  doc.body.innerHTML = html;
-  const scheduler = new Scheduler();
-  const kernel = new Kernel(doc, { flush: () => scheduler.nextUpdate() });
-  frames.push({ frame, kernel });
-  const registry = createDirectiveRegistry();
-  registerBuiltins(registry);
-  const recorder = createActionRecorder();
-  const failures: AttributeFailure[] = [];
-  const mountOptions: AttributesOptions = {
-    kernel,
-    scheduler,
-    expressions: createTrustedExpressionEngine(),
-    registry,
-    actions: recorder.seam,
-    ...(options.signals ? { signals: options.signals } : {}),
-    ...(options.report === false ? {} : { report: (failure: AttributeFailure) => failures.push(failure) }),
-  };
-  const mount = mountAttributes(doc.body, mountOptions);
-  const find = (selector: string): HTMLElement => {
-    const element = doc.querySelector<HTMLElement>(selector);
-    if (!element) throw new Error(`no ${selector}`);
-    return element;
-  };
-  const settle = async (): Promise<void> => {
-    await new Promise<void>((resolve) => {
-      window.setTimeout(resolve, 0);
-    });
-    await kernel.whenEnhanced();
-  };
-  const owners = (): string[] => kernel.resourceSummary().map(({ owner }) => owner);
-  return { window, doc, kernel, scheduler, mount, signals: mount.signals, failures, recorder, find, settle, owners };
-}
+afterEach(disposeFixtures);
 
 function messages(failures: readonly AttributeFailure[]): string[] {
   return failures.map(({ error }) => (error instanceof Error ? error.message : String(error)));

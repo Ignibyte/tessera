@@ -134,6 +134,21 @@ default so work could go on; Chad confirms or changes it, and until then the cod
   boolean, or toggles its value in a signal holding an array; a radio gives its value when
   checked and leaves the signal alone otherwise; a multiple select gives an array. Paths are
   dotted, and each segment is camelCased (`data-bind:user.first-name` binds `$user.firstName`).
+- **How scopes resolve, declare and live** (**Provisional**, ticket #8, 2026-10-20): an
+  element's scopes are its enclosing components (each opening marker), its enclosing regions and
+  the document, innermost first. `$name` reads the innermost scope that has the name; a write
+  goes to that scope, or to the nearest one when none has it. `data-signals`, `data-computed`
+  and `data-ref` declare into the nearest scope, so a name declared there shadows the same name
+  further out; `data-signals__region` declares into the enclosing region (the document when
+  there is none) and `data-signals__document` into the document. A scope is disposed when its
+  owner leaves the document or a render removes it; a move within the page keeps it, and
+  remounts only the directives whose chain changed. A component scope belongs to its opening
+  comment and remembers its key: a changed key starts a new scope, and the patcher (#9) hands a
+  scope to a replacement marker with the same key.
+- **What the signals payload leaves out** (**Provisional**, ticket #8, 2026-10-20): `_` names
+  at any depth, computed signals, and values JSON cannot carry (nodes, functions, `undefined`,
+  symbols, bigints, non-finite numbers, class instances), omitted in objects and `null` in
+  arrays; a cycle is an error. Written into `docs/protocol.md` section 4.4.
 
 ## Open
 

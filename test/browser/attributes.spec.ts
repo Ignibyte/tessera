@@ -6,6 +6,7 @@ import type { Page } from "@playwright/test";
 
 interface Harness {
   signals: Record<string, unknown>;
+  scopes: { scopeOf(owner: Element): Record<string, unknown> };
   calls: readonly { method: string; url: string; options: unknown }[];
   failures: string[];
   settle(): Promise<void>;
@@ -55,8 +56,12 @@ test("form fields bind both ways", async ({ page }) => {
     note: "bye",
   });
 
+  // The page's signals live in the layout's content region, not in the document's scope.
   await page.evaluate(() => {
-    const { signals } = (window as unknown as HarnessWindow).tesseraHarness;
+    const { scopes } = (window as unknown as HarnessWindow).tesseraHarness;
+    const region = document.querySelector("[data-region=content]");
+    if (!region) throw new Error("no content region");
+    const signals = scopes.scopeOf(region);
     signals.name = "Edsger";
     signals.size = "m";
   });

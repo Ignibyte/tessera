@@ -50,13 +50,18 @@ function mergeSignals(target: Record<string, unknown>, source: Record<string, un
 const signals: Directive = {
   name: "signals",
   key: "forbidden",
+  modifiers: ["region", "document"],
   priority: 300,
-  mount({ attribute, context, expressions }) {
+  mount({ attribute, context, expressions, scope }) {
+    const names = new Set(attribute.modifiers.map(({ name }) => name));
+    if (names.size > 1) throw new TypeError("data-signals takes __region or __document, not both.");
     const value = expressions.compileValue(attribute.value, location(attribute))(context);
     if (!isPlainRecord(value)) {
       throw new TypeError('data-signals must evaluate to an object, as in data-signals="{count: 0}".');
     }
-    mergeSignals(context.signals, value);
+    // Declaring goes to one scope, never through the chain, so a name declared here shadows
+    // the same name further out.
+    mergeSignals(scope(names.has("region") ? "region" : names.has("document") ? "document" : "nearest"), value);
     return undefined;
   },
 };
@@ -65,11 +70,11 @@ const computedSignal: Directive = {
   name: "computed",
   key: "required",
   priority: 200,
-  mount({ attribute, context, expressions }) {
+  mount({ attribute, context, expressions, scope }) {
     const name = camelCase(attribute.key ?? "");
     const evaluate = expressions.compileValue(attribute.value, location(attribute));
     const value = computed(() => evaluate(context));
-    const { signals: target } = context;
+    const target = scope();
     const previous = Object.getOwnPropertyDescriptor(toRaw(target), name);
     Object.defineProperty(target, name, { configurable: true, enumerable: true, get: () => value.value });
     notifyPropertyChange(target, name);
@@ -86,14 +91,15 @@ const ref: Directive = {
   name: "ref",
   key: "optional",
   priority: 150,
-  mount({ attribute, context, element }) {
+  mount({ attribute, element, scope }) {
     const name = attribute.key === undefined ? attribute.value.trim() : camelCase(attribute.key);
     if (!/^[A-Za-z_][\w]*$/.test(name)) {
       throw new TypeError('data-ref names a signal: data-ref:name or data-ref="name".');
     }
-    context.signals[name] = element;
+    const target = scope();
+    target[name] = element;
     return () => {
-      if (toRaw(context.signals)[name] === element) Reflect.deleteProperty(context.signals, name);
+      if (toRaw(target)[name] === element) Reflect.deleteProperty(target, name);
     };
   },
 };

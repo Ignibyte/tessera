@@ -4,6 +4,7 @@
 // key and modifier grammar is new (jqstar parsed `data-on` modifiers in `src/declarative.ts`).
 import type { ExpressionContext, ExpressionEngine, HelperScope } from "./expression.ts";
 import { EXPRESSION_BUILTINS } from "./expression.ts";
+import type { ScopeLevel } from "./scopes.ts";
 
 export type DirectiveCleanup = () => void;
 export type DirectiveTask = (signal: AbortSignal) => PromiseLike<unknown>;
@@ -37,6 +38,8 @@ export interface DirectiveContext<Parsed = string> {
   readonly expressions: ExpressionEngine;
   readonly previous?: ParsedDirectiveAttribute<Parsed>;
   readonly cleanup: (cleanup: DirectiveCleanup) => DirectiveCleanup;
+  /** The scope to declare into: the element's nearest (the default), its region's, or the document's. */
+  readonly scope: (level?: ScopeLevel) => Record<string, unknown>;
   readonly effect: (run: () => void) => DirectiveCleanup;
   /** An event listener owned with the element: released with the directive. */
   readonly listen: (
