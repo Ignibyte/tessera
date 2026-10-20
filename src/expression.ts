@@ -7,6 +7,7 @@
 // jqstar `src/csp/` can replace it.
 import { ACTION_METHODS } from "./actions.ts";
 import type { ActionMethod, ActionSeam } from "./actions.ts";
+import { isThenable } from "./values.ts";
 
 export type HelperScope = Readonly<Record<string, unknown>>;
 
@@ -102,14 +103,6 @@ export class ExpressionError extends Error {
     if (location) this.location = location;
     if (element) this.element = element;
   }
-}
-
-function isThenable(value: unknown): value is PromiseLike<unknown> {
-  return (
-    ((typeof value === "object" && value !== null) || typeof value === "function") &&
-    "then" in value &&
-    typeof value.then === "function"
-  );
 }
 
 function skipQuoted(source: string, start: number, quote: string): number {

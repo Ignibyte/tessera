@@ -121,6 +121,19 @@ default so work could go on; Chad confirms or changes it, and until then the cod
   decision, 2026-10-20, Chad to confirm): jqstar `src/csp/` ported behind the same
   `ExpressionEngine` seam, ticket #22, required before Release 0.1.0 (#19). The trusted engine
   stays the default.
+- **Directive failures raise `tessera:error`** (**Provisional**, ticket #7, 2026-10-20): when a
+  directive fails (a bad expression, a bad attribute name, a statement that rejects), the
+  runtime dispatches a bubbling, cancelable `CustomEvent` named `tessera:error` on the element,
+  with `detail` `{ error, element, attribute, expression }`; a listener that calls
+  `preventDefault()` has handled it, otherwise the error goes to `console.error`. jqstar raised
+  `jquery-star:error` through jQuery. The page goes on: one failing attribute does not stop the
+  others.
+- **What `data-bind` reads and writes** (**Provisional**, ticket #7, 2026-10-20): a signal not
+  yet defined starts from the element's value; number and range inputs, and any input bound to
+  a signal that already holds a number, give a number, or `null` when empty; a checkbox gives a
+  boolean, or toggles its value in a signal holding an array; a radio gives its value when
+  checked and leaves the signal alone otherwise; a multiple select gives an array. Paths are
+  dotted, and each segment is camelCased (`data-bind:user.first-name` binds `$user.firstName`).
 
 ## Open
 

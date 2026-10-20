@@ -21,6 +21,8 @@ const MAX_BODY = 1024 * 1024;
 
 const assets: Readonly<Record<string, string>> = {
   "/assets/fixture.css": resolve(root, "assets/fixture.css"),
+  // Built by test/browser/global-setup.ts.
+  "/assets/harness.js": resolve(repo, "node_modules/.cache/tessera-harness/harness.js"),
   ...Object.fromEntries(
     ["tessera.js", "tessera.min.js", "tessera.iife.js"].flatMap((file) => [
       [`/assets/${file}`, resolve(repo, "dist", file)],
@@ -138,11 +140,16 @@ async function asset(path: string): Promise<FixtureResponse> {
     const body = await readFile(file);
     return { status: 200, headers: { "Content-Type": contentTypes[extname(file)] ?? "application/octet-stream" }, body };
   } catch {
-    return text(404, `${path} is not built: run npm run build.`);
+    return text(404, `${path} is not built: run npm run build, or npm run test:browser for the harness.`);
   }
 }
 
-const simplePages: Readonly<Record<string, string>> = { "/": "index", "/about": "about", "/bare": "bare" };
+const simplePages: Readonly<Record<string, string>> = {
+  "/": "index",
+  "/about": "about",
+  "/attributes": "attributes",
+  "/bare": "bare",
+};
 
 /** Answers every route that is not a stream, the controller or its control interface. */
 async function respond(request: FixtureRequest, secrets: Secrets): Promise<FixtureResponse> {

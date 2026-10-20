@@ -1,8 +1,10 @@
 // Signals: Proxies over plain objects and arrays that record which effects read which keys,
 // and re-run those effects in a microtask after a write. Ported from jqstar
 // `src/reactivity.ts`, with `in` and key iteration tracked, array mutators that do not track,
-// memoized computed values, and one scheduler per runtime instead of one per realm. Maps, Sets
-// and class instances with private fields are not made reactive beyond their plain properties.
+// memoized computed values, and one scheduler per runtime instead of one per realm. Only plain
+// objects and arrays read from a reactive object come back reactive; DOM nodes, class
+// instances, Maps and Sets come back as themselves.
+import { isPlainRecord } from "./values.ts";
 
 type Key = PropertyKey;
 
@@ -137,7 +139,7 @@ export function reactive<T extends object>(target: T): T {
         };
       }
       track(source, key);
-      return isObject(value) ? reactive(value) : value;
+      return Array.isArray(value) || isPlainRecord(value) ? reactive(value) : value;
     },
 
     set(source, key, value, receiver) {
