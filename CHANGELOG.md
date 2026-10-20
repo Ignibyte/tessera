@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- The kernel (`src/kernel.ts`, ported from jqstar): one per Document, a resource ledger that
+  releases each resource once (on release, on its root leaving the page, or at disposal), render
+  transactions that tear down deepest first and keep preserved roots and their focus, the
+  enhancement barrier, and disposal with a frozen report (#4).
 - The reference server (`test/server/`, `npm run serve:test`): fixture pages on two layouts,
   fragments or full documents per protocol 5.1, the form's 303, 422, 409 and 419, a resumable SSE
   stream, a slow endpoint and a controller that holds requests until a test answers them. Playwright
