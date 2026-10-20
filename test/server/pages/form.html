@@ -1,0 +1,10 @@
+<!--page {"title":"Form","layout":"app"}-->
+<!--slot content-->
+    <h1>Form</h1>
+    <!--t:b-->{{{error-summary}}}<!--/t:b-->
+    <form method="post" action="/form">
+      <input type="hidden" name="_token" value="{{csrf}}">
+      <label for="name">Name</label>
+      <input id="name" name="name" value="{{name}}"{{{name-invalid}}}>
+      <button type="submit">Send</button>
+    </form>

@@ -80,6 +80,13 @@ default so work could go on; Chad confirms or changes it, and until then the cod
   plus the standard `autofocus` and `aria-invalid`, and the metas `tessera-layout`,
   `tessera-csrf-token` and `tessera-csrf-header` (default header `X-CSRF-Token`). The owning
   tickets build the behaviour; the names are fixed in `docs/protocol.md`.
+- **Browser tests run in Chromium and Firefox; WebKit does not run on the dev box**
+  (**Provisional**, ticket #3, 2026-10-20). Playwright 1.62.1's WebKit build (webkit-2336) is
+  made for Ubuntu and needs libraries this Arch box lacks: ICU 74 (the box has 78),
+  `libxml2.so.2`, flite, libjxl 0.8 and libbacktrace. Installing them means system packages,
+  which the repo's rules forbid. `playwright.config.ts` defines the WebKit project only with
+  `TESSERA_WEBKIT=1`, for a machine that has the libraries (Ubuntu, or a container). Safari
+  coverage needs one before the navigation matrix (#18) counts as passing in all three engines.
 
 ## Open
 
