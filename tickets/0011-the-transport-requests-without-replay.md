@@ -3,11 +3,12 @@ number: 11
 uuid: 4b188507-8ac6-45fd-bcb7-d28399cf60e2
 title: "The transport: requests without replay"
 type: feature
-status: in-progress
+status: done
 tags: ["transport","fix"]
 created: 2026-10-20T18:00:00Z
-updated: 2026-10-20T23:58:45Z
+updated: 2026-10-20T23:59:02Z
 phase: "docs"
+closed: 2026-10-20T23:59:02Z
 ---
 
 Rewrite `src/fetch.ts` (593 lines) and keep the body lease from `src/protocol.ts`. This ticket
@@ -90,3 +91,11 @@ transport): a POST whose connection the reference server drops after dispatch ar
 once (counted at the server, after waiting past the GET backoff) and is reported indeterminate; a
 303 lands as a GET visit; a 422 renders its errors in place; the submitter's name and value
 arrive. The controller gains `{"drop": true}`, which destroys the held connection.
+
+### 2026-10-20T23:59:02Z
+
+Finding: when the server drops a reused keep-alive connection before answering, Chromium and Firefox resend the POST by themselves; Tessera calls fetch once and fetch cannot opt out. The browser tests run the reference server with --close-connections so the dropped connection is fresh and the count is Tessera's (exactly one POST). Recorded in docs/decisions.md; docs/protocol.md 4.5 warns servers. A write id header for server-side dedupe is a possible follow-up, not created.
+
+### 2026-10-20T23:59:02Z
+
+Delivered via PR #12 (e17a7c0). The transport: writes sent once and indeterminate after any failure, only GETs retried, Tessera-Location as a GET visit, 4xx and 5xx fragments committed, the submitter in form data, supersession by target.
