@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- The SSE parser (`src/sse.ts`, ported from jqstar): incremental over bytes or text split anywhere,
+  CRLF, LF and bare CR line endings, a leading BOM, `id` and `retry` as the WHATWG algorithm
+  has them, and `dataFields` for the protocol's `data: KEY VALUE` lines (#10).
 - Patching (`src/patch.ts`, ported from jqstar): fragments morphed into a region or a component
   found by identity, in the modes morph, inner, append, prepend and remove, through one render
   transaction each; blocks pair by position, `data-ignore-morph` survives, focus and typed values

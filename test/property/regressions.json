@@ -1,0 +1,13 @@
+{
+  "$schema": "tessera-property-regressions/1",
+  "sse-crlf-boundary": {
+    "note": "From jqstar test/property/regressions.json: CRLF pairs split across chunks.",
+    "source": "event: update\r\ndata: first\r\ndata: second\r\n\r\n",
+    "chunks": [15, 1, 11, 1, 14, 1, 1]
+  },
+  "sse-cr-at-chunk-end": {
+    "note": "A bare CR ending a chunk, the next chunk starting a new line: jqstar read no line end.",
+    "source": "data: a\rdata: b\r\r",
+    "chunks": [8, 8, 1]
+  }
+}

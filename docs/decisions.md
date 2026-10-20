@@ -164,6 +164,11 @@ default so work could go on; Chad confirms or changes it, and until then the cod
   then hands each scope whose owner's path (protocol section 2.4) reappears on another node to
   that node with `scopes.transfer`, all pairs at once so components that trade places keep
   their own scopes, and only then tears down and removes the held nodes, still connected.
+- **The SSE parser follows the WHATWG algorithm where jqstar did not** (**Provisional**,
+  ticket #10, 2026-10-20): an event the stream ends before its blank line is dropped (jqstar's
+  `finish()` dispatched it); `retry` sets the stream's reconnection time when it is read, not a
+  field of the next event; a block with `id` and no `data` still sets the last event ID at its
+  blank line; a bare CR ends a line, also when it ends a chunk and an LF starts the next.
 
 ## Open
 
