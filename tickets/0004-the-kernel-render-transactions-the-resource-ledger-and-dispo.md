@@ -3,11 +3,12 @@ number: 4
 uuid: b8ac874a-c48f-41e9-b4a4-cd1867b6f513
 title: "The kernel: render transactions, the resource ledger and disposal"
 type: feature
-status: in-progress
+status: done
 tags: ["core","port"]
 created: 2026-10-20T18:00:00Z
-updated: 2026-10-20T22:38:05Z
+updated: 2026-10-20T22:38:23Z
 phase: "docs"
+closed: 2026-10-20T22:38:22Z
 ---
 
 Port jqstar's render transaction and ownership model (`src/kernel.ts`, 1,055 lines;
@@ -73,3 +74,7 @@ preserved roots surviving a render (kept, missing, failed, temporarily detached)
 element removal (native removal, moves, adoption), refusing acquisition in a removal boundary,
 idempotent disposal (same report, same error, recursive dispose). New: focus restore inside a
 preserved root with `preventScroll`, and the flush hook awaited by the barrier.
+
+### 2026-10-20T22:38:23Z
+
+Delivered via PR #5 (54763e8). The kernel ported from jqstar: claim, ledger, render transactions, barrier and disposal, with mounts and a flush hook for #5.
