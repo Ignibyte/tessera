@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Expressions and the directive registry (`src/expression.ts`, `src/directive.ts`, `src/actions.ts`,
+  ported from jqstar): a closed scope with no fall-through to page globals, `@get` to `@delete`
+  anywhere in an expression through an action seam, and directive names parsed into a key and
+  modifiers (#6).
 - Reactivity (`src/reactivity.ts`, ported from jqstar): Proxy signals that also track `in` and key
   iteration, array mutators that do not re-run their own effect, memoized computed values, and
   one effect scheduler per runtime, which the kernel's `flush` option waits on (#5).
