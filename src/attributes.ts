@@ -18,6 +18,8 @@ import type { ExpressionContext, ExpressionEngine } from "./expression.ts";
 import type { Kernel, Mount, MountLifecycle, ResourceKind } from "./kernel.ts";
 import { reactive, stop } from "./reactivity.ts";
 import type { ReactiveEffect, Scheduler } from "./reactivity.ts";
+import { Scopes } from "./scopes.ts";
+import type { ScopeLevel, ScopeOwner } from "./scopes.ts";
 import { isThenable } from "./values.ts";
 
 /** The event a directive failure raises on its element when no `report` option is given. */
@@ -36,14 +38,16 @@ export interface AttributesOptions {
   readonly expressions: ExpressionEngine;
   readonly registry: DirectiveRegistry;
   readonly actions: ActionSeam;
-  /** The signals `$name` reads; a reactive object is made when none is given. */
+  /** The document's scope; a reactive object is made when none is given. */
   readonly signals?: Record<string, unknown>;
   /** Receives every directive failure; without it, failures raise `tessera:error`. */
   readonly report?: (failure: AttributeFailure) => void;
 }
 
 export interface AttributesMount extends Mount {
+  /** The document's scope. */
   readonly signals: Record<string, unknown>;
+  readonly scopes: Scopes;
 }
 
 interface MountedDirective {
@@ -51,6 +55,8 @@ interface MountedDirective {
   attribute: ParsedDirectiveAttribute<unknown>;
   readonly directive: Directive<unknown>;
   readonly element: Element;
+  /** The element's scope chain when it mounted; a move that changes it remounts. */
+  readonly owners: readonly ScopeOwner[];
   readonly releases: (() => void)[];
 }
 
@@ -59,6 +65,7 @@ let mountId = 0;
 class Attributes implements AttributesMount, MountLifecycle {
   readonly root: Element;
   readonly signals: Record<string, unknown>;
+  readonly scopes: Scopes;
 
   readonly #options: AttributesOptions;
   readonly #owner = `attributes:${++mountId}`;
@@ -75,6 +82,7 @@ class Attributes implements AttributesMount, MountLifecycle {
     this.root = root;
     this.#options = options;
     this.signals = options.signals ?? reactive({});
+    this.scopes = new Scopes(kernel, this.signals);
     kernel.track(this, this);
     try {
       this.#releaseObserver = kernel.observe(
@@ -107,12 +115,26 @@ class Attributes implements AttributesMount, MountLifecycle {
     this.#releaseObserver = undefined;
     if (releaseObserver) attempt(errors, releaseObserver);
     for (const record of [...this.#active].reverse()) attempt(errors, () => { this.#release(record); });
+    attempt(errors, () => {
+      this.scopes.dispose();
+    });
     this.#options.kernel.untrack(this);
     throwCollectedErrors(errors, "Tessera attributes destruction failed.");
   }
 
-  /** Called by a render removing `tree` from inside this mount. */
+  /** Called by a render removing `tree` from inside this mount: its directives, then its scopes. */
   releaseTree(tree: Element, preservedRoots: readonly Element[]): void {
+    const errors: unknown[] = [];
+    attempt(errors, () => {
+      this.#releaseDirectives(tree, preservedRoots);
+    });
+    attempt(errors, () => {
+      this.scopes.release(tree, preservedRoots);
+    });
+    throwCollectedErrors(errors, "Tessera attributes subtree release failed.");
+  }
+
+  #releaseDirectives(tree: Element, preservedRoots: readonly Element[]): void {
     const errors: unknown[] = [];
     for (const element of [tree, ...Array.from(tree.querySelectorAll("*"))]) {
       if (preservedRoots.some((preserved) => preserved.contains(element))) continue;
@@ -198,7 +220,14 @@ class Attributes implements AttributesMount, MountLifecycle {
     }
 
     releaseCurrent();
-    const record: MountedDirective = { active: true, attribute, directive, element, releases: [] };
+    const record: MountedDirective = {
+      active: true,
+      attribute,
+      directive,
+      element,
+      owners: this.scopes.owners(element),
+      releases: [],
+    };
     let records = this.#byElement.get(element);
     if (!records) {
       records = new Map();
@@ -238,10 +267,10 @@ class Attributes implements AttributesMount, MountLifecycle {
 
   // --- Directive contexts ------------------------------------------------------------------
 
-  #expressionContext(element: Element): ExpressionContext {
+  #expressionContext(element: Element, owners: readonly ScopeOwner[]): ExpressionContext {
     return {
       element,
-      signals: this.signals,
+      signals: this.scopes.signalsFor(element, owners),
       helpers: this.#options.registry.helpers(),
       actions: this.#options.actions,
     };
@@ -273,11 +302,12 @@ class Attributes implements AttributesMount, MountLifecycle {
     };
     return Object.freeze({
       attribute,
-      context: this.#expressionContext(element),
+      context: this.#expressionContext(element, record.owners),
       element,
       expressions: this.#options.expressions,
       ...(previous ? { previous } : {}),
       cleanup: (cleanup: DirectiveCleanup) => this.#own(record, "service", cleanup),
+      scope: (level: ScopeLevel = "nearest") => this.scopes.scopeFor(element, level),
       effect: (run: () => void) => {
         let runner: ReactiveEffect | undefined;
         const release = this.#own(record, "effect", () => {
@@ -332,7 +362,7 @@ class Attributes implements AttributesMount, MountLifecycle {
         if (!name || !this.root.contains(element)) continue;
         if (name === "data-ignore" || name === "data-ignore__self") {
           const ignored = element.hasAttribute(name);
-          if (ignored && name === "data-ignore") attempt(errors, () => { this.releaseTree(element, []); });
+          if (ignored && name === "data-ignore") attempt(errors, () => { this.#releaseDirectives(element, []); });
           else if (ignored) attempt(errors, () => { this.#releaseElement(element); });
           else attempt(errors, () => { this.#scan(element, []); });
           continue;
@@ -341,7 +371,23 @@ class Attributes implements AttributesMount, MountLifecycle {
         continue;
       }
       for (const node of Array.from(mutation.removedNodes)) {
-        if (isElementNode(node)) attempt(errors, () => { this.releaseTree(node, kernel.preservedRootsWithin(node)); });
+        if (isElementNode(node) && node.isConnected && this.root.contains(node)) {
+          // Moved within the mount: keep what still sees the same scopes.
+          attempt(errors, () => {
+            this.#rebindMoved(node);
+          });
+          continue;
+        }
+        const preserved = isElementNode(node) ? kernel.preservedRootsWithin(node) : [];
+        if (isElementNode(node)) {
+          attempt(errors, () => {
+            this.#releaseDirectives(node, preserved);
+          });
+        }
+        // A scope survives a move within the page; only what left the document goes.
+        attempt(errors, () => {
+          this.scopes.release(node, preserved, true);
+        });
       }
       for (const node of Array.from(mutation.addedNodes)) {
         if (!isElementNode(node) || !node.isConnected || !this.root.contains(node)) continue;
@@ -349,6 +395,22 @@ class Attributes implements AttributesMount, MountLifecycle {
       }
     }
     for (const error of errors) this.#report(error, this.root, "", "");
+  }
+
+  /** Releases the directives in a moved subtree whose scope chain or ignored state changed. */
+  #rebindMoved(tree: Element): void {
+    const errors: unknown[] = [];
+    for (const element of [tree, ...Array.from(tree.querySelectorAll("*"))]) {
+      const records = this.#byElement.get(element);
+      if (!records) continue;
+      const owners = this.scopes.owners(element);
+      const ignored = this.#ignored(element, []);
+      for (const record of [...records.values()]) {
+        const same = record.owners.length === owners.length && record.owners.every((owner, index) => owner === owners[index]);
+        if (ignored || !same) attempt(errors, () => { this.#release(record); });
+      }
+    }
+    throwCollectedErrors(errors, "Tessera attributes move failed.");
   }
 
   #releaseElement(element: Element): void {

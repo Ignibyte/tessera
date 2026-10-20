@@ -273,8 +273,15 @@ selected tab, a quantity being edited). Signals never carry application data (`d
 - Only actions send signals. Visits, submissions, refreshes and streams send none, so their
   responses are the ones a plain browser would get.
 - The value is one JSON object: every signal visible from the initiating element, innermost scope
-  first, so a component's `$open` hides the region's `$open`. Signals whose names start with `_`
-  are left out.
+  first, so a component's `$open` hides the region's `$open`. The scopes are the element's
+  enclosing components, its enclosing regions and the document; a sibling component's signals
+  are never sent.
+- Left out: signals and object keys whose names start with `_`, at any depth; computed signals
+  (`data-computed`), since the server receives what they derive from; and values JSON cannot
+  carry faithfully: elements and other DOM nodes (`data-ref`), functions, `undefined`, symbols,
+  bigints, non-finite numbers and class instances such as dates. Inside an object such a value
+  is omitted; inside an array it becomes `null`, as `JSON.stringify` writes it. A signal that
+  contains itself is an error, and the action is not sent.
 - The JSON has no insignificant whitespace, and every character above U+007E is written as a
   `\u` escape (UTF-16, with surrogate pairs above U+FFFF), so the header is plain ASCII. Any JSON
   parser reads it unchanged.
@@ -283,7 +290,7 @@ selected tab, a quantity being edited). Signals never carry application data (`d
   request body, the URL or the session.
 
 ```
-Tessera-Signals: {"open":true,"qty":2,"note":"café"}
+Tessera-Signals: {"open":true,"qty":2,"note":"caf\u00e9"}
 ```
 
 An action's body is empty unless the action is given a form, in which case the body is that

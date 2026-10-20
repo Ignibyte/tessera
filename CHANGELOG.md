@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Signal scopes (`src/scopes.ts`): the document, each region and each component own one; reads go
+  innermost first, declarations shadow, `data-signals__region` and `__document` reach out, scopes
+  are owned through the kernel and survive moves, and `payload` with `encodeSignals` builds
+  `Tessera-Signals` from the initiating element's chain only, without `_` names, computed
+  signals, elements or other non-JSON values (#8). The protocol's 4.4 example now escapes
+  `café` as its own rule says.
 - The attributes (`src/attributes.ts`, `src/builtins.ts`, rewritten from jqstar's `declarative.ts`):
   Datastar's vocabulary on the DOM, each built-in a registry definition, every listener, effect
   and cleanup owned through the kernel and released exactly once, `data-ref`, and `tessera:error`
