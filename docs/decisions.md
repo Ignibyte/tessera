@@ -110,8 +110,18 @@ default so work could go on; Chad confirms or changes it, and until then the cod
   anything else is an error at the attribute. Protocol attribute names (`region`, `target`,
   `enhance`, `track`, `permanent`, `lazy`, `poll`, `stream`, `error-summary`, `mode`, `scope`)
   cannot be directives.
+- **The trusted engine may use `new Function`, in `src/expression.ts` only** (**Provisional**,
+  driver decision, 2026-10-20, Chad to confirm; ticket #6). `docs/design.md` keeps jqstar's
+  trusted engine, which compiles expressions with `new Function`, so lint's
+  `@typescript-eslint/no-implied-eval` is turned off for that one file and that one rule in
+  `eslint.config.js`; it stays on everywhere else, so no other file can compile code from
+  strings. Pages whose Content-Security-Policy has no `'unsafe-eval'` cannot use the trusted
+  engine; the no-eval engine is for them.
+- **The no-eval expression engine ships before 0.1.0, as an option** (**Provisional**, driver
+  decision, 2026-10-20, Chad to confirm): jqstar `src/csp/` ported behind the same
+  `ExpressionEngine` seam, ticket #22, required before Release 0.1.0 (#19). The trusted engine
+  stays the default.
 
 ## Open
 
-- **The no-eval expression engine** (jqstar `src/csp/`, about 2,400 lines): ship it in 0.1.0 or
-  later. Not in the first backlog.
+Nothing open.

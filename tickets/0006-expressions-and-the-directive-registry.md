@@ -3,11 +3,11 @@ number: 6
 uuid: 9dbd1722-9f88-4b7d-9a86-072df989fb2d
 title: "Expressions and the directive registry"
 type: feature
-status: blocked
+status: in-progress
 tags: ["core","port"]
 created: 2026-10-20T18:00:00Z
-updated: 2026-10-20T22:53:51Z
-phase: "code"
+updated: 2026-10-20T22:56:35Z
+phase: "docs"
 ---
 
 Port the trusted expression engine (`src/expression.ts`, `src/expression-types.ts`,
@@ -85,3 +85,7 @@ statements and strings, unknown identifiers, the built-ins, caching and disposal
 `test/unit/directive.test.ts` for matching with keys and modifiers, key rules, reserved names,
 priority order and helpers; `test/property/directive-name.test.ts` (fixed seed) round-trips the
 attribute grammar and shows the action rewrite never touches string literals.
+
+### 2026-10-20T22:55:28Z
+
+Unblocked by the driver (2026-10-20): option 3. new Function is allowed in src/expression.ts only, through a file-scoped override of @typescript-eslint/no-implied-eval in eslint.config.js, recorded in docs/decisions.md as Provisional for Chad to confirm. The no-eval engine is ticket #22, required before Release 0.1.0 (#19).

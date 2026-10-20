@@ -35,4 +35,5 @@ dependency, and the build bundles it.
 `npm run check` is the gate every change passes. Lint also refuses what would weaken it:
 `@ts-ignore`, `@ts-expect-error` outside `test/`, `eslint-disable` comments (inline config is
 off, and the warning it raises fails lint), and skipped or focused Vitest tests. Playwright
-refuses a focused test with `forbidOnly`.
+refuses a focused test with `forbidOnly`. One rule is off for one file: `no-implied-eval` in
+`src/expression.ts`, the trusted expression engine (`docs/decisions.md`).
