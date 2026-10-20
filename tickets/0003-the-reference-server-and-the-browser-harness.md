@@ -3,11 +3,12 @@ number: 3
 uuid: acdaa989-8937-4d1b-a88f-73e4f3d52823
 title: "The reference server and the browser harness"
 type: chore
-status: in-progress
+status: done
 tags: ["testing","protocol"]
 created: 2026-10-20T18:00:00Z
-updated: 2026-10-20T22:28:58Z
+updated: 2026-10-20T22:29:27Z
 phase: "docs"
+closed: 2026-10-20T22:29:27Z
 ---
 
 A small Node server under `test/server/` that speaks `docs/protocol.md`, for Playwright tests and
@@ -76,3 +77,7 @@ seed.
 
 Decisions: none on the protocol. If Firefox or WebKit cannot run here, that goes in
 `docs/decisions.md`.
+
+### 2026-10-20T22:29:27Z
+
+Delivered via PR #4 (a099b62). The reference server, Playwright on it in Chromium and Firefox; WebKit cannot run on this box (docs/decisions.md).
