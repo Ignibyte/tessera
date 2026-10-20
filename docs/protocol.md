@@ -505,7 +505,9 @@ reconnects, with `Last-Event-ID`, when it is visible again. Without it the strea
 The framing is standard SSE (WHATWG HTML, "Server-sent events"): `event:`, `data:`, `id:` and
 `retry:` fields, `:` comments, a blank line ending each event. Every data line holds one key,
 optionally a space and a value: `data: KEY VALUE`. Keys are case-sensitive; Tessera ignores keys
-it does not know. An event needs at least one data line, or SSE drops it.
+it does not know. An event needs at least one data line, or SSE drops it, and it ends with a
+blank line: an event the body ends before its blank line is dropped, as the standard says. Lines
+may end with LF, CRLF or CR, and a leading byte order mark is ignored.
 
 **`tessera-patch-elements`**: one fragment.
 
