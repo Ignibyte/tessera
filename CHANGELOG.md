@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Reactivity (`src/reactivity.ts`, ported from jqstar): Proxy signals that also track `in` and key
+  iteration, array mutators that do not re-run their own effect, memoized computed values, and
+  one effect scheduler per runtime, which the kernel's `flush` option waits on (#5).
 - The kernel (`src/kernel.ts`, ported from jqstar): one per Document, a resource ledger that
   releases each resource once (on release, on its root leaving the page, or at disposal), render
   transactions that tear down deepest first and keep preserved roots and their focus, the
