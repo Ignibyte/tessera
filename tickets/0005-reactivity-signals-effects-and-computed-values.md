@@ -3,11 +3,12 @@ number: 5
 uuid: 3d23fb1e-1ff3-467a-be9b-fb7376df6fac
 title: "Reactivity: signals, effects and computed values"
 type: feature
-status: in-progress
+status: done
 tags: ["core","port","signals"]
 created: 2026-10-20T18:00:00Z
-updated: 2026-10-20T22:44:08Z
+updated: 2026-10-20T22:44:22Z
 phase: "docs"
+closed: 2026-10-20T22:44:22Z
 ---
 
 Port `src/reactivity.ts` (192 lines): cached Proxies over plain objects, dependency sets keyed
@@ -66,3 +67,7 @@ computed values, and the kernel's barrier waiting on a scheduler. `test/property
 having seen the final values.
 
 No protocol or public API change: nothing new is exported from `src/index.ts`.
+
+### 2026-10-20T22:44:22Z
+
+Delivered via PR #6 (b51f025). Reactivity ported from jqstar with has/ownKeys tracking, memoized computed values and a scheduler per runtime.
