@@ -3,10 +3,11 @@ number: 6
 uuid: 9dbd1722-9f88-4b7d-9a86-072df989fb2d
 title: "Expressions and the directive registry"
 type: feature
-status: open
+status: blocked
 tags: ["core","port"]
 created: 2026-10-20T18:00:00Z
-updated: 2026-10-20T18:00:00Z
+updated: 2026-10-20T22:53:51Z
+phase: "code"
 ---
 
 Port the trusted expression engine (`src/expression.ts`, `src/expression-types.ts`,
@@ -26,3 +27,61 @@ Port the trusted expression engine (`src/expression.ts`, `src/expression-types.t
 
 Acceptance: unit tests for signal reads and writes, statements with several expressions, action
 compilation, unknown identifiers failing loudly, and registry matching with keys and modifiers.
+
+## Comments
+
+### 2026-10-20T22:48:06Z
+
+Plan.
+
+Files:
+- `src/expression.ts` (from jqstar `src/expression.ts` and `src/expression-types.ts`): the
+  4-method seam (`compileValue`, `compileStatement`, `clearCache`, `dispose`) and
+  `createTrustedExpressionEngine()`, one per runtime (jqstar's module-level compatibility
+  engine is dropped). Values compile to `with (scope) { return (…) }`, statements to an async
+  function body bound to the element, as in jqstar. Errors are `ExpressionError` with `phase`,
+  `source`, `location` and, on evaluation, the element, named in the message.
+- `src/actions.ts`: the action seam, `(call: { method, url, options, element, event }) =>
+  unknown`, and `createActionRecorder()`, the stub that records calls until #11.
+- `src/directive.ts` (from jqstar `src/directive.ts`): the registry without the plugin
+  install, `$element` or jqstar's two built-ins (#7 brings the built-ins as definitions).
+
+The scope an expression sees: `$name` reads and writes `context.signals[name]` (#8 passes its
+scope chain there; until then a root's state), `el`, `evt`, registered helpers, and a fixed
+list of ECMAScript built-ins (`Math`, `JSON`, `Number`, `String`, `Boolean`, `Array`,
+`Object`, `Date`, `Promise`, `RegExp`, `Intl`, `Map`, `Set`, `Symbol`, `BigInt`, `Error`,
+`parseInt`, `parseFloat`, `isNaN`, `isFinite`, the URI functions, `undefined`, `NaN`,
+`Infinity`). The scope proxy answers `has` for every name, so nothing falls through to
+`window`: any other identifier, read, written or under `typeof`, throws naming itself, the
+expression and the element. `$` alone is such an identifier. jqstar's `$`, `$el`, `$root`,
+`state`, `signals`, `computed`, `root`, `stores`, `args` and `action()` are gone.
+
+Actions: `@get(url, options)`, `@post`, `@put`, `@patch`, `@delete` anywhere in an expression
+(jqstar accepted only a whole statement `@name(args)`). Compilation rewrites `@method(` outside
+string literals, template literals and comments into a call on a fixed binding; an unknown
+`@name` or one without parentheses is a compile error. The call checks that the URL is a
+string and the options an object, then hands it to `context.actions`.
+
+Not ported: jqstar `src/expression-runtime.ts`. The trusted engine does not use it; it brands
+action and helper results for the no-eval engine (`src/csp/`) and comes with that engine.
+
+Registry: a directive is registered by name (`on`, `signals`, `ignore-morph`) with a key rule
+(required, forbidden, optional) and its allowed modifiers. `match(attributeName, value)` parses
+`data-NAME[:KEY][__MOD[.ARG…]…]` (`data-on:click__debounce.500ms__prevent` gives key `click`,
+modifiers `debounce` ["500ms"] and `prevent`), returns undefined for a `data-*` attribute no
+directive claims, and throws for a claimed one with a missing or forbidden key or an unknown
+modifier. Names the protocol already uses (`region`, `target`, `enhance`, `track`,
+`permanent`, `lazy`, `poll`, `stream`, `error-summary`, `mode`, `scope`) cannot be registered.
+Helpers keep jqstar's dotted names, reserved roots and frozen scope. The directive context type
+keeps jqstar's shape without `$element` and `application`.
+
+Decisions for `docs/decisions.md` (Provisional): the closed scope and its built-in list; actions
+anywhere with the five methods; the attribute-name grammar.
+
+Tests: `test/unit/expression.test.ts` with jqstar's engine conformance suite ported
+(`test/unit/expression-conformance.ts`, re-pointed at Tessera's scope) plus signal reads and
+writes (with a reactive effect re-running), statements with several expressions, actions inside
+statements and strings, unknown identifiers, the built-ins, caching and disposal;
+`test/unit/directive.test.ts` for matching with keys and modifiers, key rules, reserved names,
+priority order and helpers; `test/property/directive-name.test.ts` (fixed seed) round-trips the
+attribute grammar and shows the action rewrite never touches string literals.
