@@ -28,7 +28,8 @@ export default defineConfig({
   reporter: "list",
   use: { headless: true, baseURL },
   webServer: {
-    command: `node test/server/main.ts --port ${process.env.TESSERA_TEST_PORT}`,
+    // --close-connections: see the transport's drop test and docs/decisions.md.
+    command: `node test/server/main.ts --port ${process.env.TESSERA_TEST_PORT} --close-connections`,
     url: `${baseURL}/`,
     reuseExistingServer: false,
   },

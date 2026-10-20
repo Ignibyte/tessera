@@ -169,6 +169,24 @@ default so work could go on; Chad confirms or changes it, and until then the cod
   `finish()` dispatched it); `retry` sets the stream's reconnection time when it is read, not a
   field of the next event; a block with `id` and no `data` still sets the last event ID at its
   blank line; a bare CR ends a line, also when it ends a chunk and an LF starts the next.
+- **How the transport dispatches** (**Provisional**, ticket #11, 2026-10-20): a write is sent
+  once; after dispatch a network failure, an abort or a redirect answering it is
+  **indeterminate**, reported and never resent. Only a GET is retried, twice, after a network
+  failure before any answer (250 ms, then 500 ms). Every request waits 5 ms before it goes
+  (Livewire's buffer), so a read superseded in that window is never sent. A newer request naming
+  a target aborts an older **read** naming it; a write is never aborted by a newer request (#12
+  decides queuing). A GET waits while the page is hidden. A 419 raises `tessera:expired` on the
+  document; unless it is cancelled, `confirm()` offers a reload. Interceptors (`before`, `after`,
+  `error`) run once per logical request, and the protocol's own headers are restored after
+  `before`. Until #13, a whole-document answer is a full load.
+- **Browsers resend some writes themselves** (**Provisional**, ticket #11, 2026-10-20): found by
+  the transport's browser test. When the server drops a connection the browser had reused from
+  its keep-alive pool before any answer, Chromium and Firefox both send the same POST again on a
+  new connection, without Tessera's knowledge (Tessera called `fetch` once). `fetch` offers no way
+  to opt out. So the reference server runs the browser tests with `--close-connections`, which
+  makes every dropped connection a fresh one, and the test counts what Tessera sent: exactly one
+  POST. `docs/protocol.md` section 4.5 tells servers to expect such a repeat. A write id header
+  that lets a server drop the repeat is a possible follow-up; not built.
 
 ## Open
 

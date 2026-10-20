@@ -407,6 +407,18 @@ describe("the controller", () => {
     expect((await release("abort", { timeout: 50 })).status).toBe(408);
   });
 
+  it("drops a held connection without answering it", async () => {
+    const pending = request("/controlled/drop/x", { method: "POST", body: "once" }).then(
+      () => "answered",
+      () => "network failure",
+    );
+    await waitFor("drop", (requests) => requests.length === 1);
+    const released = await release("drop", { drop: true });
+    expect(await released.json()).toEqual({ seq: 1, method: "POST", url: "/controlled/drop/x", dropped: true });
+    expect(await pending).toBe("network failure");
+    expect((await captured("drop"))[0]?.state).toBe("dropped");
+  });
+
   it("answers what is still held with 503 on reset", async () => {
     const pending = request("/controlled/reset/x");
     await waitFor("reset", (requests) => requests.length === 1);
@@ -429,6 +441,7 @@ describe("the controller", () => {
     ["an unknown field", JSON.stringify({ colour: "red" })],
     ["a status out of range", JSON.stringify({ status: 99 })],
     ["serve with a body", JSON.stringify({ serve: "/", body: "x" })],
+    ["drop with a status", JSON.stringify({ drop: true, status: 200 })],
   ])("refuses a release with %s", async (_case, body) => {
     const response = await request("/_control/bad/release", { method: "POST", body });
     expect(response.status).toBe(400);

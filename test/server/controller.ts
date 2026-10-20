@@ -18,7 +18,7 @@ export interface Captured {
   url: string;
   headers: Record<string, string>;
   body: string;
-  state: "held" | "answered" | "aborted";
+  state: "held" | "answered" | "aborted" | "dropped";
 }
 
 /** A release: which held request to answer, and with what. */
@@ -29,6 +29,8 @@ export interface Release {
   headers?: Record<string, string>;
   body?: string;
   serve?: string;
+  /** Destroys the held connection instead of answering: the client sees a network failure. */
+  drop?: boolean;
   timeout?: number;
 }
 
@@ -71,7 +73,7 @@ export function parseRelease(body: string): Release | string {
     return "the body must be a JSON object";
   }
   const input = value as Record<string, unknown>;
-  const known = ["path", "method", "status", "headers", "body", "serve", "timeout"];
+  const known = ["path", "method", "status", "headers", "body", "serve", "drop", "timeout"];
   const unknown = Object.keys(input).filter((name) => !known.includes(name));
   if (unknown.length > 0) return `unknown fields: ${unknown.join(", ")}`;
   const release: Release = {};
@@ -99,6 +101,13 @@ export function parseRelease(body: string): Release | string {
   }
   if (release.serve !== undefined && (release.status !== undefined || release.headers !== undefined || release.body !== undefined)) {
     return "serve cannot be combined with status, headers or body";
+  }
+  if (input.drop !== undefined) {
+    if (typeof input.drop !== "boolean") return "drop must be a boolean";
+    if (input.drop && Object.keys(input).some((name) => !["path", "method", "drop", "timeout"].includes(name))) {
+      return "drop cannot be combined with status, headers, body or serve";
+    }
+    release.drop = input.drop;
   }
   return release;
 }
@@ -201,7 +210,15 @@ export class Controller {
   }
 
   async #answer(held: Held, waiter: Waiter): Promise<void> {
-    const { serve, status, headers, body } = waiter.release;
+    const { serve, status, headers, body, drop } = waiter.release;
+    if (drop) {
+      held.record.state = "dropped";
+      held.res.socket?.destroy();
+      held.res.destroy();
+      const { seq, method, url } = held.record;
+      send(waiter.res, json(200, { seq, method, url, dropped: true }));
+      return;
+    }
     let response: FixtureResponse;
     try {
       response =
