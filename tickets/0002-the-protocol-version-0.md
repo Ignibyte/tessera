@@ -3,10 +3,11 @@ number: 2
 uuid: 3d88eba9-e521-4ee4-844e-54f9ed090d6f
 title: "The protocol, version 0"
 type: docs
-status: open
+status: in-progress
 tags: ["protocol"]
 created: 2026-10-20T18:00:00Z
-updated: 2026-10-20T18:00:00Z
+updated: 2026-10-20T22:14:30Z
+phase: "check"
 ---
 
 Write `docs/protocol.md`: everything a server must do to speak Tessera, precise enough that AIC
@@ -45,3 +46,24 @@ client.
 
 Acceptance: the document covers every row of the table in `docs/design.md`; every header, event
 and attribute has one name; `docs/decisions.md` records the provisional choices.
+
+## Comments
+
+### 2026-10-20T22:09:22Z
+
+Plan.
+
+Approach: write `docs/protocol.md` as the server's contract, version 0, from `docs/design.md`, jqstar 0024 to 0028, jqstar `src/protocol-datastar.ts` and `src/sse.ts`, and the Livewire digest. Sections: versioning, identities (regions, component markers `<!--t:c KEY PROPS-->` ... `<!--/t:c-->`, block markers `<!--t:b-->` ... `<!--/t:b-->`, keys, paths, props), the attributes a server renders, request headers, fragment responses, redirects and full visits, status codes, SSE, caching, head and assets, a worked example per request kind, and a server checklist.
+
+Files: `docs/protocol.md` (new), `docs/decisions.md` (provisional entries; the open SSE item moves to decided), `CHANGELOG.md`, `README.md` (the protocol line loses "(ticket #2)").
+
+Decisions, each recorded as Provisional:
+- SSE event names are Tessera's own, `tessera-patch-elements`, `tessera-patch-signals` and `tessera-close`, with Datastar's `data: key value` line shape. The target model (regions and component paths, never selectors) differs from Datastar's, so reusing its names would promise a compatibility that is not there.
+- Header names `Tessera-Request` (kind: visit, submit, action, refresh, stream), `Tessera-Protocol: 0`, `Tessera-Targets` (each entry carries its component's props token), `Tessera-Layout`, `Tessera-Signals`; response headers `Tessera-Location` and `Tessera-Full-Visit`.
+- Redirects for a Tessera request travel as `Tessera-Location` on a 200, because `fetch` with `redirect: "manual"` hides the Location of a 303. A real 3xx answering a write is an error, never followed, so a 307 or 308 cannot replay a body.
+- `Tessera-Layout`: the page names its layout and a visit sends it, so a server can answer a visit to a page with another layout with the full document instead of fragments that leave stale regions behind.
+- Fragment responses are `text/vnd.tessera+html`: top-level `<template>` elements naming target and mode, plus `<title>`, tracked elements and JSON signal patches.
+- `page` is a reserved target name: the whole document.
+- Signals go only with actions, in a header, as ASCII-only JSON, at most 4,096 bytes.
+
+Acceptance: a table at the end maps every row of the design's request table to its section and example; a pass over the document checks each header, event and attribute appears under one name only; `docs/decisions.md` lists the provisional choices. `npm run check` passes (a docs-only change, run anyway).
