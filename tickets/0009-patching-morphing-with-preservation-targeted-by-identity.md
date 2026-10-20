@@ -3,11 +3,12 @@ number: 9
 uuid: 5722b5dc-fa9f-488b-bd7b-3aa34945dda5
 title: "Patching: morphing with preservation, targeted by identity"
 type: feature
-status: in-progress
+status: done
 tags: ["core","port","regions"]
 created: 2026-10-20T18:00:00Z
-updated: 2026-10-20T23:37:55Z
+updated: 2026-10-20T23:38:10Z
 phase: "docs"
+closed: 2026-10-20T23:38:10Z
 ---
 
 Port `src/patch.ts` (232 lines): Idiomorph with preservation (`data-ignore-morph`, preserved
@@ -72,3 +73,7 @@ reported, the scope surviving a morph that replaces its marker (through `transfe
 that keeps it, a changed key resetting it, and signal patches. Browser: a `/patch` fixture page
 and `test/browser/patch.spec.ts` morph a region while an input in it has focus, and check that a
 fragment's script does not run, in Chromium and Firefox.
+
+### 2026-10-20T23:38:10Z
+
+Delivered via PR #10 (e5bc7b7). Patching by identity in five modes; scopes survive a replaced marker through transfer; directives re-apply after a morph.
