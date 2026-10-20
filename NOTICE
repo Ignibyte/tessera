@@ -1,0 +1,3 @@
+Tessera includes code ported from jqstar (https://github.com/Ignibyte/jqstar),
+MIT License, Copyright (c) 2026 QueryStar contributors. Ported modules name
+their jqstar source file in their header comment.
