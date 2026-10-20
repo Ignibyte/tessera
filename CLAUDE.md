@@ -57,7 +57,8 @@ stopped mid-ticket), else `bin/ticket.sh next`. Never work two tickets at once.
 - Commit with a Conventional Commits subject (at most 72 characters) ending `(#<n>)`, a body
   saying what and why, and `Ticket: #<n>`. Stage explicit paths, never `git add -A`.
 - `git push -u origin <branch>`, `gh pr create` (body: what changed, the check output's last
-  lines, the ticket), then `gh pr merge <PR> --squash --delete-branch`, `git switch main`,
+  lines, the ticket), then `gh pr merge <PR> --squash --delete-branch --subject "<the commit subject>"`
+  (without `--subject`, GitHub appends the PR number, which is not the ticket number), `git switch main`,
   `git pull --ff-only`. A merge refused right after the push: wait a few seconds and retry.
 - Close the ticket on main: `bin/ticket.sh close <n> --note "Delivered via PR #<PR> (<hash>).
   <one line>."`, then commit `chore(tickets): close #<n>` and push to main. Ticket-only commits
