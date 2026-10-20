@@ -9,9 +9,18 @@ The repo is private, `Ignibyte/tessera`. **Nothing from this repo goes into a pu
 
 ## How work runs here
 
-An agent works the tickets in `tickets/` one at a time, usually started by `bin/agent-loop.sh` in
-tmux, which hands it one ticket per session. Chad does not review PRs; he reads the tickets, the
-PRs and `docs/decisions.md`. The workflow is light, but every step is required.
+An agent works the tickets in `tickets/` one at a time. By default a driver, another Claude Code
+session working for Chad, hands it one ticket at a time in an interactive session and reviews the
+work after each one. `bin/agent-loop.sh` is the unattended alternative: it runs in tmux and starts
+one `claude -p` session per ticket, with no driver. Chad reads the tickets, the PRs and
+`docs/decisions.md`. The workflow is light, but every step is required in either mode.
+
+With a driver:
+
+- A correction from the driver comes before anything else, the current step included: make it,
+  then go on.
+- At the end of each ticket (closed or blocked), stop and report in three lines (see the end of
+  this section). Do not start the next ticket until the driver says to.
 
 ### 1. Pick
 
@@ -68,14 +77,16 @@ stopped mid-ticket), else `bin/ticket.sh next`. Never work two tickets at once.
 
 When the ticket needs a decision only Chad can make, or something outside this repo is broken:
 write the question as a ticket comment (what you need, the options, your recommendation),
-`bin/ticket.sh update <n> --status blocked`, commit and push the ticket change to main, and end
-the session. Leave a half-done branch pushed, with a draft PR naming what is left. The loop goes
-on to the next ticket; a later ticket that depends on the blocked one is blocked too.
+`bin/ticket.sh update <n> --status blocked`, commit and push the ticket change to main, and stop
+with the end-of-ticket report. Leave a half-done branch pushed, with a draft PR naming what is
+left. The driver (or the loop) goes on to the next ticket; a later ticket that depends on the
+blocked one is blocked too.
 
-### End of a session
+### End of a ticket
 
-One ticket per session. End with three lines: what landed (PR and ticket), what failed or was
-split off, what Chad should look at.
+Stop after each ticket and report in three lines: what landed (PR and ticket), what failed or was
+split off, what to look at. With a driver, wait for it to name the next ticket; under
+`bin/agent-loop.sh`, the session ends there, one ticket per session.
 
 ## Rules
 
