@@ -3,11 +3,12 @@ number: 7
 uuid: a3e7bf24-6782-4475-9191-3f9e9da4031d
 title: "The attributes: Datastar's vocabulary, on the DOM"
 type: feature
-status: in-progress
+status: done
 tags: ["core","port","signals"]
 created: 2026-10-20T18:00:00Z
-updated: 2026-10-20T23:11:25Z
+updated: 2026-10-20T23:11:39Z
 phase: "docs"
+closed: 2026-10-20T23:11:39Z
 ---
 
 Rewrite `src/declarative.ts` (1,017 lines, 44 jQuery calls) against the DOM, each built-in as a
@@ -87,3 +88,7 @@ listeners and effects exactly once (counted through `kernel.resourceSummary()`),
 entry in `src/index.ts`); the reference server serves it as `/assets/harness.js`; a fixture page
 `/attributes` uses the whole vocabulary; `test/browser/attributes.spec.ts` drives it in
 Chromium and Firefox (WebKit waits for #20).
+
+### 2026-10-20T23:11:39Z
+
+Delivered via PR #8 (d44f9e6). The attributes and every built-in as a registry definition, owned through the kernel; browser page /attributes in Chromium and Firefox.
