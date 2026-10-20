@@ -25,6 +25,16 @@ default so work could go on; Chad confirms or changes it, and until then the cod
   engines that static analysis cannot see. Unit tests with Vitest, property tests with fast-check
   for parsers, and Playwright browser tests, with jqstar's navigation matrix (28 scenarios with
   no-JS baselines) as the acceptance suite. AIC's no-tests rule does not apply here.
+- **Build output names** (**Provisional**, ticket #1, 2026-10-20): `dist/tessera.js` is the ES
+  module, `dist/tessera.min.js` the same minified, and `dist/tessera.iife.js` a minified IIFE
+  that sets the global `Tessera`, for a page loading it with a plain `<script>`. Each has a
+  source map, and each bundles Idiomorph. The size budget measures `tessera.min.js`. Ticket #19
+  ships `tessera.js` and `tessera.min.js`; whether a release carries the IIFE file too is
+  Chad's call.
+- **Vite 7.3.7, not jqstar's 7.3.6** (ticket #1, 2026-10-20): 7.3.6 has a high-severity
+  advisory (launch-editor, GHSA-r825-w8mm-5pxw) fixed in the 7.3.7 patch. terser 5.51.2 is added
+  as jqstar has it, because Vite leaves whitespace in a library's ES output when esbuild
+  minifies it.
 
 ## Open
 

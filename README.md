@@ -15,3 +15,23 @@ Status: being built, ticket by ticket (`tickets/`). Nothing is released yet.
 - Research behind it: `docs/research/`
 
 Tessera is built from parts of jqstar (MIT); see `NOTICE`.
+
+## Working on Tessera
+
+Node 24 or later. `npm ci` installs the pinned toolchain; Idiomorph is the one runtime
+dependency, and the build bundles it.
+
+| Script | What it does |
+|---|---|
+| `npm run typecheck` | `tsc --noEmit` over `src/`, `test/`, `scripts/` and the configs |
+| `npm run lint` | ESLint (typescript-eslint, strict type-checked), no warnings allowed |
+| `npm run test` | Vitest: `test/unit/` and `test/property/` |
+| `npm run build` | `dist/tessera.js` (ES module), `dist/tessera.min.js` (minified ES module) and `dist/tessera.iife.js` (minified, for a plain `<script>`; global `Tessera`), each with a source map |
+| `npm run size` | gzip size of `dist/tessera.min.js` against `size-budget.json` |
+| `npm run test:browser` | Playwright, headless; run `npm run build` first |
+| `npm run check` | typecheck, lint, test, build and size, in that order, stopping at the first failure |
+
+`npm run check` is the gate every change passes. Lint also refuses what would weaken it:
+`@ts-ignore`, `@ts-expect-error` outside `test/`, `eslint-disable` comments (inline config is
+off, and the warning it raises fails lint), and skipped or focused Vitest tests. Playwright
+refuses a focused test with `forbidOnly`.
