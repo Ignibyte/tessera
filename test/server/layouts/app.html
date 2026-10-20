@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{title}} · Fixture</title>
+  <meta name="tessera-layout" content="app">
+  <meta name="tessera-csrf-token" content="{{csrf}}">
+  <link rel="stylesheet" href="/assets/fixture.css" data-track>
+  <script type="module" src="/assets/tessera.js" data-track></script>
+</head>
+<body>
+  <header><a href="/">Fixture</a> · <!--t:c crumb-->{{title}}<!--/t:c--></header>
+  <nav data-region="sidebar">
+    <ul>
+      <li><a href="/">Home</a></li>
+      <li><a href="/about">About</a></li>
+      <li><a href="/form">Form</a></li>
+      <li><a href="/events">Events</a></li>
+      <li><a href="/slow">Slow</a></li>
+      <li><a href="/bare">Bare</a></li>
+    </ul>
+  </nav>
+  <main data-region="content">
+{{{content}}}
+  </main>
+</body>
+</html>

@@ -14,7 +14,8 @@
     "build": "node scripts/build.ts",
     "size": "node scripts/size.ts",
     "test:browser": "playwright test",
-    "check": "node scripts/check.ts"
+    "check": "node scripts/check.ts",
+    "serve:test": "node test/server/main.ts"
   },
   "dependencies": {
     "idiomorph": "0.7.4"

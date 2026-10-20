@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- The reference server (`test/server/`, `npm run serve:test`): fixture pages on two layouts,
+  fragments or full documents per protocol 5.1, the form's 303, 422, 409 and 419, a resumable SSE
+  stream, a slow endpoint and a controller that holds requests until a test answers them. Playwright
+  starts it and runs Chromium and Firefox; WebKit does not run on the dev box (#3).
 - The protocol, version 0 (`docs/protocol.md`): identities, request and response headers,
   fragment responses, status codes, SSE events, caching, the head policy and worked examples (#2).
 - The toolchain and the check gate: TypeScript, ESLint, Vitest, fast-check, Playwright, the
