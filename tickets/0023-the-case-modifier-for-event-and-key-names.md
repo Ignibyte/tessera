@@ -3,11 +3,12 @@ number: 23
 uuid: 2b10965c-c23b-4b6c-a176-71ff27495d4a
 title: "The __case modifier for event and key names"
 type: feature
-status: in-progress
+status: done
 tags: ["attributes"]
 created: 2026-10-20T23:12:59Z
-updated: 2026-10-21T01:53:22Z
+updated: 2026-10-21T01:53:36Z
 phase: "docs"
+closed: 2026-10-21T01:53:36Z
 ---
 
 HTML lowercases attribute names, so `data-on:myEvent` arrives as `data-on:myevent` and a
@@ -44,3 +45,7 @@ Acceptance:
 ### 2026-10-21T01:53:22Z
 
 Check exited 0 (626 unit and property tests) and the browser suite exited 0 (128 tests, Chromium and Firefox). The plan held, with one change: the browser test dispatches `itemSelected` from the test rather than from a button on the page. Expressions see a closed scope without `CustomEvent`, and an outside script firing a camelCase event is the case the modifier exists for anyway.
+
+### 2026-10-21T01:53:36Z
+
+Delivered via PR #23 (76791f3). __case.camel|kebab|snake|pascal on data-on (default kebab) and on data-computed, data-ref and data-bind (default camel).
