@@ -16,6 +16,7 @@ import { header, isTessera, json, send, text } from "./http.ts";
 import type { FixtureRequest, FixtureResponse, Secrets, ServerState } from "./http.ts";
 import { serveNavigation } from "./navigation.ts";
 import { serveStream } from "./stream.ts";
+import { RELEASE_FILES } from "../../scripts/release-files.ts";
 
 const root = import.meta.dirname;
 const repo = resolve(root, "../..");
@@ -23,14 +24,11 @@ const MAX_BODY = 1024 * 1024;
 
 const assets: Readonly<Record<string, string>> = {
   "/assets/fixture.css": resolve(root, "assets/fixture.css"),
+  "/assets/start-esm.js": resolve(root, "assets/start-esm.js"),
+  "/assets/start-csp-esm.js": resolve(root, "assets/start-csp-esm.js"),
   // Built by test/browser/global-setup.ts.
   "/assets/harness.js": resolve(repo, "node_modules/.cache/tessera-harness/harness.js"),
-  ...Object.fromEntries(
-    ["tessera.js", "tessera.min.js", "tessera.iife.js"].flatMap((file) => [
-      [`/assets/${file}`, resolve(repo, "dist", file)],
-      [`/assets/${file}.map`, resolve(repo, "dist", `${file}.map`)],
-    ]),
-  ),
+  ...Object.fromEntries(RELEASE_FILES.map((file) => [`/assets/${file}`, resolve(repo, "dist", file)])),
 };
 
 const contentTypes: Readonly<Record<string, string>> = {
@@ -261,8 +259,28 @@ async function dispatch(
     await serveNavigation(request, res, secrets);
     return;
   }
-  const response = (await deduplicated(request, secrets)) ?? (await respond(request, secrets));
+  const response = withBuild(url, (await deduplicated(request, secrets)) ?? (await respond(request, secrets)));
   send(res, url.searchParams.get("csp") === "1" ? { ...response, headers: { ...response.headers, "Content-Security-Policy": STRICT_POLICY } } : response);
+}
+
+/**
+ * `?build=NAME` on a page: the release file a page loads in place of the harness (#19), and with
+ * `&start=manual` the meta that keeps an IIFE from starting itself.
+ */
+const BUILDS: Readonly<Record<string, string>> = {
+  iife: '<script src="/assets/tessera.iife.js"></script>',
+  "csp-iife": '<script src="/assets/tessera.csp.iife.js"></script>',
+  esm: '<script type="module" src="/assets/start-esm.js"></script>',
+  "csp-esm": '<script type="module" src="/assets/start-csp-esm.js"></script>',
+};
+
+function withBuild(url: URL, response: FixtureResponse): FixtureResponse {
+  const name = url.searchParams.get("build");
+  if (name === null || typeof response.body !== "string") return response;
+  const script = BUILDS[name];
+  if (script === undefined) return text(400, `build must be one of ${Object.keys(BUILDS).join(", ")}.`);
+  const manual = url.searchParams.get("start") === "manual" ? '<meta name="tessera-start" content="manual">\n</head>' : "</head>";
+  return { ...response, body: response.body.replace('<script src="/assets/harness.js"></script>', script).replace("</head>", manual) };
 }
 
 /**

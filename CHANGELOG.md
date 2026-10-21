@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- The public API and the first release's files: `start({ helpers })` returning `signals`,
+  `visit`, `intercept` and `stop`, from two builds, `tessera.*` with the trusted engine and
+  `tessera.csp.*` with the no-eval engine, each an ES module, minified and an IIFE that starts by
+  itself unless `<meta name="tessera-start" content="manual">`. `npm run sums` writes
+  `SHA256SUMS`; `npm run size` measures both builds. `README.md` documents the API,
+  `RELEASING.md` the release, `docs/consumers.md` how AIC and Rustal take one (#19).
+
 - A visit superseded before it takes its prefetch now drops that prefetch, aborting its fetch,
   unless a newer visit of the same URL waits for it; before, the request ran on for up to 30
   seconds. Found by the Mac mini run, where NAV-19 now passes (#30).
