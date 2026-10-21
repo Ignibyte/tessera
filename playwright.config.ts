@@ -21,6 +21,7 @@ process.env.TESSERA_TEST_PORT ??= String(await freePort());
 process.env.TESSERA_KEEPALIVE_PORT ??= String(await freePort());
 const baseURL = `http://127.0.0.1:${process.env.TESSERA_TEST_PORT}`;
 const keepAliveURL = `http://127.0.0.1:${process.env.TESSERA_KEEPALIVE_PORT}`;
+const webkitEndpoint = process.env.TESSERA_WEBKIT_ENDPOINT;
 
 export default defineConfig({
   testDir: "test/browser",
@@ -43,12 +44,19 @@ export default defineConfig({
       reuseExistingServer: false,
     },
   ],
-  // WebKit does not run on the dev box (docs/decisions.md); TESSERA_WEBKIT=1 adds it where it does.
+  // WebKit does not run on the dev box (docs/decisions.md). `npm run test:browser:webkit` runs it
+  // in the Playwright image and sets TESSERA_WEBKIT_ENDPOINT to its run-server; TESSERA_WEBKIT=1
+  // adds a local WebKit on a machine that has its libraries.
   projects: [
     { name: "chromium", use: { ...devices["Desktop Chrome"] } },
     { name: "firefox", use: { ...devices["Desktop Firefox"] } },
-    ...(process.env.TESSERA_WEBKIT === "1"
-      ? [{ name: "webkit", use: { ...devices["Desktop Safari"] } }]
+    ...(process.env.TESSERA_WEBKIT === "1" || webkitEndpoint !== undefined
+      ? [
+          {
+            name: "webkit",
+            use: { ...devices["Desktop Safari"], ...(webkitEndpoint === undefined ? {} : { connectOptions: { wsEndpoint: webkitEndpoint } }) },
+          },
+        ]
       : []),
   ],
 });

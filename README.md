@@ -28,7 +28,8 @@ dependency, and the build bundles it.
 | `npm run test` | Vitest: `test/unit/` and `test/property/` |
 | `npm run build` | `dist/tessera.js` (ES module), `dist/tessera.min.js` (minified ES module) and `dist/tessera.iife.js` (minified, for a plain `<script>`; global `Tessera`), each with a source map |
 | `npm run size` | gzip size of `dist/tessera.min.js` against `size-budget.json` |
-| `npm run test:browser` | Playwright, headless, in Chromium and Firefox (WebKit with `TESSERA_WEBKIT=1`, see `docs/decisions.md`), against the reference server; run `npm run build` first |
+| `npm run test:browser` | Playwright, headless, in Chromium and Firefox (WebKit with `TESSERA_WEBKIT=1` on a machine that has its libraries, see `docs/decisions.md`), against the reference server; run `npm run build` first |
+| `npm run test:browser:webkit` | The browser tests in WebKit, which runs in the pinned Playwright Docker image while the runner and the reference server stay on the host; arguments go to `playwright test` (`npm run test:browser:webkit -- smoke.spec.ts`); needs Docker; run `npm run build` first |
 | `npm run serve:test` | The reference server (`test/server/`) on a free port, for trying Tessera by hand; prints the URL |
 | `npm run check` | typecheck, lint, test, build and size, in that order, stopping at the first failure |
 
