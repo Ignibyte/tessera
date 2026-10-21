@@ -281,6 +281,56 @@ describe("headers", () => {
   });
 });
 
+describe("the write id", () => {
+  const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+
+  it.each(["POST", "PUT", "PATCH", "DELETE"] as const)("is on a %s, as a UUID", async (method) => {
+    const { transport, calls } = setup(content);
+    await transport.request({ kind: "action", method, url: "/x", ...(method === "DELETE" ? {} : { body: "" }) });
+    expect(calls[0]?.headers["tessera-write-id"]).toMatch(UUID);
+  });
+
+  it("is never on a GET, nor on the visit a Tessera-Location leads to", async () => {
+    const { transport, calls, respond } = setup(content);
+    respond(() => empty(204), () => empty(200, { "Tessera-Location": "/done", "Tessera-Protocol": "0" }), () => fragments(contentFragment("done")));
+    await transport.request({ kind: "refresh", url: "/x" });
+    await transport.request({ kind: "submit", method: "POST", url: "/save", targets: ["content"], body: "" });
+    expect(calls.map(({ method, headers }) => [method, headers["tessera-write-id"] !== undefined])).toEqual([
+      ["GET", false],
+      ["POST", true],
+      ["GET", false],
+    ]);
+  });
+
+  it("is new for every submission, the same form submitted twice included", async () => {
+    const { transport, calls, find } = setup(`<main data-region="content"><form id="f" method="post" action="/s"><button id="b">Go</button></form></main>`);
+    await transport.submit(find("#f") as HTMLFormElement, find("#b"));
+    await transport.submit(find("#f") as HTMLFormElement, find("#b"));
+    const [first, second] = calls.map(({ headers }) => headers["tessera-write-id"]);
+    expect(first).toMatch(UUID);
+    expect(second).toMatch(UUID);
+    expect(first).not.toBe(second);
+  });
+
+  it("cannot be changed or removed by an interceptor", async () => {
+    const { transport, calls } = setup(content);
+    transport.intercept({
+      before: ({ headers, request }) => {
+        expect(request.writeId).toMatch(UUID);
+        headers.set("Tessera-Write-Id", "forged");
+      },
+    });
+    transport.intercept({
+      before: ({ headers }) => {
+        headers.delete("Tessera-Write-Id");
+      },
+    });
+    const outcome = transport.request({ kind: "action", method: "POST", url: "/x", body: "" });
+    await outcome;
+    expect(calls[0]?.headers["tessera-write-id"]).toMatch(UUID);
+  });
+});
+
 describe("the 419 prompt", () => {
   it("raises tessera:expired and, unless it is cancelled, offers a reload", async () => {
     const reload = vi.fn();

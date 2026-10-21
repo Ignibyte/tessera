@@ -11,8 +11,8 @@ import { setTimeout as sleep } from "node:timers/promises";
 import { CHANNEL, Controller } from "./controller.ts";
 import { contains, escapeHtml, fragmentBody, parseTargets, renderPage, verify } from "./html.ts";
 import type { Identity, Rendered, Vars } from "./html.ts";
-import { header, isTessera, send, text } from "./http.ts";
-import type { FixtureRequest, FixtureResponse, Secrets } from "./http.ts";
+import { header, isTessera, json, send, text } from "./http.ts";
+import type { FixtureRequest, FixtureResponse, Secrets, ServerState } from "./http.ts";
 import { serveStream } from "./stream.ts";
 
 const root = import.meta.dirname;
@@ -160,7 +160,7 @@ const simplePages: Readonly<Record<string, string>> = {
 };
 
 /** Answers every route that is not a stream, the controller or its control interface. */
-async function respond(request: FixtureRequest, secrets: Secrets): Promise<FixtureResponse> {
+async function respond(request: FixtureRequest, secrets: ServerState): Promise<FixtureResponse> {
   const { method, url } = request;
   const path = url.pathname;
   const page = (name: string, vars: Vars = {}, status = 200): FixtureResponse =>
@@ -172,7 +172,8 @@ async function respond(request: FixtureRequest, secrets: Secrets): Promise<Fixtu
   if (path === "/form" && method === "POST") return submitForm(request, secrets);
   if (path.startsWith("/assets/") && method === "GET") return asset(path);
 
-  const known = path in simplePages || ["/form", "/form/done", "/events", "/slow", "/redeploy", "/away", "/stray"].includes(path);
+  const known =
+    path in simplePages || ["/form", "/form/done", "/events", "/slow", "/redeploy", "/away", "/stray", "/counter/log"].includes(path);
   if (known && method !== "GET") return { ...text(405, `${path} answers GET.`), headers: { Allow: path === "/form" ? "GET, POST" : "GET" } };
 
   const simple = simplePages[path];
@@ -181,6 +182,25 @@ async function respond(request: FixtureRequest, secrets: Secrets): Promise<Fixtu
   if (path === "/form/done") return page("form-done", { name: url.searchParams.get("name") ?? "" });
   if (path === "/events") return page("events", { stream: `/events/stream${url.search}`, items: "" });
   if (path === "/redeploy") return page("redeploy", { build: "2" });
+  if (path === "/counter/log") {
+    const key = url.searchParams.get("key") ?? "";
+    return json(200, {
+      count: secrets.counts.get(key) ?? 0,
+      arrivals: secrets.arrivals.filter((arrival) => new URL(arrival.path, url).searchParams.get("key") === key),
+    });
+  }
+  if (path === "/counter") {
+    const key = url.searchParams.get("key") ?? "";
+    if (method === "POST") {
+      // The write: applied here once per write id, since a repeat is answered from the store.
+      secrets.counts.set(key, (secrets.counts.get(key) ?? 0) + 1);
+      const answer = isTessera(request)
+        ? page("counter", { count: String(secrets.counts.get(key)) })
+        : redirect(request, `/counter?key=${encodeURIComponent(key)}`);
+      return url.searchParams.get("drop") === "once" ? { ...answer, drop: true } : answer;
+    }
+    return page("counter", { count: String(secrets.counts.get(key) ?? 0) });
+  }
   if (path === "/away") {
     // A page Tessera cannot update in place: a Tessera request is told to load it in full.
     return isTessera(request)
@@ -218,10 +238,33 @@ async function readBody(req: IncomingMessage): Promise<string | undefined> {
   return Buffer.concat(chunks).toString("utf8");
 }
 
+/** Protocol 5.8: how long a write id is remembered. */
+const WRITE_WINDOW_MS = 5 * 60 * 1000;
+
+/**
+ * Protocol 5.8, as a server should do it: a Tessera write with an id seen within the window gets
+ * the first answer again and is never applied twice. This server has no sessions, so its store is
+ * global. Returns undefined when the request is not such a write.
+ */
+async function deduplicated(request: FixtureRequest, state: ServerState): Promise<FixtureResponse | undefined> {
+  const id = header(request.headers, "tessera-write-id");
+  if (id === undefined || !isTessera(request) || request.method === "GET") return undefined;
+  if (!/^[A-Za-z0-9-]{1,64}$/.test(id)) return text(400, "Tessera-Write-Id is 1 to 64 of A-Z a-z 0-9 -.");
+  const now = Date.now();
+  for (const [seen, { at }] of state.writes) if (now - at > WRITE_WINDOW_MS) state.writes.delete(seen);
+  const path = `${request.url.pathname}${request.url.search}`;
+  const first = state.writes.get(id);
+  state.arrivals.push({ path, id, repeat: first !== undefined });
+  if (first) return first.response;
+  const response = await respond(request, state);
+  state.writes.set(id, { response: { status: response.status, headers: response.headers, body: response.body }, at: now });
+  return response;
+}
+
 async function dispatch(
   req: IncomingMessage,
   res: ServerResponse,
-  secrets: Secrets,
+  secrets: ServerState,
   controller: Controller,
 ): Promise<void> {
   const url = new URL(req.url ?? "/", `http://${req.headers.host ?? "localhost"}`);
@@ -258,7 +301,7 @@ async function dispatch(
     await serveStream(request, res, secrets);
     return;
   }
-  send(res, await respond(request, secrets));
+  send(res, (await deduplicated(request, secrets)) ?? (await respond(request, secrets)));
 }
 
 export interface RunningServer {
@@ -280,9 +323,12 @@ export interface ServerOptions {
 }
 
 export async function startServer(options: ServerOptions = {}): Promise<RunningServer> {
-  const secrets: Secrets = {
+  const secrets: ServerState = {
     key: randomBytes(32).toString("hex"),
     csrf: randomBytes(16).toString("hex"),
+    counts: new Map(),
+    arrivals: [],
+    writes: new Map(),
   };
   const controller = new Controller((request) => respond(request, secrets));
   const server = createServer((req, res) => {

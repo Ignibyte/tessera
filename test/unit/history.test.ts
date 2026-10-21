@@ -29,7 +29,7 @@ afterEach(() => {
 const entry = (patch: Partial<Entry> = {}): Entry => ({ v: 1, kind: "visit", targets: [], scroll: null, focus: null, ...patch });
 
 function request(history: HistoryMode, targets: string[] = []): TesseraRequest {
-  return { kind: "visit", method: "GET", url: window.location.href, targets, element: undefined, body: undefined, signals: undefined, history };
+  return { kind: "visit", method: "GET", url: window.location.href, targets, element: undefined, body: undefined, signals: undefined, history, writeId: undefined };
 }
 
 const at = (name: string): TargetNode => resolveTarget(document, name) ?? { kind: "page", document };

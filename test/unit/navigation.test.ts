@@ -134,7 +134,7 @@ describe("committing a whole document", () => {
       `<!doctype html><html lang="en"><head><title>New</title><meta name="tessera-layout" content="bare"><link href="/app.css" data-track></head>
        <body><header id="keep" data-permanent>server</header><main data-region="content"><p id="p">new</p></main><script>window.ranCommitted = true</script></body></html>`,
       "http://localhost:3000/next",
-      { kind: "visit", method: "GET", url: "http://localhost:3000/next", targets: [], element: undefined, body: undefined, signals: undefined, history: "push" },
+      { kind: "visit", method: "GET", url: "http://localhost:3000/next", targets: [], element: undefined, body: undefined, signals: undefined, history: "push", writeId: undefined },
     );
     expect(result).toBe("committed");
     expect(fixture.find("main")).toBe(main);
@@ -154,7 +154,7 @@ describe("committing a whole document", () => {
     const result = await commit(
       `<!doctype html><html><head><title>New</title><link href="/app.2.css" data-track></head><body><p>new</p></body></html>`,
       "http://localhost:3000/next",
-      { kind: "visit", method: "GET", url: "http://localhost:3000/next", targets: [], element: undefined, body: undefined, signals: undefined, history: "push" },
+      { kind: "visit", method: "GET", url: "http://localhost:3000/next", targets: [], element: undefined, body: undefined, signals: undefined, history: "push", writeId: undefined },
     );
     expect(result).toBe("full-load");
     expect(document.body.innerHTML).toBe(before);

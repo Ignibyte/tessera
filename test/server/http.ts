@@ -16,12 +16,23 @@ export interface FixtureResponse {
   readonly status: number;
   readonly headers: Readonly<Record<string, string>>;
   readonly body: string | Buffer;
+  /** Destroy the connection instead of answering: the client sees a network failure. */
+  readonly drop?: boolean;
 }
 
 /** The secrets of one server instance: the props signing key and the CSRF token. */
 export interface Secrets {
   readonly key: string;
   readonly csrf: string;
+}
+
+/** One server instance's state: its secrets, the `/counter` counts and the write ids it saw. */
+export interface ServerState extends Secrets {
+  readonly counts: Map<string, number>;
+  /** Each Tessera write that carried `Tessera-Write-Id`, in arrival order. */
+  readonly arrivals: { readonly path: string; readonly id: string; readonly repeat: boolean }[];
+  /** The first answer to each write id, kept for the protocol's window (section 5.8). */
+  readonly writes: Map<string, { readonly response: FixtureResponse; readonly at: number }>;
 }
 
 /** One header's value, with repeated headers joined as HTTP joins them. */
@@ -47,6 +58,11 @@ export function json(status: number, value: unknown): FixtureResponse {
 }
 
 export function send(res: ServerResponse, response: FixtureResponse): void {
+  if (response.drop) {
+    res.socket?.destroy();
+    res.destroy();
+    return;
+  }
   res.writeHead(response.status, { Vary: VARY, ...response.headers });
   res.end(response.body);
 }
