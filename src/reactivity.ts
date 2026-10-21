@@ -4,6 +4,11 @@
 // memoized computed values, and one scheduler per runtime instead of one per realm. Only plain
 // objects and arrays read from a reactive object come back reactive; DOM nodes, class
 // instances, Maps and Sets come back as themselves.
+//
+// Computed values are push-pull, as in Vue 3.4 and Preact Signals: a write pushes marks only
+// (`dirty` to what read the written key, `check` beyond a computed value), and a value is pulled
+// when read. A computed value that recomputes to an `Object.is`-equal value keeps its version, so
+// what read it neither recomputes nor re-runs.
 import { isPlainRecord } from "./values.ts";
 
 type Key = PropertyKey;
@@ -14,11 +19,30 @@ const ITERATE = Symbol("iterate");
 /** How many flush rounds in a row may still leave work queued before the queue is dropped. */
 const MAX_ROUNDS = 100;
 
+/**
+ * What a change tells a subscriber: `dirty`, a key it read was written; `check`, a computed value
+ * it read may have changed, which only pulling that value can tell.
+ */
+type Notice = "dirty" | "check";
+
+/** A computed value as its readers see it: brought up to date by `refresh`, versioned. */
+interface Source {
+  /** Goes up each time a recomputation gives a value not `Object.is`-equal to the last. */
+  readonly version: number;
+  /** Recomputes if needed; throws what the getter threw. */
+  refresh(): void;
+}
+
+/** The version a reader records for a source whose evaluation failed: it never matches. */
+const FAILED = -1;
+
 /** Anything that depends on reactive reads: an effect, or a computed value's evaluation. */
 interface Subscriber {
   active: boolean;
   dependencies: Set<Subscriber>[];
-  notify(): void;
+  /** The computed values read on the last run, with the version each had then. */
+  sources: Map<Source, number>;
+  notify(notice: Notice): void;
 }
 
 export interface EffectOptions {
@@ -51,10 +75,29 @@ let trackingPaused = 0;
 function cleanup(subscriber: Subscriber): void {
   for (const dependency of subscriber.dependencies) dependency.delete(subscriber);
   subscriber.dependencies.length = 0;
+  subscriber.sources.clear();
+}
+
+/** Whether a computed value the subscriber read has a new version since; a failure counts. */
+function sourcesChanged(subscriber: Subscriber): boolean {
+  for (const [source, seen] of subscriber.sources) {
+    try {
+      source.refresh();
+    } catch {
+      return true;
+    }
+    if (source.version !== seen) return true;
+  }
+  return false;
+}
+
+function tracking(): Subscriber | undefined {
+  return trackingPaused > 0 || !currentSubscriber?.active ? undefined : currentSubscriber;
 }
 
 function track(target: object, key: Key): void {
-  if (trackingPaused > 0 || !currentSubscriber?.active) return;
+  const subscriber = tracking();
+  if (!subscriber) return;
 
   let byKey = dependencies.get(target);
   if (!byKey) {
@@ -66,16 +109,16 @@ function track(target: object, key: Key): void {
     subscribers = new Set();
     byKey.set(key, subscribers);
   }
-  if (!subscribers.has(currentSubscriber)) {
-    subscribers.add(currentSubscriber);
-    currentSubscriber.dependencies.push(subscribers);
+  if (!subscribers.has(subscriber)) {
+    subscribers.add(subscriber);
+    subscriber.dependencies.push(subscribers);
   }
 }
 
-function trigger(target: object, key: Key): void {
+function trigger(target: object, key: Key, notice: Notice = "dirty"): void {
   const subscribers = dependencies.get(target)?.get(key);
   if (!subscribers) return;
-  for (const subscriber of Array.from(subscribers)) subscriber.notify();
+  for (const subscriber of Array.from(subscribers)) subscriber.notify(notice);
 }
 
 /** Runs `fn` with `subscriber` collecting the reads, replacing what it depended on before. */
@@ -196,27 +239,62 @@ export function stop(effect: ReactiveEffect): void {
 
 /**
  * A value derived from reactive reads, cached until one of them changes. Reading `value`
- * inside an effect or another computed value makes it a dependency there.
+ * inside an effect or another computed value makes it a dependency there. A recomputation that
+ * gives an `Object.is`-equal value changes nothing for what read it.
  */
 export function computed<T>(getter: () => T): Computed<T> {
-  let dirty = true;
+  let state: "clean" | "check" | "dirty" = "dirty";
+  let failed = false;
+  let evaluated = false;
+  let version = 0;
   let cached: T;
   const evaluation: Subscriber = {
     active: true,
     dependencies: [],
-    notify: () => {
-      dirty = true;
-      trigger(handle, "value");
+    sources: new Map(),
+    notify: (notice) => {
+      // Readers were told when this value left `clean`; a failed one tells them again.
+      const passOn = state === "clean" || failed;
+      if (notice === "dirty") state = "dirty";
+      else if (state === "clean") state = "check";
+      if (passOn) trigger(handle, "value", "check");
+    },
+  };
+  const source: Source = {
+    get version() {
+      return version;
+    },
+    refresh() {
+      if (state === "clean" || !evaluation.active) return;
+      if (state === "check" && !sourcesChanged(evaluation)) {
+        state = "clean";
+        return;
+      }
+      let value: T;
+      try {
+        value = collect(evaluation, getter);
+      } catch (error) {
+        state = "dirty";
+        failed = true;
+        throw error;
+      }
+      failed = false;
+      state = "clean";
+      if (!evaluated || !Object.is(value, cached)) {
+        cached = value;
+        evaluated = true;
+        version++;
+      }
     },
   };
   const handle: Computed<T> = {
     get value() {
       track(handle, "value");
       if (!evaluation.active) return getter();
-      if (dirty) {
-        cached = collect(evaluation, getter);
-        dirty = false;
-      }
+      const reader = tracking();
+      reader?.sources.set(source, FAILED);
+      source.refresh();
+      reader?.sources.set(source, version);
       return cached;
     },
     get active() {
@@ -235,7 +313,8 @@ export function computed<T>(getter: () => T): Computed<T> {
  * and `nextUpdate` waits for this queue alone and reports its failures.
  */
 export class Scheduler {
-  readonly #pending = new Set<ReactiveEffect>();
+  /** Each pending effect with its strongest notice: a `check` one runs only if a source changed. */
+  readonly #pending = new Map<ReactiveEffect, Notice>();
   readonly #errors: unknown[] = [];
   #flushPending = false;
   #rounds = 0;
@@ -248,10 +327,11 @@ export class Scheduler {
     }) as ReactiveEffect;
     runner.active = true;
     runner.dependencies = [];
+    runner.sources = new Map();
     runner.owner = options.owner;
     runner.onError = options.onError;
-    runner.notify = () => {
-      this.#schedule(runner);
+    runner.notify = (notice) => {
+      this.#schedule(runner, notice);
     };
     try {
       runner();
@@ -275,9 +355,9 @@ export class Scheduler {
     }
   }
 
-  #schedule(effect: ReactiveEffect): void {
+  #schedule(effect: ReactiveEffect, notice: Notice): void {
     if (!effect.active) return;
-    this.#pending.add(effect);
+    if (this.#pending.get(effect) !== "dirty") this.#pending.set(effect, notice);
     this.#requestFlush();
   }
 
@@ -294,8 +374,8 @@ export class Scheduler {
     const effects = Array.from(this.#pending);
     this.#pending.clear();
 
-    for (const effect of effects) {
-      if (!effect.active) continue;
+    for (const [effect, notice] of effects) {
+      if (!effect.active || (notice === "check" && !sourcesChanged(effect))) continue;
       try {
         effect();
       } catch (error) {
@@ -316,7 +396,7 @@ export class Scheduler {
       return;
     }
     if (++this.#rounds >= MAX_ROUNDS) {
-      const owners = [...new Set(Array.from(this.#pending, (effect) => effect.owner ?? "unowned"))];
+      const owners = [...new Set(Array.from(this.#pending.keys(), (effect) => effect.owner ?? "unowned"))];
       this.#pending.clear();
       this.#rounds = 0;
       this.#errors.push(

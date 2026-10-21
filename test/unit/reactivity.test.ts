@@ -541,6 +541,120 @@ describe("computed values", () => {
   });
 });
 
+describe("computed values that recompute to an equal value", () => {
+  it("do not re-run the effects that read them", async () => {
+    const scheduler = new Scheduler();
+    const state = reactive({ n: 2 });
+    const getter = vi.fn(() => state.n % 2 === 0);
+    const even = computed(getter);
+    const runs = vi.fn(() => even.value);
+    scheduler.effect(runs);
+
+    state.n = 4;
+    await scheduler.nextUpdate();
+    expect(getter).toHaveBeenCalledTimes(2);
+    expect(runs).toHaveBeenCalledOnce();
+  });
+
+  it("stop a chain: an outer value whose inner one is unchanged neither recomputes nor re-runs its effect", async () => {
+    const scheduler = new Scheduler();
+    const state = reactive({ n: 2 });
+    const innerGetter = vi.fn(() => state.n % 2 === 0);
+    const outerGetter = vi.fn(() => (inner.value ? "even" : "odd"));
+    const inner = computed(innerGetter);
+    const outer = computed(outerGetter);
+    const runs = vi.fn(() => outer.value);
+    scheduler.effect(runs);
+
+    state.n = 6;
+    await scheduler.nextUpdate();
+    expect(innerGetter).toHaveBeenCalledTimes(2);
+    expect(outerGetter).toHaveBeenCalledOnce();
+    expect(runs).toHaveBeenCalledOnce();
+  });
+
+  it("run the effect when the value changes after an equal recomputation", async () => {
+    const scheduler = new Scheduler();
+    const state = reactive({ n: 2 });
+    const even = computed(() => state.n % 2 === 0);
+    const observed: boolean[] = [];
+    scheduler.effect(() => observed.push(even.value));
+
+    state.n = 4;
+    await scheduler.nextUpdate();
+    state.n = 5;
+    await scheduler.nextUpdate();
+    expect(observed).toEqual([true, false]);
+  });
+
+  it("still re-run an effect that also read a written key directly", async () => {
+    const scheduler = new Scheduler();
+    const state = reactive({ n: 2, label: "a" });
+    const even = computed(() => state.n % 2 === 0);
+    const observed: string[] = [];
+    scheduler.effect(() => observed.push(`${state.label}:${String(even.value)}`));
+
+    state.n = 4;
+    state.label = "b";
+    await scheduler.nextUpdate();
+    expect(observed).toEqual(["a:true", "b:true"]);
+  });
+
+  it("keep batching: several writes in one microtask cost one evaluation", async () => {
+    const scheduler = new Scheduler();
+    const state = reactive({ a: 1, b: 1 });
+    const getter = vi.fn(() => state.a + state.b);
+    const sum = computed(getter);
+    const runs = vi.fn(() => sum.value);
+    scheduler.effect(runs);
+
+    state.a = 2;
+    state.b = 3;
+    state.a = 4;
+    await scheduler.nextUpdate();
+    expect(getter).toHaveBeenCalledTimes(2);
+    expect(runs).toHaveBeenCalledTimes(2);
+  });
+
+  it("keep laziness: a value nobody reads is not evaluated by a write", async () => {
+    const scheduler = new Scheduler();
+    const state = reactive({ n: 1 });
+    const innerGetter = vi.fn(() => state.n * 2);
+    const inner = computed(innerGetter);
+    const outerGetter = vi.fn(() => inner.value + 1);
+    const outer = computed(outerGetter);
+    expect(outer.value).toBe(3);
+
+    state.n = 2;
+    state.n = 3;
+    await scheduler.nextUpdate();
+    expect(innerGetter).toHaveBeenCalledOnce();
+    expect(outerGetter).toHaveBeenCalledOnce();
+    expect(outer.value).toBe(7);
+    expect(innerGetter).toHaveBeenCalledTimes(2);
+    expect(outerGetter).toHaveBeenCalledTimes(2);
+  });
+
+  it("re-run an effect whose read failed once the value can be computed, even if it equals the old one", async () => {
+    const scheduler = new Scheduler();
+    const state = reactive({ fail: false, n: 1 });
+    const value = computed(() => {
+      if (state.fail) throw new Error("not now");
+      return state.n;
+    });
+    const observed: number[] = [];
+    const errors: unknown[] = [];
+    scheduler.effect(() => observed.push(value.value), { onError: (error) => errors.push(error) });
+
+    state.fail = true;
+    await scheduler.nextUpdate();
+    state.fail = false;
+    await scheduler.nextUpdate();
+    expect(errors).toHaveLength(1);
+    expect(observed).toEqual([1, 1]);
+  });
+});
+
 describe("with the kernel", () => {
   function frameDocument(): { document: Document; remove: () => void } {
     const frame = document.createElement("iframe");

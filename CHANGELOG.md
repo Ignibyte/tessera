@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- A computed value that recomputes to an `Object.is`-equal value no longer re-runs what read it:
+  computed values are push-pull, with versions, so a chain stops at the first unchanged value,
+  while batching and laziness stay (#21).
+- Browser tests name controller channels and server log keys per test (`test/browser/names.ts`),
+  not per worker: two specs using the same name in one worker shared a channel and saw each
+  other's requests (#21).
+
 - Lazy regions, polling, prefetch and persisted nodes (`src/lazy.ts`, `src/polling.ts`,
   `src/watch.ts`): `data-lazy` loads once, `data-lazy__visible` when in view; `data-poll`
   refreshes on shared clocks (`__5s`, `__750ms`), one tick in 20 without window focus, none while
