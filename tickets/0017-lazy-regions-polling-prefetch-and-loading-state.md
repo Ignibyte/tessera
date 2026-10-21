@@ -3,11 +3,12 @@ number: 17
 uuid: ee58bae5-60d7-4b4c-8d4a-979bd76e1390
 title: "Lazy regions, polling, prefetch and loading state"
 type: feature
-status: in-progress
+status: done
 tags: ["regions","livewire"]
 created: 2026-10-20T18:00:00Z
-updated: 2026-10-21T01:37:03Z
+updated: 2026-10-21T01:37:17Z
 phase: "docs"
+closed: 2026-10-21T01:37:17Z
 ---
 
 The Livewire-derived behaviours from `docs/design.md`, on top of #12 and #13.
@@ -59,3 +60,7 @@ Check passed (typecheck, lint, 608 unit and property tests, build, size), and th
 ### 2026-10-21T01:37:03Z
 
 Correction: the check I ran right before committing failed on one unit test, and I pushed anyway because a pipe into `tail` hid the exit code. The failing test was #16's 'shares one stream per URL…', which is flaky: under load its fixed 5 ms wait can fire before the stream's one-task grace timer. The stream code is right; the test now waits for the closed state, and so does its 'switches streams' sibling. After the fix: 15 of 15 runs of `streams.test.ts` passed, 8 of 8 runs of the whole unit suite passed, and `npm run check` exited 0.
+
+### 2026-10-21T01:37:17Z
+
+Delivered via PR #21 (c0c1c9b). Lazy regions, shared-clock polling with background throttling and pauses, prefetch on mousedown or hover, data-permanent through fragment morphs.
