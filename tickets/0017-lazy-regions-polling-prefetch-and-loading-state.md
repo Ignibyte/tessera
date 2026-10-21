@@ -6,7 +6,7 @@ type: feature
 status: in-progress
 tags: ["regions","livewire"]
 created: 2026-10-20T18:00:00Z
-updated: 2026-10-21T01:32:07Z
+updated: 2026-10-21T01:37:03Z
 phase: "docs"
 ---
 
@@ -55,3 +55,7 @@ Decisions (Provisional, docs/decisions.md): the duration modifier syntax, `__vis
 ### 2026-10-21T01:32:07Z
 
 Check passed (typecheck, lint, 608 unit and property tests, build, size), and the browser suite passed: 126 tests in Chromium and Firefox, 8 of them in the new `regions.spec.ts`, which also passed 24 of 24 with `--repeat-each 3`. Two things the plan did not name: the attribute watcher went in `src/watch.ts`, which lazy loads and polls share, and `ownerPath` moved out of `Scopes` in `src/scopes.ts` so a refresh target can be computed without a mount. Polls are refused under 100 ms.
+
+### 2026-10-21T01:37:03Z
+
+Correction: the check I ran right before committing failed on one unit test, and I pushed anyway because a pipe into `tail` hid the exit code. The failing test was #16's 'shares one stream per URL…', which is flaky: under load its fixed 5 ms wait can fire before the stream's one-task grace timer. The stream code is right; the test now waits for the closed state, and so does its 'switches streams' sibling. After the fix: 15 of 15 runs of `streams.test.ts` passed, 8 of 8 runs of the whole unit suite passed, and `npm run check` exited 0.
