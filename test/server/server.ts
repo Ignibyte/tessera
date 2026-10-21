@@ -261,8 +261,15 @@ async function dispatch(
     await serveNavigation(request, res, secrets);
     return;
   }
-  send(res, (await deduplicated(request, secrets)) ?? (await respond(request, secrets)));
+  const response = (await deduplicated(request, secrets)) ?? (await respond(request, secrets));
+  send(res, url.searchParams.get("csp") === "1" ? { ...response, headers: { ...response.headers, "Content-Security-Policy": STRICT_POLICY } } : response);
 }
+
+/**
+ * `?csp=1` on any route: a policy that refuses 'unsafe-eval' (and inline scripts), for the no-eval
+ * engine's browser test (#22). Same-origin scripts, the harness and the build, still load.
+ */
+const STRICT_POLICY = "script-src 'self'";
 
 export interface RunningServer {
   readonly url: string;

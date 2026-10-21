@@ -3,7 +3,7 @@
 // with Tessera's scope (signals, el, evt, helpers, actions) in place of jqstar's jQuery context.
 import { describe, expect, it, vi } from "vitest";
 import type { ActionCall } from "../../src/actions.ts";
-import type { ExpressionContext, ExpressionEngine, ExpressionError, ExpressionLocation } from "../../src/expression.ts";
+import type { ExpressionContext, ExpressionEngine, ExpressionError, ExpressionLocation, HelperScope } from "../../src/expression.ts";
 
 export const expressionEngineConformanceCaseIds = [
   "values-and-statements",
@@ -40,8 +40,19 @@ function thrown(work: () => unknown): ExpressionError {
   throw new Error("Expected an expression failure.");
 }
 
+/**
+ * Where an engine's grammar is narrower than JavaScript, a case may say the same thing another
+ * way: the adaptation, with its reason. jqstar called these cases "csp-equivalent".
+ */
+export interface ConformanceAdaptations {
+  /** location-aware-errors: an asynchronous failure inside a statement. */
+  readonly asyncFailure?: { readonly source: string; readonly helpers: HelperScope; readonly reason: string };
+}
+
+const ASYNC_FAILURE = { source: 'await Promise.resolve(); throw new Error("async expression failure")', helpers: {} };
+
 /** Declares the conformance cases for an engine; each case gets a fresh engine. */
-export function runExpressionEngineConformance(name: string, createEngine: () => ExpressionEngine): void {
+export function runExpressionEngineConformance(name: string, createEngine: () => ExpressionEngine, adaptations: ConformanceAdaptations = {}): void {
   describe(`${name} expression-engine conformance`, () => {
     it("values-and-statements", async () => {
       const engine = createEngine();
@@ -140,10 +151,9 @@ export function runExpressionEngineConformance(name: string, createEngine: () =>
         expect(failure).toMatchObject({ name: "ExpressionError", phase: "evaluate", source: "$missing.call()", location });
         expect(failure.message).toContain("at data-text");
         expect(failure.message).toContain("on <button>");
+        const asyncFailure = adaptations.asyncFailure ?? ASYNC_FAILURE;
         await expect(
-          engine.compileStatement('await Promise.resolve(); throw new Error("async expression failure")', location)(
-            current.context,
-          ),
+          engine.compileStatement(asyncFailure.source, location)({ ...current.context, helpers: asyncFailure.helpers }),
         ).rejects.toMatchObject({ name: "ExpressionError", phase: "evaluate", location });
       } finally {
         engine.dispose();

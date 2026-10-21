@@ -328,6 +328,56 @@ default so work could go on; Chad confirms or changes it, and until then the cod
     content, focus and history length; a field may differ only where the scenario declares why.
     Mousedown prefetch sends one GET for a link whose click the page then cancels (NAV-20); the
     matrix accepts that as #17's cost.
+- **The no-eval engine: its scope, and what it leaves out** (**Provisional**, ticket #22,
+  2026-10-20). `createNoEvalExpressionEngine()` (`src/noeval/`, ported from jqstar `src/csp/`)
+  sits behind the same `ExpressionEngine` seam. A page picks it with one option, the
+  `expressions` engine given when Tessera starts (today `mountAttributes({ expressions })`; #19
+  puts it in the public call). Importing `src/noeval/engine.ts` is the only way it enters a
+  build. Both engines import only `src/expression-shared.ts`; `npm run size` builds each alone,
+  checks that neither holds the other's code, and holds the trusted engine to 2,150 bytes
+  gzipped and the no-eval engine to 10,950 (measured 1,920 and 9,914, plus 10%). The default
+  build's budget is unchanged.
+  - **The same scope**, resolved when the expression runs, in the trusted engine's order: `el`,
+    `evt` and `this` (the element), the context's helpers, `$name`, then the built-ins. Any
+    other name, `$` alone included, fails with the trusted engine's "is not defined" message.
+    Actions `@get` to `@delete` anywhere, through the same seam. A statement returns a promise
+    that rejects on an evaluation error, as the trusted engine's async function does.
+  - **Less than JavaScript, as jqstar's grammar**: `===` and `!==` only (`==` and `!=` fail to
+    compile); arithmetic on finite numbers with finite results, `+` also joining strings with
+    strings, numbers, booleans, `null` and `undefined`; `<`, `<=`, `>`, `>=` on two numbers or two
+    strings; `&&`, `||`, `??`, `?:`, `!`, unary `+` and `-`; assignment and compound assignment,
+    postfix `++` and `--`; `;`-separated statements, a last `return`, and `await` in
+    statements. No `new`, `typeof`, `in`, `instanceof`, `delete`, `throw`, `if`, loops, `let`,
+    functions or arrows, classes, template literals, comments, regular expressions, optional
+    chaining, spread, destructuring, `??=` or prefix updates. Strings take JSON's escapes;
+    numbers are decimal.
+  - **jqstar's limits**: 2,048 characters, 512 tokens, nesting 16, 256 syntax nodes, 64 literal
+    entries, 8 path segments, 8 arguments, 128 evaluation steps, 128 collection items, 8 awaits.
+  - **What a value can do** (the capability table in `src/noeval/evaluator.ts`): data reached
+    from a signal can be read and written (own properties only, no accessors), and its arrays
+    also `push`, `pop`, `shift` and `unshift`; other data is read-only. Arrays offer `at`,
+    `includes`, `indexOf`, `join` and `slice`; strings `length`, an index, and `charAt`,
+    `endsWith`, `includes`, `indexOf`, `slice`, `split`, `startsWith`, `substring`,
+    `toLowerCase`, `toUpperCase` and `trim`. An element reads `checked`, `className`, `dataset`
+    (a copy), `disabled`, `form`, `hidden`, `href`, `id`, `localName`, `name`, `open`,
+    `parentElement`, `placeholder`, `readOnly`, `required`, `selectedIndex`, `tagName`,
+    `textContent`, `title`, `type` and `value`. It writes only `checked`, `disabled`, `hidden`,
+    `textContent` and `value`, never markup, and calls `blur`, `click`, `focus`,
+    `requestSubmit`, `reset`, `scrollIntoView` and `select` with no arguments, and `closest`,
+    `getAttribute`, `hasAttribute` and `matches` with one string. An event reads jqstar's
+    members plus the modifier keys, `repeat` and `submitter`, and calls `preventDefault`,
+    `stopPropagation` and `stopImmediatePropagation`. Helpers are called as registered. The
+    built-ins are a table of pure functions: `Math`'s, `JSON.parse` and `JSON.stringify` (no
+    replacer), `Number` and its predicates and parsers, `String`, `Boolean`, `parseInt`,
+    `parseFloat`, `isFinite`, `isNaN`, the URI functions, `Array.isArray`, `Object.keys`,
+    `values` and `entries`, `Promise.resolve` and `Date.now`. Another built-in name fails as
+    not available here.
+  - **Never**: `constructor`, `__proto__`, `prototype`, `call`, `apply`, `bind`, `arguments`,
+    `callee`, `caller` and `eval` as a key or method; a function as a result; `await` of
+    anything but a native promise. jqstar's cycle check and its owned-getter rule are gone: the
+    path limit bounds a read, and Tessera's computed signals are getters on the scope itself.
+  - The #6 conformance suite passes with one named adaptation: `location-aware-errors` fails
+    asynchronously through a helper's rejected promise, since there is no `throw` or `new`.
 
 ## Open
 

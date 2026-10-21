@@ -14,7 +14,7 @@ import type {
 } from "./directive.ts";
 import { isElementNode } from "./dom.ts";
 import { attempt, throwCollectedErrors } from "./errors.ts";
-import type { ExpressionContext, ExpressionEngine } from "./expression.ts";
+import type { ExpressionContext, ExpressionEngine } from "./expression-shared.ts";
 import type { Kernel, Mount, MountLifecycle, ResourceKind } from "./kernel.ts";
 import { reactive, stop } from "./reactivity.ts";
 import type { ReactiveEffect, Scheduler } from "./reactivity.ts";

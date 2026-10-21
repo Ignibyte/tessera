@@ -1,4 +1,8 @@
 {
   "file": "dist/tessera.min.js",
-  "maxGzipBytes": 30720
+  "maxGzipBytes": 30720,
+  "engines": {
+    "trusted": 2150,
+    "noEval": 10950
+  }
 }
