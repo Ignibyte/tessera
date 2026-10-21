@@ -77,7 +77,8 @@ export interface Rendered {
 /** Renders `pages/NAME.html` into its layout, signing the props in its component markers. */
 export function renderPage(name: string, vars: Vars, key: string): Rendered {
   const page = readPage(name);
-  const all: Record<string, string> = { ...vars, title: vars.title ?? page.title };
+  // `build` is the tracked stylesheet's data-track value; /redeploy renders another one.
+  const all: Record<string, string> = { build: "1", ...vars, title: vars.title ?? page.title };
   for (const [slot, markup] of Object.entries(page.slots)) {
     all[slot] = fill(markup, all, `pages/${name}.html`);
   }

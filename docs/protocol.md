@@ -637,14 +637,17 @@ the props tokens, so props are covered too. The server adds its own `Vary` value
 1. Tracked assets are compared. The set is every `<script src>` and `<link href>` in `<head>`
    with `data-track`, each identified by its tag, its resolved URL and its `data-track` value.
    If the incoming set differs from the current one in any way (an asset added, removed or
-   changed), Tessera does a full load instead, before it changes anything.
+   changed), Tessera does a full load instead, before it changes anything. So does an incoming
+   `<base href>` that differs from the current one.
 2. Incoming head elements the current head lacks, compared by their markup, are added;
    stylesheets among them are loaded before the body changes, so the page does not flash
    unstyled. Current head elements the incoming head lacks are removed after the body commit.
    Scripts are never added and never run.
 3. `<title>`, `<html lang dir>` and the `tessera-layout` and `tessera-csrf-token` metas take the
    incoming values.
-4. The body is morphed in place.
+4. The body is morphed in place. An element with `data-permanent` and an `id` stays the same live
+   node, untouched, when the incoming body has an element with the same `id` and `data-permanent`;
+   without one, it goes like any other.
 
 **On a fragment response**, tracked assets are compared when the body carries copies of them
 (section 5.3), with the same full-load rule, before anything commits. A server should include

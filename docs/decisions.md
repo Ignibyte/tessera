@@ -195,6 +195,18 @@ default so work could go on; Chad confirms or changes it, and until then the cod
   yield to everything. Generations are one commit sequence with each target's last touch, not a
   counter per target, so fragments a server sends unasked are covered too. A pending region carries
   `aria-busy`, a component's top-level elements do, and the initiating element `data-loading`.
+- **Which link clicks become visits** (**Provisional**, ticket #13, 2026-10-20): the primary
+  button, no modifier key, not already prevented, an HTML `<a href>` in the page's document,
+  `target` absent or `_self`, no `download`, an http or https URL of the page's origin, not a
+  change of fragment alone on the current URL (left to the browser's scrolling), and the nearest
+  `data-enhance` not `off`. One delegated listener on the document, owned by the kernel. A visit
+  targets the link's `data-target`, else its innermost region, else `page`, as protocol 4.1 says;
+  so the fixture's sidebar links carry `data-target="content"`, as protocol example 10.1 does.
+- **Committing a whole document** (**Provisional**, ticket #13, 2026-10-20): parsed with
+  `DOMParser` (inert); a different tracked-asset set or `<base>` loads in full before anything
+  changes; new stylesheets get 4 s to load or fail before the body commits; `<title>`, `lang`,
+  `dir` and the `tessera-layout` and `tessera-csrf-token` metas are taken by value, everything
+  else in the head by markup. The progress bar appears after 200 ms (Livewire uses 150).
 
 ## Open
 

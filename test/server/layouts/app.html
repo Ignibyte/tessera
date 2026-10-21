@@ -6,24 +6,26 @@
   <title>{{title}} · Fixture</title>
   <meta name="tessera-layout" content="app">
   <meta name="tessera-csrf-token" content="{{csrf}}">
-  <link rel="stylesheet" href="/assets/fixture.css" data-track>
+  <link rel="stylesheet" href="/assets/fixture.css" data-track="{{build}}">
   <script type="module" src="/assets/tessera.js" data-track></script>
 </head>
 <body>
   <header><a href="/">Fixture</a> · <!--t:c crumb-->{{title}}<!--/t:c--></header>
   <nav data-region="sidebar">
     <ul>
-      <li><a href="/">Home</a></li>
-      <li><a href="/about">About</a></li>
-      <li><a href="/form">Form</a></li>
-      <li><a href="/attributes">Attributes</a></li>
-      <li><a href="/events">Events</a></li>
-      <li><a href="/slow">Slow</a></li>
-      <li><a href="/bare">Bare</a></li>
+      <li><a href="/" data-target="content">Home</a></li>
+      <li><a href="/about" data-target="content">About</a></li>
+      <li><a href="/form" data-target="content">Form</a></li>
+      <li><a href="/attributes" data-target="content">Attributes</a></li>
+      <li><a href="/events" data-target="content">Events</a></li>
+      <li><a href="/slow" data-target="content">Slow</a></li>
+      <li><a href="/links" data-target="content">Links</a></li>
+      <li><a href="/bare" data-target="content">Bare</a></li>
     </ul>
   </nav>
   <main data-region="content">
 {{{content}}}
   </main>
+  <script src="/assets/harness.js"></script>
 </body>
 </html>

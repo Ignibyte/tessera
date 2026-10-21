@@ -7,6 +7,7 @@
 import type { ActionCall, ActionSeam } from "./actions.ts";
 import { ERROR_EVENT } from "./attributes.ts";
 import { leaseBody } from "./body.ts";
+import { trackedSet } from "./head.ts";
 import { busyElements, decideAll, Generations, resolveTarget } from "./coordination.ts";
 import type { RequestClass, TargetNode } from "./coordination.ts";
 import type { Kernel } from "./kernel.ts";
@@ -70,6 +71,9 @@ export interface RequestOutcome {
   readonly redirectedTo?: string;
 }
 
+/** What committing a whole document came to: committed in place, or a full load is needed. */
+export type DocumentCommit = "committed" | "full-load";
+
 export interface Interceptor {
   /** Runs once before dispatch; may set headers, but the protocol's own headers are restored. */
   readonly before?: (context: { readonly request: TesseraRequest; readonly headers: Headers }) => void;
@@ -89,8 +93,8 @@ export interface TransportOptions {
   readonly confirm?: (message: string) => boolean;
   /** Records a committed visit's URL. Default `history.pushState`; #14 owns the ordering. */
   readonly pushUrl?: (url: string) => void;
-  /** Commits a whole document (#13). Without it, a document answer is a full load. */
-  readonly commitDocument?: (html: string, url: string, request: TesseraRequest) => void;
+  /** Commits a whole document in place (src/navigation.ts). Without it, a document answer is a full load. */
+  readonly commitDocument?: (html: string, url: string, request: TesseraRequest) => Promise<DocumentCommit>;
   readonly report?: (error: unknown, request: TesseraRequest | undefined) => void;
   /** How long a request waits before it goes, so a superseded read is never sent. Default 5. */
   readonly bufferMs?: number;
@@ -184,17 +188,6 @@ function visible(document: Document, signal: AbortSignal): Promise<void> {
   });
 }
 
-/** The tracked assets of a head or of a fragment response's copies (protocol 9). */
-function trackedSet(elements: Iterable<Element>, base: string): string {
-  const entries: string[] = [];
-  for (const element of elements) {
-    if (!element.hasAttribute("data-track")) continue;
-    const source = element.getAttribute(element.localName === "link" ? "href" : "src") ?? "";
-    entries.push(`${element.localName} ${new URL(source, base).href} ${element.getAttribute("data-track") ?? ""}`);
-  }
-  return entries.sort().join("\n");
-}
-
 // --- Forms --------------------------------------------------------------------------------
 
 type Encoding = "application/x-www-form-urlencoded" | "multipart/form-data" | "text/plain";
@@ -220,7 +213,7 @@ function submitterAttribute(submitter: HTMLElement | null | undefined, name: str
 }
 
 /** The targets of a form or a link: `data-target` on the submitter, then the form, then its region. */
-function elementTargets(element: Element, submitter?: Element | null): string[] {
+export function elementTargets(element: Element, submitter?: Element | null): string[] {
   const named = submitter?.getAttribute("data-target") ?? element.getAttribute("data-target");
   if (named !== null) return named.split(/\s+/).filter((target) => target !== "" && target !== "page");
   const region = element.closest("[data-region]")?.getAttribute("data-region");
@@ -481,7 +474,10 @@ export function createTransport(options: TransportOptions): Transport {
       if (type === "text/html") {
         const html = await lease.text();
         if (options.commitDocument) {
-          options.commitDocument(html, finalUrl, request);
+          const result = await options.commitDocument(html, finalUrl, request);
+          if (result === "full-load") return fullLoad(request.kind === "visit" ? finalUrl : window.location.href);
+          generations.touch({ kind: "page", document });
+          if (request.kind === "visit" && response.status !== 409 && response.status !== 422) pushUrl(finalUrl);
           return { status: "committed", httpStatus: response.status, url: finalUrl };
         }
         return fullLoad(request.kind === "visit" ? finalUrl : window.location.href);

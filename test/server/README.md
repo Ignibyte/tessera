@@ -8,6 +8,7 @@ npm run serve:test              # a free port; prints the URL
 node test/server/main.ts --port 4180
 ```
 
+Every page loads `/assets/harness.js` from its layout, which boots Tessera when JavaScript is on.
 Playwright starts it itself (`webServer` in `playwright.config.ts`) with `--close-connections`,
 which closes every connection after its response. A browser resends a request by itself when a
 reused keep-alive connection closes before any answer, so without it a connection the controller
@@ -46,6 +47,11 @@ all on the page (and, for a visit, the layout matches), and the full document ot
 | `GET /coordination` | Component `content/cart` and regions `left` and `right`, for out-of-order responses through the controller |
 | `GET /patch` | Region `form-area` with an input, for patches driven through `/assets/harness.js` |
 | `GET /transport` | A form posting to `/form` and one posting to the controller, for the transport's tests |
+| `GET /links` | One link of each kind link interception enhances or leaves to the browser |
+| `GET /redeploy` | A page rendered with `build` 2 on the tracked stylesheet, so a visit to it loads in full |
+| `GET /away` | A Tessera request gets `Tessera-Full-Visit: /about`; a plain one a `302` to `/about` |
+| `GET /stray` | A Tessera request gets a fragment for region `nowhere`; a plain one the Stray page |
+| `GET /scripted` | A page whose content holds an inline script |
 | `GET /bare` | A page on the `bare` layout, so a visit from `app` gets the full document |
 | `GET /form` | A form posting `name` and `_token` to `/form` |
 | `POST /form` | `419` on a CSRF token matching neither `X-CSRF-Token` nor `_token`; `422` with the errors for an empty name; `409` for the name `taken`; else `303` to `/form/done?name=…`, or `200` with `Tessera-Location` for a Tessera request |

@@ -191,6 +191,11 @@ export interface Patcher {
   patchElements(target: string, markup?: string, mode?: PatchMode): void;
   /** Merges `patch` into the target's scope; `page` is the document's. */
   patchSignals(target: string, patch: Record<string, unknown>, options?: { onlyIfMissing?: boolean }): void;
+  /**
+   * Morphs `<body>` in place into an incoming document's body (a whole-document visit), keeping
+   * each element with `data-permanent` and an `id` the incoming body also has as the same node.
+   */
+  patchBody(incoming: HTMLBodyElement): void;
 }
 
 /** Deep merge: objects merge, arrays and other values replace, `null` removes. From jqstar. */
@@ -237,7 +242,16 @@ export function createPatcher(options: PatcherOptions): Patcher {
     Idiomorph.morph(parent, copy, { morphStyle: "innerHTML", ignoreActiveValue: true, restoreFocus: true, callbacks });
   };
 
-  const apply = (target: string, resolved: Target, nodes: Node[], mode: PatchMode, transaction: RenderTransaction, root: Node): void => {
+  const apply = (
+    target: string,
+    resolved: Target,
+    nodes: Node[],
+    mode: PatchMode,
+    transaction: RenderTransaction,
+    root: Node,
+    kept: ReadonlySet<Element> = new Set(),
+  ): void => {
+    const keep = (node: Node): boolean => ignored(node) || (node.nodeType === 1 && kept.has(node as Element));
     const removeNode = (node: Node): void => {
       transaction.beforeRemove(node);
       scopes?.release(node);
@@ -273,13 +287,13 @@ export function createPatcher(options: PatcherOptions): Patcher {
     const held: Node[] = [];
     const morphed: Element[] = [];
     const callbacks: IdiomorphCallbacks = {
-      beforeNodeMorphed: (oldNode) => (ignored(oldNode) ? false : undefined),
+      beforeNodeMorphed: (oldNode) => (keep(oldNode) ? false : undefined),
       afterNodeMorphed: (oldNode) => {
         if (oldNode.nodeType === 1) morphed.push(oldNode as Element);
         return undefined;
       },
       beforeNodeRemoved: (node) => {
-        if (ignored(node)) return false;
+        if (keep(node)) return false;
         if (scopes && ownsScope(node)) {
           held.push(node);
           return false;
@@ -332,6 +346,24 @@ export function createPatcher(options: PatcherOptions): Patcher {
       const transaction = kernel.beginRender(root, { preserveRoots });
       try {
         apply(target, resolved, nodes, mode, transaction, root);
+      } catch (error) {
+        transaction.fail(error);
+      }
+      transaction.commit();
+    },
+
+    patchBody(incoming) {
+      const body = document.body;
+      const incomingIds = new Set(
+        Array.from(incoming.querySelectorAll("[data-permanent][id]"), (element) => element.id),
+      );
+      const kept = new Set(
+        Array.from(body.querySelectorAll("[data-permanent][id]")).filter((element) => incomingIds.has(element.id)),
+      );
+      const preserveRoots = [...kept, ...Array.from(body.querySelectorAll("[data-ignore-morph]"))];
+      const transaction = kernel.beginRender(body, { preserveRoots });
+      try {
+        apply("page", { kind: "region", element: body }, [incoming], "morph", transaction, body, kept);
       } catch (error) {
         transaction.fail(error);
       }

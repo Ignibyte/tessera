@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Enhanced navigation (`src/navigation.ts`, `src/head.ts`, `src/progress.ts`): same-origin link
+  clicks become visits; a whole document is committed in place by the head policy of protocol
+  section 9 and a body morph that keeps `data-permanent` elements; a changed tracked asset or
+  `<base>` loads in full; a delayed progress bar (#13).
 - Coordination (`src/coordination.ts`): the table for overlapping requests, frozen in
   `docs/protocol.md` section 4.6 (writes queue and are never aborted, reads supersede or queue,
   polls yield), generations that drop a late fragment for a target a newer commit touched, and
