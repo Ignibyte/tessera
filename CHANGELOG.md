@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- The browser suite's results on macOS, and the byte-hold probe (`test/probes/byte-hold.spec.ts`,
+  run with `playwright.probes.config.ts`) measured in Linux WebKit, macOS WebKit and Safari
+  (`docs/decisions.md`). Two failures it found are tickets #30 and #31 (#29).
+
 - `data-push="off"` on a link, a form or a submitter: the visit (or the visit a submission's
   `Tessera-Location` leads to) commits without adding a history entry, for tab-like region swaps.
   The navigation matrix gains TES-02 (#28).
