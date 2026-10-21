@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- The `__case` modifier (`camel`, `kebab`, `snake`, `pascal`) on `data-on`, so a camelCase custom
+  event can be heard (`data-on:item-selected__case.camel` listens to `itemSelected`), and on
+  `data-computed`, `data-ref` and `data-bind`, which stay camelCase by default (#23).
+
 - A computed value that recomputes to an `Object.is`-equal value no longer re-runs what read it:
   computed values are push-pull, with versions, so a chain stops at the first unchanged value,
   while batching and laziness stay (#21).

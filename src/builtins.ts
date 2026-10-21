@@ -13,6 +13,33 @@ function camelCase(value: string): string {
   return value.replace(/-([a-z0-9])/g, (_match, character: string) => character.toUpperCase());
 }
 
+/**
+ * HTML lowercases attribute names, so a key arrives in kebab case; `__case.NAME` (Datastar's
+ * modifier) names the spelling it stands for. Only hyphens change: `.` and `:` stay as written.
+ */
+const CASES = {
+  camel: camelCase,
+  kebab: (value: string) => value,
+  snake: (value: string) => value.replace(/-/g, "_"),
+  pascal: (value: string) => camelCase(value).replace(/^[a-z]/, (character) => character.toUpperCase()),
+} as const;
+
+type CaseName = keyof typeof CASES;
+
+/** The conversion an attribute's `__case` modifier asks for, or `fallback` without one. */
+function keyCase(attribute: DirectiveAttribute, fallback: CaseName): (key: string) => string {
+  const named = attribute.modifiers.filter(({ name }) => name === "case");
+  if (named.length === 0) return CASES[fallback];
+  const fail = (detail: string): never => {
+    throw new DirectiveSyntaxError(attribute.name, detail);
+  };
+  if (named.length > 1) fail("one __case per attribute");
+  const [spelling, ...rest] = named[0]?.args ?? [];
+  if (spelling === undefined || rest.length > 0) fail("__case takes one case name, as in __case.camel");
+  if (!Object.hasOwn(CASES, spelling ?? "")) fail(`__case.${spelling ?? ""} is not a case; use camel, kebab, snake or pascal`);
+  return CASES[spelling as CaseName];
+}
+
 /** Reports a promise's failure; anything else needs nothing. */
 function settle(result: unknown, report: (error: unknown) => void): void {
   if (isThenable(result)) Promise.resolve(result).catch(report);
@@ -69,9 +96,10 @@ const signals: Directive = {
 const computedSignal: Directive = {
   name: "computed",
   key: "required",
+  modifiers: ["case"],
   priority: 200,
   mount({ attribute, context, expressions, scope }) {
-    const name = camelCase(attribute.key ?? "");
+    const name = keyCase(attribute, "camel")(attribute.key ?? "");
     const evaluate = expressions.compileValue(attribute.value, location(attribute));
     const value = computed(() => evaluate(context));
     const target = scope();
@@ -90,9 +118,11 @@ const computedSignal: Directive = {
 const ref: Directive = {
   name: "ref",
   key: "optional",
+  modifiers: ["case"],
   priority: 150,
   mount({ attribute, element, scope }) {
-    const name = attribute.key === undefined ? attribute.value.trim() : camelCase(attribute.key);
+    const spell = keyCase(attribute, "camel");
+    const name = attribute.key === undefined ? attribute.value.trim() : spell(attribute.key);
     if (!/^[A-Za-z_][\w]*$/.test(name)) {
       throw new TypeError('data-ref names a signal: data-ref:name or data-ref="name".');
     }
@@ -274,10 +304,11 @@ function writePath(target: Record<string, unknown>, path: readonly string[], val
 const bind: Directive = {
   name: "bind",
   key: "required",
+  modifiers: ["case"],
   priority: 100,
   mount({ attribute, context, effect, element, listen, report }) {
     const field = formField(element);
-    const path = (attribute.key ?? "").split(".").map(camelCase);
+    const path = (attribute.key ?? "").split(".").map(keyCase(attribute, "camel"));
     if (path.some((key) => key === "")) throw new TypeError("data-bind needs a signal path, such as data-bind:user.name.");
     const { signals: target } = context;
     if (readPath(target, path) === undefined) {
@@ -356,7 +387,9 @@ function parseEvent(attribute: DirectiveAttribute): EventOptions {
   let key: string | undefined;
   let debounce: number | undefined;
   let throttle: number | undefined;
+  const spell = keyCase(attribute, "kebab");
   for (const { name, args } of attribute.modifiers) {
+    if (name === "case") continue;
     if (name === "debounce" || name === "throttle") {
       if (args.length > 1) fail(`${name} takes one duration, as in __${name}.250ms`);
       const match = /^(\d+)(ms|s)?$/.exec(args[0] ?? "250ms");
@@ -379,13 +412,13 @@ function parseEvent(attribute: DirectiveAttribute): EventOptions {
   if ([flags.has("window"), flags.has("document"), flags.has("outside")].filter(Boolean).length > 1) {
     fail("window, document and outside cannot be combined");
   }
-  return { event: attribute.key ?? "", flags, key, debounce, throttle };
+  return { event: spell(attribute.key ?? ""), flags, key, debounce, throttle };
 }
 
 const on: Directive<EventOptions> = {
   name: "on",
   key: "required",
-  modifiers: [...FLAGS, "debounce", "throttle", ...Object.keys(KEYS)],
+  modifiers: [...FLAGS, "debounce", "throttle", "case", ...Object.keys(KEYS)],
   parse: parseEvent,
   mount({ attribute, cleanup, context, element, expressions, listen, report }) {
     const { event: type, flags, key, debounce, throttle } = attribute.parsed;

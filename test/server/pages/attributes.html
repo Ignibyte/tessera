@@ -1,7 +1,7 @@
 <!--page {"title":"Attributes","layout":"app"}-->
 <!--slot content-->
     <h1 id="heading">Attributes</h1>
-    <section id="vocabulary" data-signals="{name: 'Ada', count: 0, open: false, color: 'red', tags: ['a'], size: 'm', choice: 'two', many: ['x'], note: 'hi', agree: false, qty: 1, typed: '', pressed: 0, outside: 0}">
+    <section id="vocabulary" data-signals="{name: 'Ada', count: 0, open: false, color: 'red', tags: ['a'], size: 'm', choice: 'two', many: ['x'], note: 'hi', agree: false, qty: 1, typed: '', pressed: 0, outside: 0, picked: 'none'}">
       <p id="greeting" data-computed:greeting="'Hello, ' + $name" data-text="$greeting"></p>
       <input id="name" data-bind:name>
       <input id="qty" type="number" data-bind:qty>
@@ -25,6 +25,8 @@
       <input id="search" data-on:input__debounce.100ms="$typed = el.value">
       <span id="typed" data-text="$typed"></span>
       <span id="ref" data-ref:target data-text="$target.id"></span>
+      <div id="picker" data-on:item-selected__case.camel="$picked = evt.detail">picker</div>
+      <span id="picked" data-text="$picked"></span>
       <button id="save" data-on:click="@post('/save', {count: $count})">Save</button>
       <div data-ignore><span id="ignored" data-text="'changed'">untouched</span></div>
       <p id="init" data-init="el.textContent = 'initialized'"></p>

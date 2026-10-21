@@ -116,3 +116,15 @@ test("debounce, refs, init, ignore and actions", async ({ page }) => {
     { method: "post", url: "/save", options: { count: 0 } },
   ]);
 });
+
+test("__case.camel listens to a camelCase custom event, which HTML could not spell", async ({ page }) => {
+  const dispatch = (type: string, detail: string): Promise<void> =>
+    page.evaluate(([name, value]) => {
+      document.querySelector("#picker")?.dispatchEvent(new CustomEvent(name, { bubbles: true, detail: value }));
+    }, [type, detail] as const);
+  await dispatch("item-selected", "kebab");
+  await settle(page);
+  await expect(page.locator("#picked")).toHaveText("none");
+  await dispatch("itemSelected", "lamp");
+  await expect(page.locator("#picked")).toHaveText("lamp");
+});
