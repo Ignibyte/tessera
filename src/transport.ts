@@ -227,6 +227,8 @@ interface Operation {
   readonly settled: Promise<void>;
   /** The commit sequence when it was dispatched. */
   dispatched: number;
+  /** For a visit by GET: the key a prefetch of it waits under. */
+  readonly prefetchKey: string | undefined;
   done: boolean;
   /** Resolves `settled`: the requests queued behind this one may go. */
   readonly release: () => void;
@@ -785,6 +787,10 @@ export function createTransport(options: TransportOptions): Transport {
       });
       if (request.method === "GET") await visible(document, signal);
     } catch {
+      // A press's prefetch is this visit's request sent early (protocol 8), so a visit stopped
+      // before it takes it drops it, unless a newer visit of the same URL waits for it.
+      const key = operation.prefetchKey;
+      if (key !== undefined && !operations.some((other) => other !== operation && !other.done && other.prefetchKey === key)) dropPrefetch(key);
       return stopped();
     }
     const prefetched = takePrefetch(request);
@@ -894,6 +900,7 @@ export function createTransport(options: TransportOptions): Transport {
       controller: new AbortController(),
       settled: settledPromise,
       dispatched: 0,
+      prefetchKey: request.kind === "visit" && request.method === "GET" ? prefetchKey(request) : undefined,
       done: false,
       release: () => {
         settle();

@@ -3,7 +3,7 @@
 // the link listeners that start it, on mousedown and after a hover.
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { interceptLinks } from "../../src/navigation.ts";
-import { disposeTransport, fragments, networkFailure, setup } from "./transport-fixture.ts";
+import { disposeTransport, fragments, hang, networkFailure, setup } from "./transport-fixture.ts";
 
 afterEach(disposeTransport);
 
@@ -101,6 +101,29 @@ describe("the transport's prefetch", () => {
     await transport.request({ kind: "visit", url: "/about", targets: ["content"] });
     expect(find("#text").textContent).toBe("from the write");
     expect(String(reported.at(-1))).toContain("content changed after this request was sent");
+  });
+
+  it("is aborted when its visit is superseded before it takes it (#30)", async () => {
+    const { transport, calls, respond, find } = setup(page);
+    respond(hang, () => fragments(content("fast")));
+    transport.prefetch({ url: "/slow", targets: ["content"], press: true });
+    const slow = transport.request({ kind: "visit", url: "/slow", targets: ["content"] });
+    const fast = transport.request({ kind: "visit", url: "/fast", targets: ["content"] });
+    expect([(await slow).status, (await fast).status]).toEqual(["superseded", "committed"]);
+    expect(calls.map(({ url }) => new URL(url).pathname)).toEqual(["/slow", "/fast"]);
+    expect(calls[0]?.signal.aborted).toBe(true);
+    expect(find("#text").textContent).toBe("fast");
+  });
+
+  it("stays for a second visit of the same link that supersedes the first", async () => {
+    const { transport, calls, respond, find } = setup(page);
+    respond(() => fragments(content("prefetched")));
+    transport.prefetch({ url: "/about", targets: ["content"], press: true });
+    const first = transport.request({ kind: "visit", url: "/about", targets: ["content"] });
+    const second = transport.request({ kind: "visit", url: "/about", targets: ["content"] });
+    expect([(await first).status, (await second).status]).toEqual(["superseded", "committed"]);
+    expect(calls).toHaveLength(1);
+    expect(find("#text").textContent).toBe("prefetched");
   });
 
   it("is aborted at disposal", () => {

@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- A visit superseded before it takes its prefetch now drops that prefetch, aborting its fetch,
+  unless a newer visit of the same URL waits for it; before, the request ran on for up to 30
+  seconds. Found by the Mac mini run, where NAV-19 now passes (#30).
+
 - The browser suite's results on macOS, and the byte-hold probe (`test/probes/byte-hold.spec.ts`,
   run with `playwright.probes.config.ts`) measured in Linux WebKit, macOS WebKit and Safari
   (`docs/decisions.md`). Two failures it found are tickets #30 and #31 (#29).
