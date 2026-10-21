@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+## 0.1.0 (2026-10-20)
+
+The first release: the runtime for protocol version 0, in two builds (`README.md`, "Using a
+release"). Known issue: three browser tests fail in WebKit on macOS because they assume a click
+focuses a link, which macOS WebKit does not do; Tessera's behaviour is not affected (#31).
+
+- The public API and the first release's files: `start({ helpers })` returning `signals`,
+  `visit`, `intercept` and `stop`, from two builds, `tessera.*` with the trusted engine and
+  `tessera.csp.*` with the no-eval engine, each an ES module, minified and an IIFE that starts by
+  itself unless `<meta name="tessera-start" content="manual">`. `npm run sums` writes
+  `SHA256SUMS`; `npm run size` measures both builds. `README.md` documents the API,
+  `RELEASING.md` the release, `docs/consumers.md` how AIC and Rustal take one (#19).
+
 - A visit superseded before it takes its prefetch now drops that prefetch, aborting its fetch,
   unless a newer visit of the same URL waits for it; before, the request ran on for up to 30
   seconds. Found by the Mac mini run, where NAV-19 now passes (#30).

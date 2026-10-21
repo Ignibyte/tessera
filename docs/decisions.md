@@ -29,7 +29,8 @@ default so work could go on; Chad confirms or changes it, and until then the cod
   ticket #1): `dist/tessera.js` is the ES module, `dist/tessera.min.js` the same minified, and
   `dist/tessera.iife.js` a minified IIFE that sets the global `Tessera`, for a page loading it
   with a plain `<script>`. Each bundles Idiomorph. A release ships all three, each with its source
-  map, plus `SHA256SUMS` over them (#19). The size budget measures `tessera.min.js`.
+  map, plus `SHA256SUMS` over them (#19). The size budget measures `tessera.min.js`. What a
+  release ships is replaced by the two builds of #19, below.
 - **Vite 7.3.7, not jqstar's 7.3.6** (ticket #1, 2026-10-20): 7.3.6 has a high-severity
   advisory (launch-editor, GHSA-r825-w8mm-5pxw) fixed in the 7.3.7 patch. terser 5.51.2 is added
   as jqstar has it, because Vite leaves whitespace in a library's ES output when esbuild
@@ -422,6 +423,34 @@ default so work could go on; Chad confirms or changes it, and until then the cod
     on Linux, cut at another place, and released by the next write as on Linux. Real Safari showed
     none in 10,000 runs, which bounds its rate but does not rule it out. Protocol 7.1's keep-alive
     comment stays the remedy.
+- **A release ships two builds** (**Provisional**, ticket #19, 2026-10-20; the driver's decision,
+  Chad to confirm): the default, `tessera.js`, `tessera.min.js` and `tessera.iife.js`, with the
+  trusted engine, and `tessera.csp.js`, `tessera.csp.min.js` and `tessera.csp.iife.js` with the
+  no-eval engine. Each has its source map, and `SHA256SUMS` covers the twelve files
+  (`scripts/release-files.ts` lists them). `docs/consumers.md` says a strict-CSP page loads
+  `tessera.csp` and recommends it as the safe default for frameworks. `npm run size` holds each
+  minified ES module to a budget and checks that the default build holds nothing of the no-eval
+  engine and the csp build nothing that compiles code from a string (`Function(`, `eval(`).
+- **The public API** (**Provisional**, ticket #19, 2026-10-20): each build exports `start`,
+  `version` and the three event names; `src/start.ts` is the runtime both share, and each entry
+  binds its engine, so the choice of engine is the choice of file, not an option.
+  `start({ helpers })` boots what the test harness boots (with the transport's real action seam)
+  and returns `{ signals, visit, intercept, stop }`; a second `start` on a document throws.
+  Failures go to the events that already exist, so there is no `report` option. An action a
+  directive starts during the first scan, before the transport exists, waits one microtask for
+  it. The IIFEs start themselves once the document is parsed unless
+  `<meta name="tessera-start" content="manual">`; the ES modules never start on import, since an
+  import with side effects would start Tessera wherever the module is merely loaded. The rest of
+  the configuration stays in the protocol's metas.
+- **The size budgets are the measured sizes plus 10%** (driver, ticket #19, 2026-10-20): the
+  default build 35,514 bytes gzipped, the csp build 44,209. #1's 30,720 was a starting figure set
+  while the build held only `version` (98 bytes), so no check had measured the runtime until
+  `start` bundled it; #19 asks for the measured size plus 10%, so this follows the ticket rather
+  than lowering a bar. Measured: the default build 32,285 when the driver set its figure (32,339
+  after #30), the csp build 40,190. Terser's options gain nothing (`passes`, `module`, `unsafe`:
+  within 100 bytes). By the source map the transport is 18% of the minified default build,
+  Idiomorph 9.5%, the kernel 8.6% and the built-in directives 8.2%; long string literals, mostly
+  error messages, are about 2.7 KB gzipped. A later ticket can lower both.
 
 ## Open
 

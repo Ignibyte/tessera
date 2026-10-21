@@ -51,6 +51,7 @@ all on the page (and, for a visit, the layout matches), and the full document ot
 | `GET /about` | A second page on `app` |
 | `GET /attributes` | The attribute vocabulary of #7 on one page, booted by `/assets/harness.js` |
 | `?csp=1` on any route | Adds `Content-Security-Policy: script-src 'self'`, which refuses `'unsafe-eval'`; with `?engine=no-eval` the harness boots the no-eval expression engine (#22) |
+| `?build=NAME` on a page | Loads a release file in place of `/assets/harness.js` (#19): `iife` (`tessera.iife.js`), `csp-iife` (`tessera.csp.iife.js`), `esm` and `csp-esm` (the minified ES modules, started by `/assets/start-esm.js` or `/assets/start-csp-esm.js`); `&start=manual` adds `<meta name="tessera-start" content="manual">`. `/assets/` serves every file a release ships |
 | `GET /coordination` | Component `content/cart` and regions `left` and `right`, for out-of-order responses through the controller |
 | `GET /patch` | Region `form-area` with an input, for patches driven through `/assets/harness.js` |
 | `GET /transport` | A form posting to `/form` and one posting to the controller, for the transport's tests |
