@@ -3,11 +3,12 @@ number: 13
 uuid: 6fd43032-d010-4511-8c57-e33e43e1ab15
 title: "Enhanced navigation and the head policy"
 type: feature
-status: in-progress
+status: done
 tags: ["navigation"]
 created: 2026-10-20T18:00:00Z
-updated: 2026-10-21T00:20:59Z
+updated: 2026-10-21T00:21:35Z
 phase: "docs"
+closed: 2026-10-21T00:21:35Z
 ---
 
 Visit interception (jqstar 0024) and the head and asset policy (jqstar 0025). Read both tickets
@@ -70,3 +71,7 @@ survives, the sidebar is the same node); each exclusion is left to the browser; 
 `bare` layout commits the whole document by morphing; `Tessera-Full-Visit` and a missing region
 fall back to a full load; a changed tracked asset forces a full load; a fetched script does not
 run. Chromium and Firefox.
+
+### 2026-10-21T00:21:35Z
+
+Delivered via PR #14 (49ab803). Link interception, whole-document commits by the protocol 9 head policy with a body morph keeping data-permanent, and a delayed progress bar.
