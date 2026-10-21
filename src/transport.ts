@@ -124,6 +124,8 @@ export interface TransportOptions {
   readonly retries?: number;
   /** The first retry's delay; each further retry doubles it. Default 250. */
   readonly retryDelayMs?: number;
+  /** How long a prefetched answer waits for its visit. Default 30000. */
+  readonly prefetchMs?: number;
 }
 
 /** What committing one stream event's fragment came to (protocol 7.2). */
@@ -139,8 +141,21 @@ export type StreamAnswer =
   | { readonly status: "retry"; readonly httpStatus?: number; readonly error?: unknown }
   | { readonly status: "stop"; readonly httpStatus?: number; readonly error?: unknown };
 
+export interface PrefetchInput {
+  readonly url: string;
+  readonly targets?: readonly string[];
+  readonly element?: Element;
+}
+
 export interface Transport {
   request(input: RequestInput): Promise<RequestOutcome>;
+  /**
+   * Starts the fetch of a visit before the visit: the next visit with the same URL, targets and
+   * layout takes the answer instead of fetching, once. Interceptors' `before` runs now, not again.
+   * The answer waits `prefetchMs`; a failed fetch or a `Cache-Control: no-store` answer is not
+   * used, and that visit fetches as usual.
+   */
+  prefetch(input: PrefetchInput): void;
   /**
    * Sends a stream's request (protocol 7.1) and reads its status and headers. Interceptors'
    * `before` runs on each connection; `after` and `error` do not, since a stream has no outcome.
@@ -176,6 +191,23 @@ const PROTOCOL_HEADERS = [
   "tessera-signals",
   "tessera-write-id",
 ];
+
+/** At most this many prefetched answers wait at once; a new one drops the oldest. */
+const MAX_PREFETCHES = 8;
+
+/** A visit's fetch started early, waiting for its visit. */
+interface Prefetch {
+  readonly response: Promise<Response>;
+  /** The commit sequence when it was sent, which the visit records as its own. */
+  readonly generation: number;
+  readonly controller: AbortController;
+  /** Leaves the ledger and stops the expiry, without aborting. */
+  readonly release: () => void;
+}
+
+function noStore(response: Response): boolean {
+  return /(?:^|,)\s*no-store\s*(?:,|$)/i.test(response.headers.get("Cache-Control") ?? "");
+}
 
 /** A request from admission until it settles, as the coordination sees it (protocol 4.6). */
 interface Operation {
@@ -311,6 +343,7 @@ export function createTransport(options: TransportOptions): Transport {
   const bufferMs = options.bufferMs ?? 5;
   const retries = options.retries ?? 2;
   const retryDelayMs = options.retryDelayMs ?? 250;
+  const prefetchMs = options.prefetchMs ?? 30_000;
   const owner = `transport:${++transportId}`;
   const interceptors = new Set<Interceptor>();
   const operations: Operation[] = [];
@@ -383,6 +416,127 @@ export function createTransport(options: TransportOptions): Transport {
       headers.push([meta(document, "tessera-csrf-header") ?? "X-CSRF-Token", token]);
     }
     return headers;
+  };
+
+  /** A request's headers: the protocol's, interceptors' `before`, then the protocol's again. */
+  const requestHeaders = (request: TesseraRequest): Headers => {
+    const headers = new Headers();
+    const restore = (): void => {
+      for (const name of PROTOCOL_HEADERS) headers.delete(name);
+      for (const [name, value] of protocolHeaders(request)) headers.set(name, value);
+    };
+    restore();
+    for (const interceptor of interceptors) interceptor.before?.({ request, headers });
+    restore();
+    // The encoding is the body's: fetch derives Content-Type from it, so no interceptor can change it.
+    if (request.body !== undefined) headers.delete("content-type");
+    return headers;
+  };
+
+  // --- Prefetch ------------------------------------------------------------------------------
+
+  const prefetches = new Map<string, Prefetch>();
+
+  /** What a prefetch and its visit share: the URL and the protocol's headers. */
+  const prefetchKey = (request: TesseraRequest): string => JSON.stringify([request.url, protocolHeaders(request)]);
+
+  /** Forgets a prefetch and aborts its fetch. */
+  const dropPrefetch = (key: string): void => {
+    const entry = prefetches.get(key);
+    if (!entry) return;
+    prefetches.delete(key);
+    entry.release();
+    entry.controller.abort(new DOMException("dropped", "AbortError"));
+    void entry.response.then((response) => response.body?.cancel(), () => undefined).catch(() => undefined);
+  };
+
+  const prefetch: Transport["prefetch"] = (input) => {
+    if (kernel.disposed) return;
+    let url: URL;
+    try {
+      url = new URL(input.url, document.baseURI);
+    } catch {
+      return;
+    }
+    if (url.origin !== window.location.origin) return;
+    const request: TesseraRequest = Object.freeze({
+      kind: "visit",
+      method: "GET",
+      url: url.href,
+      targets: Object.freeze([...(input.targets ?? [])]),
+      element: input.element,
+      body: undefined,
+      signals: undefined,
+      history: "push",
+      writeId: undefined,
+    });
+    const key = prefetchKey(request);
+    if (prefetches.has(key)) return;
+    const [oldest] = prefetches.keys();
+    if (prefetches.size >= MAX_PREFETCHES && oldest !== undefined) dropPrefetch(oldest);
+    let headers: Headers;
+    try {
+      headers = requestHeaders(request);
+    } catch (error) {
+      report(error, request);
+      return;
+    }
+    const controller = new AbortController();
+    const response = fetcher(request.url, { method: "GET", headers, signal: controller.signal, credentials: "same-origin", redirect: "follow" });
+    response.catch(() => undefined);
+    const timer = setTimeout(() => {
+      dropPrefetch(key);
+    }, prefetchMs);
+    const releaseRecord = kernel.own("task", `${owner}:prefetch`, () => {
+      clearTimeout(timer);
+      dropPrefetch(key);
+    });
+    prefetches.set(key, {
+      response,
+      generation: generations.current,
+      controller,
+      release: () => {
+        clearTimeout(timer);
+        releaseRecord();
+      },
+    });
+  };
+
+  /** Takes the prefetch waiting for this visit, if any; it is used once. */
+  const takePrefetch = (request: TesseraRequest): Prefetch | undefined => {
+    if (request.kind !== "visit" || request.method !== "GET") return undefined;
+    const key = prefetchKey(request);
+    const entry = prefetches.get(key);
+    if (!entry) return undefined;
+    prefetches.delete(key);
+    entry.release();
+    return entry;
+  };
+
+  /**
+   * The prefetched answer, or undefined when the visit must fetch after all (the prefetch failed,
+   * or the answer said `no-store`). Rejects when the visit is aborted, and aborts the prefetch.
+   */
+  const fromPrefetch = async (entry: Prefetch, signal: AbortSignal): Promise<Response | undefined> => {
+    const aborted = new Promise<never>((_resolve, reject) => {
+      const abort = (): void => {
+        entry.controller.abort(signal.reason);
+        reject(signal.reason as Error);
+      };
+      if (signal.aborted) abort();
+      else signal.addEventListener("abort", abort, { once: true });
+    });
+    aborted.catch(() => undefined);
+    let response: Response;
+    try {
+      response = await Promise.race([entry.response, aborted]);
+    } catch (error) {
+      if (signal.aborted) throw error;
+      return undefined;
+    }
+    if (!noStore(response)) return response;
+    void response.body?.cancel().catch(() => undefined);
+    return undefined;
   };
 
   // --- Committing an answer ----------------------------------------------------------------
@@ -608,31 +762,25 @@ export function createTransport(options: TransportOptions): Transport {
     } catch {
       return stopped();
     }
-    operation.dispatched = generations.current;
-
-    const headers = new Headers();
-    const restore = (): void => {
-      for (const name of PROTOCOL_HEADERS) headers.delete(name);
-      for (const [name, value] of protocolHeaders(request)) headers.set(name, value);
-    };
-    restore();
-    for (const interceptor of interceptors) interceptor.before?.({ request, headers });
-    restore();
-    // The encoding is the body's: fetch derives Content-Type from it, so no interceptor can change it.
-    if (request.body !== undefined) headers.delete("content-type");
+    const prefetched = takePrefetch(request);
+    // A prefetched answer was rendered when it was sent, so its fragments date from then.
+    operation.dispatched = prefetched ? prefetched.generation : generations.current;
+    let headers = prefetched ? undefined : requestHeaders(request);
 
     const write = isWrite(request.method);
+    const send = (): Promise<Response> =>
+      fetcher(request.url, {
+        method: request.method,
+        headers: (headers ??= requestHeaders(request)),
+        ...(request.body === undefined ? {} : { body: request.body }),
+        signal,
+        credentials: "same-origin",
+        redirect: write ? "manual" : "follow",
+      });
     for (let attempt = 0; ; attempt++) {
       let response: Response;
       try {
-        response = await fetcher(request.url, {
-          method: request.method,
-          headers,
-          ...(request.body === undefined ? {} : { body: request.body }),
-          signal,
-          credentials: "same-origin",
-          redirect: write ? "manual" : "follow",
-        });
+        response = (attempt === 0 && prefetched ? await fromPrefetch(prefetched, signal) : undefined) ?? (await send());
       } catch (error) {
         if (write) {
           return { status: "indeterminate", error: new TransportError("The write was sent and no answer came back; it may have been saved, so it is not sent again.", { cause: error }) };
@@ -893,6 +1041,7 @@ export function createTransport(options: TransportOptions): Transport {
 
   return {
     request: run,
+    prefetch,
     connect,
     commitStream,
     submit(form, submitter) {

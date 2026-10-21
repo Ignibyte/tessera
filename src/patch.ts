@@ -223,6 +223,30 @@ export function mergeSignalPatch(
   }
 }
 
+/** The elements with `data-permanent` and an `id` in a run of nodes, the nodes included. */
+function permanents(nodes: Iterable<Node>): Element[] {
+  const found: Element[] = [];
+  for (const node of nodes) {
+    if (node.nodeType !== 1) continue;
+    const element = node as Element;
+    if (element.matches("[data-permanent][id]")) found.push(element);
+    found.push(...Array.from(element.querySelectorAll("[data-permanent][id]")));
+  }
+  return found;
+}
+
+/** The permanent elements among `current` that the incoming nodes also bring, by `id`. */
+function keptPermanents(current: Iterable<Node>, incoming: Iterable<Node>): Set<Element> {
+  const ids = new Set(permanents(incoming).map((element) => element.id));
+  return new Set(permanents(current).filter((element) => ids.has(element.id)));
+}
+
+function componentRun(target: ComponentTarget): Node[] {
+  const run: Node[] = [];
+  for (let node = target.opener.nextSibling; node && node !== target.closer; node = node.nextSibling) run.push(node);
+  return run;
+}
+
 export function createPatcher(options: PatcherOptions): Patcher {
   const { kernel, scopes, refresh } = options;
   const { document } = kernel;
@@ -347,10 +371,19 @@ export function createPatcher(options: PatcherOptions): Patcher {
 
       const root = resolved.kind === "region" ? resolved.element : resolved.opener.parentElement;
       if (!root) throw new PatchError(target, "the component's markers are not inside an element.");
-      const preserveRoots = [...(root.matches("[data-ignore-morph]") ? [root] : []), ...Array.from(root.querySelectorAll("[data-ignore-morph]"))];
+      // A permanent element the fragment brings again stays the same live node, unmorphed.
+      const kept =
+        mode === "morph" || mode === "inner"
+          ? keptPermanents(resolved.kind === "region" ? [resolved.element] : componentRun(resolved), nodes)
+          : new Set<Element>();
+      const preserveRoots = [
+        ...(root.matches("[data-ignore-morph]") ? [root] : []),
+        ...Array.from(root.querySelectorAll("[data-ignore-morph]")),
+        ...kept,
+      ];
       const transaction = kernel.beginRender(root, { preserveRoots });
       try {
-        apply(target, resolved, nodes, mode, transaction, root);
+        apply(target, resolved, nodes, mode, transaction, root, kept);
       } catch (error) {
         transaction.fail(error);
       }

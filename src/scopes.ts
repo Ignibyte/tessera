@@ -69,6 +69,24 @@ export function scopeOwners(start: Element | Comment): ScopeOwner[] {
   return owners;
 }
 
+/**
+ * The target spelling of a scope's owner (docs/protocol.md, section 2.4): a region's name, or a
+ * component's path from its nearest region (or `page`).
+ */
+export function ownerPath(owner: Element | Comment): string {
+  if (isElement(owner)) return owner.getAttribute("data-region") ?? "";
+  const keys = [componentKey(owner) ?? ""];
+  let base = "page";
+  for (const enclosing of scopeOwners(owner)) {
+    if (enclosing.nodeType === 8) keys.unshift(componentKey(enclosing as Comment) ?? "");
+    else if (enclosing.nodeType === 1) {
+      base = (enclosing as Element).getAttribute("data-region") ?? "";
+      break;
+    }
+  }
+  return [base, ...keys].join("/");
+}
+
 let scopesId = 0;
 
 export class Scopes {
@@ -98,17 +116,7 @@ export class Scopes {
    * component's path from its nearest region (or `page`).
    */
   pathOf(owner: Element | Comment): string {
-    if (isElement(owner)) return owner.getAttribute("data-region") ?? "";
-    const keys = [componentKey(owner) ?? ""];
-    let base = "page";
-    for (const enclosing of this.owners(owner)) {
-      if (enclosing.nodeType === 8) keys.unshift(componentKey(enclosing as Comment) ?? "");
-      else if (enclosing.nodeType === 1) {
-        base = (enclosing as Element).getAttribute("data-region") ?? "";
-        break;
-      }
-    }
-    return [base, ...keys].join("/");
+    return ownerPath(owner);
   }
 
   /** The scope an owner holds, created on first use, started afresh if a component's key changed. */

@@ -116,6 +116,7 @@ const reservedDirectiveNames = new Set([
   "mode",
   "permanent",
   "poll",
+  "prefetch",
   "region",
   "scope",
   "stream",

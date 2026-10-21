@@ -43,6 +43,7 @@ function fakeTransport(outcome: RequestOutcome["status"] = "committed") {
     intercept: () => () => undefined,
     connect: () => Promise.resolve({ status: "stop" }),
     commitStream: () => Promise.resolve("dropped"),
+    prefetch: () => undefined,
   };
   return { transport, requested };
 }

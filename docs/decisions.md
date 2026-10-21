@@ -78,7 +78,8 @@ default so work could go on; Chad confirms or changes it, and until then the cod
   version 0.
 - **Names of the attributes a server renders** (**Provisional**, ticket #2, 2026-10-20):
   `data-target`, `data-enhance="off"`, `data-track`, `data-error-summary`, `data-permanent`,
-  `data-lazy`, `data-poll`, `data-stream`, `data-signals__region` and `data-signals__document`,
+  `data-lazy`, `data-poll`, `data-stream`, `data-signals__region` and `data-signals__document`
+  (and `data-prefetch`, added by ticket #17),
   plus the standard `autofocus` and `aria-invalid`, and the metas `tessera-layout`,
   `tessera-csrf-token` and `tessera-csrf-header` (default header `X-CSRF-Token`). The owning
   tickets build the behaviour; the names are fixed in `docs/protocol.md`.
@@ -110,8 +111,8 @@ default so work could go on; Chad confirms or changes it, and until then the cod
   modifier; a modifier and each argument are lowercase letters, digits and hyphens. Each
   directive says whether it requires, forbids or allows a key, and which modifiers it accepts;
   anything else is an error at the attribute. Protocol attribute names (`region`, `target`,
-  `enhance`, `track`, `permanent`, `lazy`, `poll`, `stream`, `error-summary`, `mode`, `scope`)
-  cannot be directives.
+  `enhance`, `track`, `permanent`, `lazy`, `poll`, `prefetch`, `stream`, `error-summary`, `mode`,
+  `scope`) cannot be directives.
 - **The trusted engine may use `new Function`, in `src/expression.ts` only** (Chad, 2026-10-20;
   ticket #6), with the no-eval engine (#22) required before 0.1.0. `docs/design.md` keeps jqstar's
   trusted engine, which compiles expressions with `new Function`, so lint's
@@ -258,6 +259,20 @@ default so work could go on; Chad confirms or changes it, and until then the cod
   applied (protocol 7.2 said only unknown names). A `retry` under 100 ms is used for the first
   reconnect only; failures in a row back off from 100 ms, so `retry: 0` cannot turn a failing
   server into a request per task.
+- **Lazy regions, polling, prefetch and persisted nodes** (**Provisional**, ticket #17,
+  2026-10-20): `data-lazy` and `data-poll` take modifiers in the directive grammar, so they read
+  like Datastar's own: `data-lazy__visible` loads through an `IntersectionObserver` (at once
+  where there is none), and `data-poll__5s` or `data-poll__750ms` sets the interval, at least
+  100 ms, default 2 s. Each loads or polls the innermost component or region containing the
+  element, as a `refresh`; a lazy element loads once per node. Polling follows Livewire: one
+  clock per interval; "background" means the window lacks focus (`document.hasFocus()`), and then
+  only every 20th tick fires, where Livewire skips 95% at random; nothing fires while the page is
+  hidden or offline. Prefetch: every enhanced link on mousedown, `data-prefetch="hover"` also
+  after 60 ms of hover (Livewire's `.hover`), `data-prefetch="off"` never. The transport sends the
+  visit's request early (interceptors' `before` runs then, once) and the matching visit takes the
+  answer once, recording the prefetch's generation, so a commit between mousedown and click makes
+  its fragment stale. 30 s, at most 8 waiting; a failed or `no-store` answer is not used.
+  `data-permanent` now also holds through fragment morphs, as the same live node, unmorphed.
 
 ## Open
 

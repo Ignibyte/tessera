@@ -33,6 +33,8 @@ export interface ServerState extends Secrets {
   readonly arrivals: { readonly path: string; readonly id: string; readonly repeat: boolean }[];
   /** The first answer to each write id, kept for the protocol's window (section 5.8). */
   readonly writes: Map<string, { readonly response: FixtureResponse; readonly at: number }>;
+  /** The ticks of `/poll/tick`, per key. */
+  readonly ticks: Map<string, number>;
   /** Each connection to `/events/stream` that named a `key`, in arrival order. */
   readonly streams: StreamConnection[];
 }
