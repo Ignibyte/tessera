@@ -150,6 +150,8 @@ const simplePages: Readonly<Record<string, string>> = {
   "/attributes": "attributes",
   "/bare": "bare",
   "/coordination": "coordination",
+  "/links": "links",
+  "/scripted": "scripted",
   "/patch": "patch",
   "/transport": "transport",
 };
@@ -167,7 +169,7 @@ async function respond(request: FixtureRequest, secrets: Secrets): Promise<Fixtu
   if (path === "/form" && method === "POST") return submitForm(request, secrets);
   if (path.startsWith("/assets/") && method === "GET") return asset(path);
 
-  const known = path in simplePages || ["/form", "/form/done", "/events", "/slow"].includes(path);
+  const known = path in simplePages || ["/form", "/form/done", "/events", "/slow", "/redeploy", "/away", "/stray"].includes(path);
   if (known && method !== "GET") return { ...text(405, `${path} answers GET.`), headers: { Allow: path === "/form" ? "GET, POST" : "GET" } };
 
   const simple = simplePages[path];
@@ -175,6 +177,22 @@ async function respond(request: FixtureRequest, secrets: Secrets): Promise<Fixtu
   if (path === "/form") return page("form", formVars("", undefined));
   if (path === "/form/done") return page("form-done", { name: url.searchParams.get("name") ?? "" });
   if (path === "/events") return page("events", { stream: `/events/stream${url.search}`, items: "" });
+  if (path === "/redeploy") return page("redeploy", { build: "2" });
+  if (path === "/away") {
+    // A page Tessera cannot update in place: a Tessera request is told to load it in full.
+    return isTessera(request)
+      ? { status: 200, headers: { "Tessera-Full-Visit": "/about", "Tessera-Protocol": "0" }, body: "" }
+      : { status: 302, headers: { Location: "/about" }, body: "" };
+  }
+  if (path === "/stray" && isTessera(request)) {
+    // A fragment for a region no page has: Tessera falls back to a full load.
+    return {
+      status: 200,
+      headers: { "Content-Type": "text/vnd.tessera+html; charset=utf-8", "Tessera-Protocol": "0" },
+      body: '<template data-target="nowhere"><div data-region="nowhere"></div></template>\n',
+    };
+  }
+  if (path === "/stray") return page("stray");
   if (path === "/slow") {
     const raw = url.searchParams.get("ms") ?? "1000";
     if (!/^\d+$/.test(raw) || Number(raw) > 10_000) return text(400, "ms must be an integer from 0 to 10000");

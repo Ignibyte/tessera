@@ -1,0 +1,17 @@
+<!--page {"title":"Links","layout":"app"}-->
+<!--slot content-->
+    <h1>Links</h1>
+    <ul>
+      <li><a id="plain" href="/about" data-target="content">About, enhanced</a></li>
+      <li><a id="blank" href="/about" target="_blank">About in a new tab</a></li>
+      <li><a id="download" href="/about" download>About as a download</a></li>
+      <li><a id="external" href="https://example.com/">Another origin</a></li>
+      <li><a id="hash" href="#below">Further down this page</a></li>
+      <li><a id="mailto" href="mailto:someone@example.com">Mail</a></li>
+      <li data-enhance="off"><a id="off" href="/about">About, not enhanced</a></li>
+      <li><a id="away" href="/away" data-target="content">A page that asks for a full visit</a></li>
+      <li><a id="stray" href="/stray" data-target="content">A page whose fragment has no region here</a></li>
+      <li><a id="redeploy" href="/redeploy" data-target="content">A page on another build</a></li>
+      <li><a id="scripted" href="/scripted" data-target="content">A page whose content has a script</a></li>
+    </ul>
+    <p id="below">Below.</p>

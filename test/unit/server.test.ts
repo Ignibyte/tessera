@@ -88,7 +88,7 @@ describe("documents and fragments", () => {
     const body = await response.text();
     expect(body).not.toContain("<html");
     expect(body).toContain("<title>About · Fixture</title>");
-    expect(body).toContain('<link rel="stylesheet" href="/assets/fixture.css" data-track>');
+    expect(body).toContain('<link rel="stylesheet" href="/assets/fixture.css" data-track="1">');
     expect(body).toContain('<script type="module" src="/assets/tessera.js" data-track></script>');
     expect(body).toContain('<template data-target="content">\n<main data-region="content">');
     expect(templates(body)).toEqual(["content"]);
@@ -150,6 +150,16 @@ describe("documents and fragments", () => {
     const visit = await request("/nowhere", { headers: tessera("visit", "content") });
     expect(visit.status).toBe(404);
     expect(templates(await visit.text())).toEqual(["content"]);
+  });
+
+  it("answers the navigation fixtures: /away, /stray and /redeploy", async () => {
+    const away = await request("/away", { headers: tessera("visit", "content") });
+    expect([away.status, away.headers.get("tessera-full-visit")]).toEqual([200, "/about"]);
+    const plainAway = await request("/away");
+    expect([plainAway.status, plainAway.headers.get("location")]).toEqual([302, "/about"]);
+    const stray = await request("/stray", { headers: tessera("visit", "content") });
+    expect(templates(await stray.text())).toEqual(["nowhere"]);
+    expect(await (await request("/redeploy")).text()).toContain('href="/assets/fixture.css" data-track="2"');
   });
 
   it("refuses a protocol version it does not speak, before any side effect", async () => {
