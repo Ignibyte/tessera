@@ -90,6 +90,18 @@ default so work could go on; Chad confirms or changes it, and until then the cod
   which the repo's rules forbid. `playwright.config.ts` defines the WebKit project only with
   `TESSERA_WEBKIT=1`, for a machine that has the libraries (Ubuntu, or a container). Safari
   coverage needs one before the navigation matrix (#18) counts as passing in all three engines.
+- **WebKit runs in the Playwright image, the rest on the host** (**Provisional**, ticket #20,
+  2026-10-20): `npm run test:browser:webkit` (`scripts/webkit.ts`) starts
+  `mcr.microsoft.com/playwright:v1.62.1-noble` with only the host's `node_modules` mounted,
+  read-only, and runs playwright-core's `run-server` in it. The runner, the build and the
+  reference servers stay on the host, as in `npm run test:browser`; the WebKit project connects
+  through `connectOptions` (`TESSERA_WEBKIT_ENDPOINT`), and the container shares the host's
+  network, so the browser reaches the reference server at `127.0.0.1`. The image tag is pinned
+  in `scripts/webkit-image.ts` and must be `v<@playwright/test version>-noble`: the script
+  refuses to run and a unit test fails when they drift. The container is removed when the run
+  ends, fails or is interrupted, and on any signal the run gets SIGINT, the one on which
+  Playwright stops its reference servers. `npm run test:browser` still runs Chromium and Firefox
+  on the host. The suite's first WebKit failures are ticket #27.
 
 - **Expressions see a closed scope** (**Provisional**, ticket #6, 2026-10-20): `$name` (a
   signal), `el`, `evt`, registered helpers and ECMAScript's built-ins (`Array`, `BigInt`,

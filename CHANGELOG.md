@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- `npm run test:browser:webkit` runs the browser tests in WebKit from the pinned Playwright Docker
+  image (`scripts/webkit.ts`), with the runner and the reference server on the host; a unit test
+  fails when the image tag and `@playwright/test` drift (#20).
+
 - `data-attr` takes `__case` too, so `data-attr:view-box__case.camel` writes SVG's `viewBox`
   (#26).
 
