@@ -8,6 +8,7 @@ declare module "idiomorph" {
     afterNodeMorphed?: (oldNode: Node, newNode: Node) => undefined;
     beforeNodeRemoved?: (node: Node) => boolean | undefined;
     afterNodeRemoved?: (node: Node) => undefined;
+    beforeAttributeUpdated?: (attributeName: string, node: Element, mutationType: "update" | "remove") => boolean | undefined;
   }
 
   export interface IdiomorphOptions {

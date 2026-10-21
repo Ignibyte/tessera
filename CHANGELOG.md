@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- History, focus and scroll (`src/history.ts`): visits push or replace entries holding their targets;
+  Back and Forward fetch fresh; focus by the server's `autofocus`, a stored key
+  (`data-focus-key`), the fragment, the main heading or the body; scroll to the top, to the
+  fragment, or restored on Back and Forward. The patcher keeps a focused field's value without
+  freezing other focused elements (#14).
 - Enhanced navigation (`src/navigation.ts`, `src/head.ts`, `src/progress.ts`): same-origin link
   clicks become visits; a whole document is committed in place by the head policy of protocol
   section 9 and a body morph that keeps `data-permanent` elements; a changed tracked asset or
