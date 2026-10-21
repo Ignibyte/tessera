@@ -93,6 +93,8 @@ export const SCENARIOS: readonly Scenario[] = [
     assertions: ["canonicalRegion", "unrelatedContentRetainedWhenEnhanced", "regionAsDocumentWithoutEnhancement"],
     differences: {
       content: "the region link updates the activity region alone and leaves the rest of the page as it was; the browser loads the region's whole document",
+      focus:
+        "WebKit on macOS does not focus a clicked link but its nearest focusable ancestor, #main, which lies outside the activity region, so Tessera keeps focus there (decision #14), where the browser's new page leaves it on the body; elsewhere the clicked link is in what changed and focus goes to the body",
     },
   },
   {

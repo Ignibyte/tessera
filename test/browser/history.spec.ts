@@ -21,6 +21,15 @@ const marked = (page: Page): Promise<boolean> => page.evaluate(() => (window as 
 const historyLength = (page: Page): Promise<number> => page.evaluate(() => window.history.length);
 const pathname = (page: Page): string => new URL(page.url()).pathname;
 
+/**
+ * Focuses a link and follows it with Enter. A click would leave focus to the engine: WebKit on
+ * macOS focuses neither links nor buttons on click (#31).
+ */
+async function follow(link: ReturnType<Page["locator"]>): Promise<void> {
+  await link.focus();
+  await link.press("Enter");
+}
+
 test.describe("history", () => {
   test("a visit pushes an entry; back and forward fetch each entry again, enhanced", async ({ page }) => {
     await ready(page, "/");
@@ -61,7 +70,7 @@ test.describe("focus", () => {
 
   test("goes back to the stored element on back", async ({ page }) => {
     await ready(page, "/links");
-    await page.locator("#plain").click();
+    await follow(page.locator("#plain"));
     await expect(page.locator("main h1")).toHaveText("About");
     await page.goBack();
     await expect(page.locator("main h1")).toHaveText("Links");
@@ -91,7 +100,7 @@ test.describe("focus", () => {
   test("stays where it is when it was outside what changed", async ({ page }) => {
     await ready(page, "/");
     const link = page.locator("[data-region=sidebar] a", { hasText: "About" });
-    await link.click();
+    await follow(link);
     await expect(page.locator("main h1")).toHaveText("About");
     await page.waitForTimeout(300);
     await expect(link).toBeFocused();
