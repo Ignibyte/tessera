@@ -201,7 +201,9 @@ default so work could go on; Chad confirms or changes it, and until then the cod
   to opt out. So the reference server runs the browser tests with `--close-connections`, which
   makes every dropped connection a fresh one, and the test counts what Tessera sent: exactly one
   POST. `docs/protocol.md` section 4.5 tells servers to expect such a repeat; #24 gives them the
-  means (the next entry).
+  means (the next entry). WebKit does not repeat it (ticket #27): the write stays indeterminate,
+  so the write-id browser test asserts whichever happened, and the write is applied once either
+  way.
 - **`Tessera-Write-Id` on every write** (**Provisional**, ticket #24, 2026-10-20; driver's request):
   a `crypto.randomUUID()` per submission on POST, PUT, PATCH and DELETE, restored after
   interceptors; servers answer a repeat within five minutes with the first answer or `409` and
@@ -297,6 +299,17 @@ default so work could go on; Chad confirms or changes it, and until then the cod
   unknown-modifier error.
   `data-signals` takes no key. An unknown case, a missing or extra name, or two `__case` modifiers
   is an error at the attribute.
+- **WebKit can hold the end of a streamed body** (**Provisional**, ticket #27, 2026-10-20): found
+  when the stream tests failed about 1 run in 50 in WebKit. A page reading `/events/stream` with
+  plain `fetch` and no Tessera code got only the first 123 bytes (`retry` and the first event, a
+  cut inside one server write) in 1 of 200 runs; Chromium never did. The rest arrived only with
+  the server's next write: with a comment every 300 ms, a stalled run got its tail at 303 ms.
+  `Connection: close` makes it more likely; `X-Content-Type-Options: nosniff` and keep-alive do
+  not stop it. Tessera never receives the held bytes, so nothing in it can be fixed. The reference
+  stream gains `beat` (ms between comments, for the whole connection), the stream tests use 250 ms
+  and wait for a whole step before acting on it, and protocol 7.1 asks servers for a comment at
+  least every 15 seconds, more often where WebKit must see events promptly. Seen in Playwright's
+  Linux WebKit (webkit-2336); Safari on macOS uses another network stack and is untested.
 
 ## Open
 

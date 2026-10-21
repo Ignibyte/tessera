@@ -22,8 +22,12 @@ interface Connection {
   closed: boolean;
 }
 
+/**
+ * Opens /events. WebKit can hold the end of what it received until more bytes arrive (#27), so
+ * the stream sends a comment every 250 ms, which releases it well inside the tests' waits.
+ */
 async function open(page: Page, query: string): Promise<void> {
-  await page.goto(`/events?${query}`);
+  await page.goto(`/events?${query}&beat=250`);
   await page.waitForFunction(() => "tesseraHarness" in window);
 }
 
@@ -63,6 +67,8 @@ test("the stream ends when the last element naming it leaves the page", async ({
   const key = testName("leave");
   await open(page, `count=1&key=${key}`);
   await expect(items(page)).toHaveText(["Event 1"]);
+  await expect(page.locator("#latest")).toHaveText("Latest: 1");
+  await expect(page.locator("#received")).toHaveText("1");
   await page.evaluate(() => document.querySelector("#also")?.remove());
   await page.waitForTimeout(100);
   expect(await connections(request, key)).toEqual([{ key, lastEventId: null, closed: false }]);
@@ -81,9 +87,14 @@ test("a visit of a region lands, URL and content, when a stream event commits in
   await expect
     .poll(async () => ((await (await request.get(`/_control/${name}/requests`)).json()) as { requests: unknown[] }).requests.length)
     .toBe(1);
-  // The visit was dispatched before the stream's event, which then commits inside content.
+  // The visit was dispatched before the stream's step, which then commits inside content. The
+  // whole step lands before the visit is answered: an event arriving after the visit replaced
+  // content would be dropped and reported (protocol 7.2), and WebKit can deliver a step's events
+  // apart (#27).
   await expect(items(page)).toHaveCount(0);
   await expect(items(page)).toHaveText(["Event 1"]);
+  await expect(page.locator("#latest")).toHaveText("Latest: 1");
+  await expect(page.locator("#received")).toHaveText("1");
 
   const released = await request.post(`/_control/${name}/release`, { data: { serve: "/about" } });
   expect(released.ok()).toBe(true);
@@ -97,6 +108,8 @@ test("nothing leaks: the kernel's ledger is empty after disposal", async ({ page
   const key = testName("dispose");
   await open(page, `count=1&key=${key}`);
   await expect(items(page)).toHaveText(["Event 1"]);
+  await expect(page.locator("#latest")).toHaveText("Latest: 1");
+  await expect(page.locator("#received")).toHaveText("1");
   expect(await streamResources(page)).not.toEqual([]);
   const left = await page.evaluate(() => {
     const harness = (window as unknown as HarnessWindow).tesseraHarness;

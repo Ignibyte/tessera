@@ -307,10 +307,10 @@ form's data in the form's encoding. A GET or DELETE action has no body.
 - No resent write. A write is dispatched once. A network failure, a timeout or an abort after
   dispatch is reported as **indeterminate** (it may have been saved) and is never retried, and a
   redirect answering a write is never followed by resending the body (section 5.4). Tessera may
-  retry a GET. One resend is outside Tessera's reach: a browser resends a request by itself when
-  a reused keep-alive connection closes before any answer, on the view that the server never saw
-  it. That repeat carries the first one's `Tessera-Write-Id`, so a server can tell it apart
-  (section 5.8).
+  retry a GET. One resend is outside Tessera's reach: Chromium and Firefox resend a request by
+  themselves when a reused keep-alive connection closes before any answer, on the view that the
+  server never saw it (WebKit does not, and Tessera then reports the write indeterminate). That
+  repeat carries the first one's `Tessera-Write-Id`, so a server can tell it apart (section 5.8).
 - No second submission of a form while its first is in flight.
 - No CSRF header on a GET, or to another origin.
 - No signals except on actions, and never `_`-prefixed ones.
@@ -557,6 +557,13 @@ Tessera-Protocol: 0
 ```
 
 Behind nginx, also send `X-Accel-Buffering: no`, or events wait in nginx's buffer.
+
+While the stream is open the server should write a comment line (`: keep-alive`) at least every
+15 seconds, idle or not. Proxies close silent connections, and WebKit has been seen (Playwright's
+Linux build, webkit-2336) to hold back the end of what it has received until more bytes arrive,
+so the gap between writes bounds how late an event can reach a WebKit page. A server whose
+events must reach WebKit promptly writes the comment more often; the reference server's tests use
+250 ms.
 
 With `Tessera-Stream-Pause: hidden`, Tessera closes the stream while the page is hidden and
 reconnects, with `Last-Event-ID`, when it is visible again. Without it the stream stays open.
