@@ -95,15 +95,17 @@ describe("generations", () => {
   const page = `<main data-region="content"><!--t:c cart--><p></p><!--/t:c--></main><nav data-region="sidebar"></nav>`;
   const at = (name: string): TargetNode => resolveTarget(document, name) ?? { kind: "page", document };
 
-  it("makes a target stale when it, a target around it or a target inside it commits", () => {
+  it("makes a target stale when it or a target around it commits, never when a target inside it does", () => {
     document.body.innerHTML = page;
     const generations = new Generations();
     const since = generations.current;
     generations.touch(at("sidebar"));
     expect([generations.stale(at("content"), since), generations.stale(at("content/cart"), since)]).toEqual([false, false]);
     generations.touch(at("content/cart"));
-    expect(generations.stale(at("content"), since)).toBe(true);
-    expect(generations.stale(at("page"), since)).toBe(true);
+    expect(generations.stale(at("content/cart"), since)).toBe(true);
+    // A fragment for content or the page replaces the cart anyway, so it stays valid.
+    expect(generations.stale(at("content"), since)).toBe(false);
+    expect(generations.stale(at("page"), since)).toBe(false);
 
     const later = generations.current;
     generations.touch(at("content"));
@@ -217,6 +219,27 @@ describe("the transport follows the table", () => {
     await read;
     expect(find("#cart").textContent).toBe("from the write");
     expect(String(reported.at(-1))).toContain("content/cart changed after this request was sent; its older fragment is dropped.");
+  });
+
+  it("commits a late fragment for a target when only a target inside it changed meanwhile", async () => {
+    const { transport, calls, respond, find, reported } = setup(page);
+    let late: (response: Response) => void = () => undefined;
+    respond(
+      () => new Promise<Response>((resolve) => { late = resolve; }),
+      () => fragments(`${cartFragment("from the write")}<template data-target="sidebar"><nav data-region="sidebar"><p id="side">saved</p></nav></template>`),
+    );
+    const read = transport.request({ kind: "refresh", url: "/content", targets: ["content"] });
+    await vi.waitFor(() => {
+      expect(calls).toHaveLength(1);
+    });
+    expect((await transport.request({ kind: "action", method: "POST", url: "/save", targets: ["sidebar"], body: "" })).status).toBe("committed");
+    expect(find("#cart").textContent).toBe("from the write");
+
+    late(fragments(`<template data-target="content"><main data-region="content"><!--t:c cart--><p id="cart">from the read</p><!--/t:c--><p id="text">new</p></main></template>`));
+    expect((await read).status).toBe("committed");
+    expect(find("#cart").textContent).toBe("from the read");
+    expect(find("#text").textContent).toBe("new");
+    expect(reported).toEqual([]);
   });
 
   it("commits a late fragment when only a disjoint target changed meanwhile", async () => {
