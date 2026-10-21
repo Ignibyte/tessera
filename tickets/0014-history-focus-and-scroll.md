@@ -3,11 +3,12 @@ number: 14
 uuid: 82b47973-a2f6-447e-b5c9-003d62abe54a
 title: "History, focus and scroll"
 type: feature
-status: in-progress
+status: done
 tags: ["navigation","a11y"]
 created: 2026-10-20T18:00:00Z
-updated: 2026-10-21T00:35:14Z
+updated: 2026-10-21T00:35:47Z
 phase: "docs"
+closed: 2026-10-21T00:35:47Z
 ---
 
 jqstar 0026's ordering, implemented: prepare → capture the current entry → mutate body and head →
@@ -66,3 +67,7 @@ fragment-only, failed), each focus rule, the scroll policy, user interruption an
 `scrollRestoration`. Browser (`test/browser/history.spec.ts`, Chromium and Firefox): push,
 replace, back and forward across region visits, each focus rule, and scroll to the top,
 restored on back and to a fragment.
+
+### 2026-10-21T00:35:47Z
+
+Delivered via PR #15 (45dd9bb). History entries with targets, fresh Back and Forward, the focus precedence and scroll policy; the patcher no longer uses Idiomorph's ignoreActiveValue.
