@@ -129,7 +129,12 @@ export function interceptLinks(options: LinkOptions): Navigation {
   const prefetch = (event: Event, modes: readonly PrefetchMode[]): void => {
     const eligibility = linkEligibility(event as MouseEvent, kernel.document);
     if ("refused" in eligibility || !modes.includes(prefetchMode(eligibility.link))) return;
-    transport.prefetch({ url: eligibility.url.href, targets: elementTargets(eligibility.link), element: eligibility.link });
+    transport.prefetch({
+      url: eligibility.url.href,
+      targets: elementTargets(eligibility.link),
+      element: eligibility.link,
+      press: event.type === "mousedown",
+    });
   };
   kernel.listen("navigation:prefetch", kernel.document, "mousedown", (event) => {
     prefetch(event, ["mousedown", "hover"]);

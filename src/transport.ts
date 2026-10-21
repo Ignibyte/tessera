@@ -145,6 +145,11 @@ export interface PrefetchInput {
   readonly url: string;
   readonly targets?: readonly string[];
   readonly element?: Element;
+  /**
+   * Made by a press (mousedown): the click that follows takes the answer at once, so it is the
+   * click's own request sent early and is used even when it says `no-store`.
+   */
+  readonly press?: boolean;
 }
 
 export interface Transport {
@@ -152,8 +157,8 @@ export interface Transport {
   /**
    * Starts the fetch of a visit before the visit: the next visit with the same URL, targets and
    * layout takes the answer instead of fetching, once. Interceptors' `before` runs now, not again.
-   * The answer waits `prefetchMs`; a failed fetch or a `Cache-Control: no-store` answer is not
-   * used, and that visit fetches as usual.
+   * The answer waits `prefetchMs`; a failed fetch, or a `Cache-Control: no-store` answer to a
+   * prefetch no press made, is not used, and that visit fetches as usual.
    */
   prefetch(input: PrefetchInput): void;
   /**
@@ -203,6 +208,8 @@ interface Prefetch {
   readonly controller: AbortController;
   /** Leaves the ledger and stops the expiry, without aborting. */
   readonly release: () => void;
+  /** A press asked for it, so a `no-store` answer is still used (protocol 8). */
+  press: boolean;
 }
 
 function noStore(response: Response): boolean {
@@ -471,7 +478,12 @@ export function createTransport(options: TransportOptions): Transport {
       writeId: undefined,
     });
     const key = prefetchKey(request);
-    if (prefetches.has(key)) return;
+    const waiting = prefetches.get(key);
+    if (waiting) {
+      // A press on a link a hover already prefetched: the click comes now.
+      if (input.press === true) waiting.press = true;
+      return;
+    }
     const [oldest] = prefetches.keys();
     if (prefetches.size >= MAX_PREFETCHES && oldest !== undefined) dropPrefetch(oldest);
     let headers: Headers;
@@ -499,6 +511,7 @@ export function createTransport(options: TransportOptions): Transport {
         clearTimeout(timer);
         releaseRecord();
       },
+      press: input.press === true,
     });
   };
 
@@ -534,7 +547,7 @@ export function createTransport(options: TransportOptions): Transport {
       if (signal.aborted) throw error;
       return undefined;
     }
-    if (!noStore(response)) return response;
+    if (entry.press || !noStore(response)) return response;
     void response.body?.cancel().catch(() => undefined);
     return undefined;
   };
@@ -794,6 +807,9 @@ export function createTransport(options: TransportOptions): Transport {
           }
           continue;
         }
+        // A visit the network refused loads in full, so the browser shows its own error page, as
+        // it would without Tessera; anything else fails where it was.
+        if (request.kind === "visit") return fullLoad(request.url);
         return { status: "failed", error };
       }
       try {

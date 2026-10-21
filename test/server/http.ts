@@ -1,5 +1,6 @@
 // Request and response shapes shared by the reference server's modules.
 import type { IncomingHttpHeaders, ServerResponse } from "node:http";
+import type { NavigationSession } from "./navigation.ts";
 
 /** Section 8: every response from a URL that answers Tessera requests carries this. */
 export const VARY = "Tessera-Request, Tessera-Protocol, Tessera-Targets, Tessera-Layout";
@@ -33,6 +34,8 @@ export interface ServerState extends Secrets {
   readonly arrivals: { readonly path: string; readonly id: string; readonly repeat: boolean }[];
   /** The first answer to each write id, kept for the protocol's window (section 5.8). */
   readonly writes: Map<string, { readonly response: FixtureResponse; readonly at: number }>;
+  /** The navigation matrix's sessions, by `tessera-nav-session` (navigation.ts). */
+  readonly navigation: Map<string, NavigationSession>;
   /** The ticks of `/poll/tick`, per key. */
   readonly ticks: Map<string, number>;
   /** Each connection to `/events/stream` that named a `key`, in arrival order. */

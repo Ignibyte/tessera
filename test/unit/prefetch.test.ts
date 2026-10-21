@@ -43,7 +43,7 @@ describe("the transport's prefetch", () => {
     expect(before).toHaveBeenCalledOnce();
   });
 
-  it("is not used when it failed or said no-store; the visit fetches", async () => {
+  it("is not used when it failed, or said no-store without a press; the visit fetches", async () => {
     const { transport, calls, respond, find } = setup(page);
     respond(networkFailure, () => fragments(content("fetched")));
     transport.prefetch({ url: "/about", targets: ["content"] });
@@ -56,6 +56,25 @@ describe("the transport's prefetch", () => {
     await transport.request({ kind: "visit", url: "/about", targets: ["content"] });
     expect(calls).toHaveLength(4);
     expect(find("#text").textContent).toBe("fresh");
+  });
+
+  it("is used when a press made it, even if it said no-store: it is the click's own request", async () => {
+    const { transport, calls, respond, find } = setup(page);
+    respond(() => fragments(content("pressed"), { headers: { "Cache-Control": "no-store" } }), () => fragments(content("hovered")), () => fragments(content("fetched")));
+    transport.prefetch({ url: "/about", targets: ["content"], press: true });
+    await transport.request({ kind: "visit", url: "/about", targets: ["content"] });
+    expect(calls).toHaveLength(1);
+    expect(find("#text").textContent).toBe("pressed");
+  });
+
+  it("lets a press take over a hover's prefetch, no-store and all", async () => {
+    const { transport, calls, respond, find } = setup(page);
+    respond(() => fragments(content("hovered"), { headers: { "Cache-Control": "no-store" } }));
+    transport.prefetch({ url: "/about", targets: ["content"] });
+    transport.prefetch({ url: "/about", targets: ["content"], press: true });
+    await transport.request({ kind: "visit", url: "/about", targets: ["content"] });
+    expect(calls).toHaveLength(1);
+    expect(find("#text").textContent).toBe("hovered");
   });
 
   it("expires, aborting its fetch", async () => {
@@ -113,7 +132,7 @@ describe("prefetching links", () => {
   it("prefetches an eligible link on mousedown, with its targets", () => {
     const { prefetch, press, find } = links(page);
     press("#about");
-    expect(prefetch).toHaveBeenCalledWith({ url: "http://localhost:3000/about", targets: ["content"], element: find("#about") });
+    expect(prefetch).toHaveBeenCalledWith({ url: "http://localhost:3000/about", targets: ["content"], element: find("#about"), press: true });
   });
 
   it("leaves a modified press, another button, an ineligible link and data-prefetch=off alone", () => {
@@ -141,5 +160,6 @@ describe("prefetching links", () => {
     hover("#inner");
     vi.advanceTimersByTime(60);
     expect(prefetch).toHaveBeenCalledOnce();
+    expect(prefetch.mock.calls[0]?.[0]).toMatchObject({ url: "http://localhost:3000/h", press: false });
   });
 });

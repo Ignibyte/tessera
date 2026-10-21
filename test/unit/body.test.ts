@@ -26,6 +26,18 @@ describe("the body lease", () => {
     await expect(lease.text()).rejects.toThrow("A response body can be read only once.");
   });
 
+  it("fails a body shorter than its Content-Length, as a lost connection", async () => {
+    const { response } = streamed([]);
+    const short = new Response(response.body, { headers: { "Content-Length": "4096" } });
+    await expect(leaseBody(short, new AbortController().signal).text()).rejects.toThrow("The answer ended after 0 of its 4096 bytes.");
+  });
+
+  it("does not hold an encoded body to its Content-Length", async () => {
+    const { response } = streamed(["abc"]);
+    const encoded = new Response(response.body, { headers: { "Content-Length": "40", "Content-Encoding": "gzip" } });
+    expect(await leaseBody(encoded, new AbortController().signal).text()).toBe("abc");
+  });
+
   it("hands chunks to a stream consumer as they arrive", async () => {
     const { response } = streamed(["a", "b", "c"]);
     const lease = leaseBody(response, new AbortController().signal);

@@ -310,6 +310,24 @@ default so work could go on; Chad confirms or changes it, and until then the cod
   and wait for a whole step before acting on it, and protocol 7.1 asks servers for a comment at
   least every 15 seconds, more often where WebKit must see events promptly. Seen in Playwright's
   Linux WebKit (webkit-2336); Safari on macOS uses another network stack and is untested.
+- **What the navigation matrix found, and what changed** (**Provisional**, ticket #18,
+  2026-10-20; `docs/navigation-matrix.md`):
+  - A visit whose GET the network refuses after its retries loads the URL in full, so the
+    browser shows what it shows without Tessera (its error page in Chromium and Firefox, the
+    page left as it was in WebKit). Before, nothing visible happened.
+  - A prefetch made by a press uses its answer even when it says `no-store`: it is the click's
+    own request, sent a moment early, and is used once by that click. A hover's prefetch still
+    drops a `no-store` answer. #17's rule cost every click a second request on a `no-store`
+    site, so a visit read the server twice where the browser reads it once.
+  - A body shorter than its `Content-Length` (with no `Content-Encoding`) is a failure in the body
+    lease. WebKit resolves such a body as complete: a write whose answer was cut short arrived as
+    an empty document, and Tessera reloaded the page instead of saying the write's fate was
+    unknown.
+  - The matrix itself: jqstar's 28 scenarios plus Tessera's TES-01 (a write answered by a 307,
+    which none of jqstar's sends), each run without JavaScript and with Tessera, compared on URL,
+    content, focus and history length; a field may differ only where the scenario declares why.
+    Mousedown prefetch sends one GET for a link whose click the page then cancels (NAV-20); the
+    matrix accepts that as #17's cost.
 
 ## Open
 

@@ -304,8 +304,9 @@ form's data in the form's encoding. A GET or DELETE action has no body.
 - No request to another origin. Every enhanced request, lazy load, poll and stream is
   same-origin, with `credentials: "same-origin"`. A cross-origin link or form is left to the
   browser.
-- No resent write. A write is dispatched once. A network failure, a timeout or an abort after
-  dispatch is reported as **indeterminate** (it may have been saved) and is never retried, and a
+- No resent write. A write is dispatched once. A network failure, a timeout, an abort or an answer
+  cut short (shorter than its `Content-Length`) after dispatch is reported as **indeterminate**
+  (it may have been saved) and is never retried, and a
   redirect answering a write is never followed by resending the body (section 5.4). Tessera may
   retry a GET. One resend is outside Tessera's reach: Chromium and Firefox resend a request by
   themselves when a reused keep-alive connection closes before any answer, on the view that the
@@ -671,9 +672,11 @@ the props tokens, so props are covered too. The server adds its own `Vary` value
   for the life of the page, and never one sent with `Cache-Control: no-store`. A server that needs
   Back to show fresh content sends `no-store`.
 - A prefetch is the visit's own request, sent early: the visit with the same URL, targets and
-  layout takes its answer once, within 30 seconds, and at most 8 wait at once. An answer with
-  `no-store` is not used, and that visit sends its request again, so a page that must not be
-  prefetched costs a second request; `data-prefetch="off"` avoids it.
+  layout takes its answer once, within 30 seconds, and at most 8 wait at once. A prefetch made by
+  a press (mousedown) is the click's own request, so its answer is used whatever its
+  `Cache-Control`. A prefetch made by a hover can wait longer, so its answer is not used when it
+  says `no-store`, and that visit sends its request again; `data-prefetch="off"` avoids the
+  second request.
 
 ## 9. Head and assets
 
