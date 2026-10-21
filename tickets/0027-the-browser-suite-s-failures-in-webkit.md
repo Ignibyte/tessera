@@ -3,11 +3,12 @@ number: 27
 uuid: d6961fc1-957f-4268-b4ec-b727be5571b2
 title: "The browser suite's failures in WebKit"
 type: bug
-status: in-progress
+status: done
 tags: ["testing","webkit"]
 created: 2026-10-21T02:02:47Z
-updated: 2026-10-21T02:16:08Z
+updated: 2026-10-21T02:16:16Z
 phase: "docs"
+closed: 2026-10-21T02:16:16Z
 ---
 
 Found by #20, the first time the whole browser suite ran in WebKit (`npm run test:browser:webkit`, Playwright 1.62.1, webkit-2336). Out of 65 tests:
@@ -44,3 +45,7 @@ Results (exit codes tested): `npm run check` 0 (629 tests); `npm run test:browse
 One thing the plan did not foresee: with `beat=250` in place, a 300-run WebKit repeat failed 3 times in "a visit of a region lands…". The failures were `A stream event targets content/latest, which is not on the page; it is dropped.` Same cause: WebKit held the step's later events past the comment, the test released the visit after the step's first event, and the late `content/latest` event arrived after the visit had replaced `content`. Tessera dropped and reported it, as protocol 7.2 says. The stream tests now wait for the whole step (list, component and signal) before they act. After that, 600 of 600 passed.
 
 Nothing in `src/` changed: the cause is in WebKit's network layer, and the held bytes never reach Tessera.
+
+### 2026-10-21T02:16:16Z
+
+Delivered via PR #26 (7dcc6c4). write-id.spec asserts whichever the browser did; the stream flake is WebKit holding received bytes until more arrive, covered by keep-alive comments in the tests and protocol 7.1.
