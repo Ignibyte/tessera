@@ -3,11 +3,12 @@ number: 26
 uuid: 19f6e063-06a5-4e75-999e-ba54db40ee8d
 title: "The __case modifier on data-attr"
 type: feature
-status: in-progress
+status: done
 tags: ["attributes"]
 created: 2026-10-21T01:54:41Z
-updated: 2026-10-21T01:55:42Z
+updated: 2026-10-21T01:55:57Z
 phase: "docs"
+closed: 2026-10-21T01:55:57Z
 ---
 
 Follow-up to #23 (driver, 2026-10-20). HTML lowercases attribute names, so `data-attr:viewBox` arrives as `data-attr:viewbox`. SVG's `viewBox`, `preserveAspectRatio` and other camelCase attributes cannot be written through `data-attr` today. Datastar allows `__case` on `data-attr`.
@@ -33,3 +34,7 @@ Acceptance: a unit test that sets `viewBox` on an SVG element from a signal and 
 ### 2026-10-21T01:55:42Z
 
 Check exited 0 (627 unit and property tests) and the browser suite exited 0 (130 tests, Chromium and Firefox). The browser test also reads `viewBox.baseVal`, so it shows the SVG took the attribute, not only that the string is there.
+
+### 2026-10-21T01:55:57Z
+
+Delivered via PR #24 (e3f9c72). data-attr takes __case, default kebab, so SVG's viewBox can be written.
