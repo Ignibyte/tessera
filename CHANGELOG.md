@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## 0.1.0 (2026-10-20)
+
+The first release: the runtime for protocol version 0, in two builds (`README.md`, "Using a
+release"). Known issue: three browser tests fail in WebKit on macOS because they assume a click
+focuses a link, which macOS WebKit does not do; Tessera's behaviour is not affected (#31).
+
 - The public API and the first release's files: `start({ helpers })` returning `signals`,
   `visit`, `intercept` and `stop`, from two builds, `tessera.*` with the trusted engine and
   `tessera.csp.*` with the no-eval engine, each an ES module, minified and an IIFE that starts by

@@ -442,16 +442,16 @@ default so work could go on; Chad confirms or changes it, and until then the cod
   `<meta name="tessera-start" content="manual">`; the ES modules never start on import, since an
   import with side effects would start Tessera wherever the module is merely loaded. The rest of
   the configuration stays in the protocol's metas.
+- **The size budgets are the measured sizes plus 10%** (driver, ticket #19, 2026-10-20): the
+  default build 35,514 bytes gzipped, the csp build 44,209. #1's 30,720 was a starting figure set
+  while the build held only `version` (98 bytes), so no check had measured the runtime until
+  `start` bundled it; #19 asks for the measured size plus 10%, so this follows the ticket rather
+  than lowering a bar. Measured: the default build 32,285 when the driver set its figure (32,339
+  after #30), the csp build 40,190. Terser's options gain nothing (`passes`, `module`, `unsafe`:
+  within 100 bytes). By the source map the transport is 18% of the minified default build,
+  Idiomorph 9.5%, the kernel 8.6% and the built-in directives 8.2%; long string literals, mostly
+  error messages, are about 2.7 KB gzipped. A later ticket can lower both.
 
 ## Open
 
-- **The default build is over its size budget** (ticket #19, 2026-10-20): `dist/tessera.min.js`
-  is 32,285 bytes gzipped against #1's starting budget of 30,720. Until #19 the build held only
-  `version` (98 bytes), so no check had ever measured the runtime; `start` is the first entry that
-  bundles it. Lowering the budget to the measured size plus 10%, as #19 asked, would raise it.
-  Terser's options gain nothing (`passes`, `module`, `unsafe`: within 100 bytes), so meeting
-  30,720 means cutting about 1.6 KB gzipped from the source. By the source map the transport is
-  18% of the minified file, Idiomorph 9.5%, the kernel 8.6%, the built-in directives 8.2%; long
-  string literals, mostly error messages, are about 2.7 KB gzipped. The options: raise the budget
-  to the measured size plus 10% (35,514), or cut the source first in a ticket of its own and
-  release after it. The driver or Chad decides; #19 is blocked on it.
+Nothing open.
