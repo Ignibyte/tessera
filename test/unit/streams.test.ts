@@ -143,8 +143,10 @@ describe("opening a stream", () => {
     expect(listener.state).toBe("open");
     expect(calls[0]?.signal.aborted).toBe(false);
     find("[data-region=events]").remove();
-    await tick(5);
-    expect(listener.state).toBe("closed");
+    // The removal reaches the stream through a MutationObserver, then waits one task.
+    await vi.waitFor(() => {
+      expect(listener.state).toBe("closed");
+    });
     expect(calls[0]?.signal.aborted).toBe(true);
     expect(streams.urls()).toEqual([]);
     expect(streamResources()).toEqual([]);
@@ -172,14 +174,13 @@ describe("opening a stream", () => {
     });
     find("[data-region=events]").setAttribute("data-stream", "/other");
     await vi.waitFor(() => {
-      expect(calls).toHaveLength(2);
+      expect(calls[0]?.signal.aborted).toBe(true);
     });
-    await tick(5);
-    expect(calls[0]?.signal.aborted).toBe(true);
     expect(calls[1]?.url).toBe(`${ORIGIN}/other`);
     find("[data-region=events]").removeAttribute("data-stream");
-    await tick(5);
-    expect(calls[1]?.signal.aborted).toBe(true);
+    await vi.waitFor(() => {
+      expect(calls[1]?.signal.aborted).toBe(true);
+    });
     expect(streams.urls()).toEqual([]);
   });
 });

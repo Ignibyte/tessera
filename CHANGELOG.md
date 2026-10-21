@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Lazy regions, polling, prefetch and persisted nodes (`src/lazy.ts`, `src/polling.ts`,
+  `src/watch.ts`): `data-lazy` loads once, `data-lazy__visible` when in view; `data-poll`
+  refreshes on shared clocks (`__5s`, `__750ms`), one tick in 20 without window focus, none while
+  hidden or offline; enhanced links prefetch on mousedown, or after a hover with
+  `data-prefetch="hover"`, and the click uses the prefetched answer once (`transport.prefetch`);
+  `data-permanent` elements keep their node through fragment morphs too (#17).
+
 - A commit no longer makes fragments for the targets around it stale: a visit of a region lands,
   content and URL, when a stream event or another answer commits inside that region while the
   visit is in flight; a late fragment for the inner target is still dropped (#25).

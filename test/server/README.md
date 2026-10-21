@@ -60,6 +60,11 @@ all on the page (and, for a visit, the layout matches), and the full document ot
 | `GET /counter/log?key=K` | `{count, arrivals: [{path, id, repeat}]}`: each write to that key that carried `Tessera-Write-Id` |
 | `GET /forms` | A form posting to `/form`, forms posting to the controller (two submitters; a file), a GET form, an opted-out form, a cross-origin form and one with a `required` field |
 | `GET /long` | A tall page with `#section-1` to `#section-3` and a link at the bottom, for scroll |
+| `GET /lazy` | Region `reviews` with `data-lazy="/lazy/content"`, and below a tall spacer region `more` with `data-lazy__visible` |
+| `GET /lazy/content` | The same regions, loaded |
+| `GET /poll?key=K` | Region `ticker` polling `/poll/tick?key=K` every 200 ms, showing the ticks so far |
+| `GET /poll/tick?key=K` | Adds one tick for `K` and answers as `/poll` |
+| `GET /persist-a`, `/persist-b`, `/persist-c` | `#player` with `data-permanent` on each; B wraps it in a `<section>`, C is on the `bare` layout |
 | `GET /focus-server` | A page whose field has `autofocus` |
 | `GET /headless` | A page whose content has no heading |
 | `GET /bare` | A page on the `bare` layout, so a visit from `app` gets the full document |

@@ -218,6 +218,28 @@ describe("the morph", () => {
     expect(find("#kept")).toBe(kept);
   });
 
+  it("keeps a data-permanent element the fragment brings again as the same node, unmorphed", () => {
+    const { patcher, find } = fixture(
+      `<main data-region="content"><!--t:c player--><div id="player" data-permanent><p>playing 0:12</p></div><!--/t:c--><h1>A</h1></main>`,
+    );
+    const player = find("#player");
+    patcher.patchElements("content", `<main data-region="content"><!--t:c player--><div id="player" data-permanent><p>server</p></div><!--/t:c--><h1>B</h1></main>`);
+    expect(find("#player")).toBe(player);
+    expect(player.textContent).toBe("playing 0:12");
+    expect(find("h1").textContent).toBe("B");
+    patcher.patchElements("content/player", `<!--t:c player--><div id="player" data-permanent><p>again</p></div><!--/t:c-->`);
+    expect(find("#player")).toBe(player);
+    expect(player.textContent).toBe("playing 0:12");
+  });
+
+  it("morphs a data-permanent element the fragment brings without data-permanent, and removes one it lacks", () => {
+    const { patcher, find } = fixture(`<main data-region="content"><div id="player" data-permanent><p>playing</p></div></main>`);
+    patcher.patchElements("content", `<main data-region="content"><div id="player"><p>server</p></div></main>`);
+    expect(find("#player").textContent).toBe("server");
+    patcher.patchElements("content", `<main data-region="content"><p>gone</p></main>`);
+    expect(document.querySelector("#player")).toBeNull();
+  });
+
   it("keeps focus and the typed value of an input it morphs", () => {
     const { patcher, find } = fixture(`<main data-region="content"><label>Name</label><input id="name" value="server"></main>`);
     const input = find("#name") as HTMLInputElement;

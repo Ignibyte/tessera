@@ -154,7 +154,12 @@ const simplePages: Readonly<Record<string, string>> = {
   "/forms": "forms",
   "/headless": "headless",
   "/links": "links",
+  "/lazy": "lazy",
+  "/lazy/content": "lazy-content",
   "/long": "long",
+  "/persist-a": "persist-a",
+  "/persist-b": "persist-b",
+  "/persist-c": "persist-c",
   "/scripted": "scripted",
   "/patch": "patch",
   "/transport": "transport",
@@ -174,7 +179,7 @@ async function respond(request: FixtureRequest, secrets: ServerState): Promise<F
   if (path.startsWith("/assets/") && method === "GET") return asset(path);
 
   const known =
-    path in simplePages || ["/form", "/form/done", "/events", "/slow", "/redeploy", "/away", "/stray", "/counter/log", "/events/log"].includes(path);
+    path in simplePages || ["/form", "/form/done", "/events", "/slow", "/redeploy", "/away", "/stray", "/counter/log", "/events/log", "/poll", "/poll/tick"].includes(path);
   if (known && method !== "GET") return { ...text(405, `${path} answers GET.`), headers: { Allow: path === "/form" ? "GET, POST" : "GET" } };
 
   const simple = simplePages[path];
@@ -186,6 +191,13 @@ async function respond(request: FixtureRequest, secrets: ServerState): Promise<F
   if (path === "/events/log") {
     const key = url.searchParams.get("key") ?? "";
     return json(200, { connections: secrets.streams.filter((connection) => connection.key === key) });
+  }
+  if (path === "/poll" || path === "/poll/tick") {
+    // Each GET of /poll/tick is one tick for its key; /poll shows the count without adding one.
+    const key = url.searchParams.get("key") ?? "";
+    const ticks = (secrets.ticks.get(key) ?? 0) + (path === "/poll/tick" ? 1 : 0);
+    secrets.ticks.set(key, ticks);
+    return page("poll", { key, ticks: String(ticks) });
   }
   if (path === "/counter/log") {
     const key = url.searchParams.get("key") ?? "";
@@ -334,6 +346,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
     counts: new Map(),
     arrivals: [],
     streams: [],
+    ticks: new Map(),
     writes: new Map(),
   };
   const controller = new Controller((request) => respond(request, secrets));

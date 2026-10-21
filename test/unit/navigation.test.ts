@@ -189,6 +189,7 @@ describe("link interception", () => {
       intercept: () => () => undefined,
       connect: () => Promise.resolve({ status: "stop" }),
       commitStream: () => Promise.resolve("dropped"),
+      prefetch: () => undefined,
     };
     return { transport, request };
   }

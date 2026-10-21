@@ -1,7 +1,8 @@
 // Enhanced navigation: same-origin link clicks become visits through the transport, and a whole
 // document answering a visit is committed in place (protocol sections 5.2 and 9). From jqstar
 // 0024 (intercepting visits) and 0025 (committing documents and the head), both declined there
-// and never built; the body morph instead of a replacement is Livewire's.
+// and never built; the body morph instead of a replacement, and prefetch on mousedown or after a
+// short hover, are Livewire's.
 import { addHead, headConflict, takeMetadata } from "./head.ts";
 import type { Kernel } from "./kernel.ts";
 import type { Patcher } from "./patch.ts";
@@ -79,6 +80,17 @@ export interface LinkOptions {
   readonly kernel: Kernel;
   readonly transport: Transport;
   readonly progress?: ProgressBar;
+  /** How long the pointer rests on a `data-prefetch="hover"` link before it prefetches. Default 60 ms. */
+  readonly hoverMs?: number;
+}
+
+/** When a link prefetches: on mousedown (the default), also after a hover, or never. */
+export type PrefetchMode = "mousedown" | "hover" | "off";
+
+/** The nearest `data-prefetch` decides: `hover`, `off`, or anything else for mousedown. */
+export function prefetchMode(link: Element): PrefetchMode {
+  const value = link.closest("[data-prefetch]")?.getAttribute("data-prefetch");
+  return value === "hover" || value === "off" ? value : "mousedown";
 }
 
 export interface Navigation {
@@ -86,9 +98,13 @@ export interface Navigation {
   visit(url: string, options?: { targets?: readonly string[]; element?: Element; history?: HistoryMode }): Promise<RequestOutcome>;
 }
 
-/** Turns eligible link clicks on the document into visits. The listener is owned by the kernel. */
+/**
+ * Turns eligible link clicks on the document into visits, and prefetches them from mousedown, or
+ * from a hover on `data-prefetch="hover"` links. The listeners are owned by the kernel.
+ */
 export function interceptLinks(options: LinkOptions): Navigation {
   const { kernel, transport, progress } = options;
+  const hoverMs = options.hoverMs ?? 60;
   const visit: Navigation["visit"] = async (url, visitOptions = {}) => {
     const stop = progress?.start();
     try {
@@ -108,6 +124,44 @@ export function interceptLinks(options: LinkOptions): Navigation {
     if ("refused" in eligibility) return;
     event.preventDefault();
     void visit(eligibility.url.href, { targets: elementTargets(eligibility.link), element: eligibility.link });
+  });
+
+  const prefetch = (event: Event, modes: readonly PrefetchMode[]): void => {
+    const eligibility = linkEligibility(event as MouseEvent, kernel.document);
+    if ("refused" in eligibility || !modes.includes(prefetchMode(eligibility.link))) return;
+    transport.prefetch({ url: eligibility.url.href, targets: elementTargets(eligibility.link), element: eligibility.link });
+  };
+  kernel.listen("navigation:prefetch", kernel.document, "mousedown", (event) => {
+    prefetch(event, ["mousedown", "hover"]);
+  });
+
+  let hovered: { readonly link: Element; readonly cancel: () => void } | undefined;
+  kernel.listen("navigation:hover", kernel.document, "mouseover", (event) => {
+    const node = event.target as Node | null;
+    const link = (node?.nodeType === 1 ? (node as Element) : node?.parentElement)?.closest("a[href]");
+    if (!link || hovered?.link === link) return;
+    hovered?.cancel();
+    hovered = undefined;
+    if (prefetchMode(link) !== "hover") return;
+    const timer = setTimeout(() => {
+      cancel();
+      prefetch(event, ["hover"]);
+    }, hoverMs);
+    const release = kernel.own("task", "navigation:hover", () => {
+      clearTimeout(timer);
+    });
+    const cancel = (): void => {
+      release();
+      if (hovered?.link === link) hovered = undefined;
+    };
+    hovered = { link, cancel };
+  });
+  kernel.listen("navigation:hover", kernel.document, "mouseout", (event) => {
+    const next = (event as MouseEvent).relatedTarget as Node | null;
+    if (hovered && !(next && hovered.link.contains(next))) {
+      hovered.cancel();
+      hovered = undefined;
+    }
   });
   return { visit };
 }
