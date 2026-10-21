@@ -103,7 +103,8 @@ component and the signal for `count`. Query parameters:
 
 Requests to `/controlled/CHANNEL/…` (any method, any path below the channel) are captured and
 held until the test answers them. A channel is 1 to 64 of `A-Z a-z 0-9 _ -`; give each test its
-own, since tests run in parallel against one server.
+own, since tests run in parallel against one server and a worker runs tests from several files
+in turn: `testName` in `test/browser/names.ts` builds one from the test id.
 
 | Request | Effect |
 |---|---|

@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 import type { APIRequestContext, Page } from "@playwright/test";
+import { testName } from "./names.ts";
 
 // Overlapping requests on /coordination, answered out of order by the reference server's
 // controller (docs/protocol.md 4.6).
@@ -17,10 +18,6 @@ test.beforeEach(async ({ page }) => {
   await page.goto("/coordination");
   await page.waitForFunction(() => "tesseraHarness" in window);
 });
-
-function channel(name: string): string {
-  return `${name}-${test.info().project.name}-${test.info().workerIndex}-${test.info().retry}`;
-}
 
 function send(page: Page, input: { kind: string; method?: string; url: string; targets: string[]; body?: string }): Promise<{ status: string }> {
   return page.evaluate((request) => (window as unknown as HarnessWindow).tesseraHarness.request(request), input);
@@ -40,7 +37,7 @@ async function release(request: APIRequestContext, name: string, path: string, b
 const cart = (text: string) => `<template data-target="content/cart"><!--t:c cart--><p id="cart">${text}</p><!--/t:c--></template>`;
 
 test("a late response never overwrites what a newer one committed", async ({ page, request }) => {
-  const name = channel("late");
+  const name = testName("late");
   const read = send(page, { kind: "refresh", url: `/controlled/${name}/cart`, targets: ["content/cart"] });
   await held(request, name, 1);
   // A write on another target, whose answer also re-renders the cart, as a server may.
@@ -61,7 +58,7 @@ test("a late response never overwrites what a newer one committed", async ({ pag
 });
 
 test("disjoint regions update independently, whatever order their answers arrive in", async ({ page, request }) => {
-  const name = channel("disjoint");
+  const name = testName("disjoint");
   const left = send(page, { kind: "refresh", url: `/controlled/${name}/left`, targets: ["left"] });
   const right = send(page, { kind: "refresh", url: `/controlled/${name}/right`, targets: ["right"] });
   await held(request, name, 2);

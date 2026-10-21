@@ -1,13 +1,10 @@
 import { expect, test } from "@playwright/test";
 import type { Page } from "@playwright/test";
+import { testName } from "./names.ts";
 
 // Lazy regions, polling, prefetch and persisted nodes against the reference server (ticket #17).
 
 type HarnessWindow = Window & { tesseraHarness: { requestErrors: string[] } };
-
-function keyFor(name: string): string {
-  return `${name}-${test.info().project.name}-${test.info().workerIndex}-${test.info().retry}`;
-}
 
 async function open(page: Page, path: string): Promise<void> {
   await page.goto(path);
@@ -36,7 +33,7 @@ test("a lazy region loads once rendered, and a __visible one once it scrolls int
 });
 
 test("a poll stops while the page is hidden and goes on when it is visible", async ({ page }) => {
-  await open(page, `/poll?key=${keyFor("poll")}`);
+  await open(page, `/poll?key=${testName("poll")}`);
   await page.bringToFront();
   const ticks = async (): Promise<number> => Number(await page.locator("#ticks").textContent());
   await expect.poll(ticks).toBeGreaterThanOrEqual(2);
@@ -53,7 +50,7 @@ test("a poll stops while the page is hidden and goes on when it is visible", asy
 });
 
 test("a prefetch on mousedown is the request the click uses", async ({ page, request }) => {
-  const name = keyFor("prefetch");
+  const name = testName("prefetch");
   await open(page, "/links");
   await page.evaluate((href) => {
     const link = document.createElement("a");

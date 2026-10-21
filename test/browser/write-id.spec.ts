@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { testName } from "./names.ts";
 
 // The browser's own repeat of a write (docs/decisions.md, "Browsers resend some writes
 // themselves"), on the reference server that keeps connections alive: the repeat carries the same
@@ -16,7 +17,7 @@ interface Log {
 }
 
 test("the browser's repeat of a dropped write carries the same id and is applied once", async ({ page, request }) => {
-  const key = `${test.info().project.name}-${test.info().workerIndex}-${test.info().retry}`;
+  const key = testName("write-id");
   await page.goto(`${origin}/counter?key=${key}`);
   await page.waitForFunction(() => "tesseraHarness" in window);
   // A request just before leaves an idle keep-alive connection for the POST to reuse.

@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 import type { APIRequestContext, Page } from "@playwright/test";
+import { testName } from "./names.ts";
 
 // Durable streams against the reference server's /events (ticket #16): each step of the stream
 // prepends to region `events`, morphs component `content/latest` and patches `$received`. The
@@ -21,10 +22,6 @@ interface Connection {
   closed: boolean;
 }
 
-function keyFor(name: string): string {
-  return `${name}-${test.info().project.name}-${test.info().workerIndex}-${test.info().retry}`;
-}
-
 async function open(page: Page, query: string): Promise<void> {
   await page.goto(`/events?${query}`);
   await page.waitForFunction(() => "tesseraHarness" in window);
@@ -41,7 +38,7 @@ const streamResources = (page: Page): Promise<string[]> =>
   page.evaluate(() => (window as unknown as HarnessWindow).tesseraHarness.resources().filter((resource) => resource.includes(" stream:")));
 
 test("events morph a region and a component, and patch signals", async ({ page, request }) => {
-  const key = keyFor("morph");
+  const key = testName("morph");
   await open(page, `count=3&key=${key}`);
   await expect(items(page)).toHaveText(["Event 3", "Event 2", "Event 1"]);
   await expect(page.locator("#latest")).toHaveText("Latest: 3");
@@ -51,7 +48,7 @@ test("events morph a region and a component, and patch signals", async ({ page, 
 });
 
 test("a dropped connection reconnects with the last id and resumes without duplicates", async ({ page, request }) => {
-  const key = keyFor("drop");
+  const key = testName("drop");
   await open(page, `count=4&drop=2&retry=50&key=${key}`);
   await expect(items(page)).toHaveText(["Event 4", "Event 3", "Event 2", "Event 1"]);
   await expect(page.locator("#latest")).toHaveText("Latest: 4");
@@ -63,7 +60,7 @@ test("a dropped connection reconnects with the last id and resumes without dupli
 });
 
 test("the stream ends when the last element naming it leaves the page", async ({ page, request }) => {
-  const key = keyFor("leave");
+  const key = testName("leave");
   await open(page, `count=1&key=${key}`);
   await expect(items(page)).toHaveText(["Event 1"]);
   await page.evaluate(() => document.querySelector("#also")?.remove());
@@ -78,7 +75,7 @@ test("the stream ends when the last element naming it leaves the page", async ({
 });
 
 test("a visit of a region lands, URL and content, when a stream event commits inside it meanwhile", async ({ page, request }) => {
-  const name = keyFor("inside");
+  const name = testName("inside");
   await open(page, `count=1&interval=1500&key=${name}`);
   const visit = page.evaluate((url) => (window as unknown as HarnessWindow).tesseraHarness.visit(url, ["content"]), `/controlled/${name}/next`);
   await expect
@@ -97,7 +94,7 @@ test("a visit of a region lands, URL and content, when a stream event commits in
 });
 
 test("nothing leaks: the kernel's ledger is empty after disposal", async ({ page, request }) => {
-  const key = keyFor("dispose");
+  const key = testName("dispose");
   await open(page, `count=1&key=${key}`);
   await expect(items(page)).toHaveText(["Event 1"]);
   expect(await streamResources(page)).not.toEqual([]);

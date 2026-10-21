@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 import type { APIRequestContext, Page } from "@playwright/test";
+import { testName } from "./names.ts";
 
 // The transport against the reference server on /transport, through test/browser/harness.ts.
 // The first test is the point of ticket #11: a write is never sent twice. The server runs with
@@ -31,7 +32,7 @@ test.beforeEach(async ({ page }) => {
 
 /** Points #held at a controller channel of its own. */
 async function holdingChannel(page: Page, name: string): Promise<string> {
-  const channel = `${name}-${test.info().project.name}-${test.info().workerIndex}-${test.info().retry}`;
+  const channel = testName(name);
   await page.evaluate((path) => {
     document.querySelector("#held")?.setAttribute("action", path);
   }, `/controlled/${channel}/save`);

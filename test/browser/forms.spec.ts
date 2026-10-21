@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 import type { APIRequestContext, Page } from "@playwright/test";
+import { testName } from "./names.ts";
 
 // Forms without replay on the reference server's /forms page: each scenario with JavaScript on
 // (Tessera) and, where the browser alone can show it, off. The server closes connections, so a
@@ -13,13 +14,9 @@ interface Captured {
   state: string;
 }
 
-function channel(name: string): string {
-  return `${name}-${test.info().project.name}-${test.info().workerIndex}-${test.info().retry}`;
-}
-
 /** Points a form at a controller channel of its own. */
 async function hold(page: Page, form: string, name: string, path: string): Promise<string> {
-  const id = channel(name);
+  const id = testName(name);
   await page.evaluate(([selector, action]) => {
     document.querySelector(selector)?.setAttribute("action", action);
   }, [form, `/controlled/${id}/${path}`] as const);
@@ -163,7 +160,7 @@ test.describe("without JavaScript", () => {
 
   /** With JavaScript off the page cannot rewrite its own form, so the request does it. */
   async function holdNatively(page: Page, form: string, name: string, path: string): Promise<string> {
-    const id = channel(name);
+    const id = testName(name);
     await page.locator(form).evaluate((element, action) => {
       element.setAttribute("action", action);
     }, `/controlled/${id}/${path}`);

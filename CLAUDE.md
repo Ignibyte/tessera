@@ -53,6 +53,10 @@ stopped mid-ticket), else `bin/ticket.sh next`. Never work two tickets at once.
 - `bin/ticket.sh update <n> --phase check`.
 - `npm run check` until it passes: typecheck, lint, unit and property tests, the build and the
   size budget. Then `npm run test:browser` when the ticket touches browser behaviour.
+- **The exit code decides, never piped output.** A pipe reports the last command's status, so
+  `npm run check | tail` can print a failure and still let `&&` go on. Run each with
+  `set -o pipefail`, or redirect it to a log file and test `$?` before reading the log's tail.
+  Push only after both exit 0.
 - **No suppressions and no lowered bars:** no `eslint-disable`, `@ts-ignore`,
   `@ts-expect-error` (outside a test proving a type error), `any` in the public API, skipped or
   focused tests, or loosened thresholds. Fix the source.

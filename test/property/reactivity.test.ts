@@ -1,6 +1,7 @@
 // Effects always catch up: after any sequence of writes, with or without waiting between them,
 // every effect (reading keys directly, through `in`, through iteration, or through a computed
-// value) has last seen the final state.
+// value) has last seen the final state. Effects count their runs: one reading through a computed
+// value never runs twice in a row on the same value.
 import fc from "fast-check";
 import { describe, expect, it } from "vitest";
 import { computed, reactive, Scheduler, stop } from "../../src/reactivity.ts";
@@ -39,6 +40,7 @@ describe("reactivity", () => {
           const scheduler = new Scheduler();
           const state = reactive<State>({ a: 0, b: 0 });
           const seen: string[] = [];
+          const runs: string[][] = watchers.map(() => []);
           const effects: ReactiveEffect[] = [];
           const values = watchers.map(({ via, keys }) =>
             via === "computed" ? computed(() => view(state, "read", keys)) : undefined,
@@ -47,6 +49,7 @@ describe("reactivity", () => {
             effects.push(
               scheduler.effect(() => {
                 seen[index] = values[index]?.value ?? view(state, via, keys);
+                runs[index]?.push(seen[index]);
               }),
             );
           });
@@ -62,6 +65,11 @@ describe("reactivity", () => {
 
           watchers.forEach(({ via, keys }, index) => {
             expect(seen[index]).toBe(view(state, via === "computed" ? "read" : via, keys));
+            if (via !== "computed") return;
+            const values = runs[index] ?? [];
+            values.slice(1).forEach((value, run) => {
+              expect(value).not.toBe(values[run]);
+            });
           });
           for (const runner of effects) stop(runner);
           for (const value of values) value?.stop();
