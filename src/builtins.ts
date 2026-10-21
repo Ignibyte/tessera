@@ -196,9 +196,11 @@ const classes: Directive = {
 const attr: Directive = {
   name: "attr",
   key: "required",
+  modifiers: ["case"],
   mount(context) {
     const { element } = context;
-    const name = context.attribute.key ?? "";
+    // `__case.camel` writes what HTML cannot spell in an attribute name, such as SVG's viewBox.
+    const name = keyCase(context.attribute, "kebab")(context.attribute.key ?? "");
     const original = element.getAttribute(name);
     bindValue(context, (value) => {
       if (value === null || value === undefined || value === false) element.removeAttribute(name);

@@ -128,3 +128,11 @@ test("__case.camel listens to a camelCase custom event, which HTML could not spe
   await dispatch("itemSelected", "lamp");
   await expect(page.locator("#picked")).toHaveText("lamp");
 });
+
+test("__case.camel on data-attr writes SVG's viewBox, which HTML lowercases", async ({ page }) => {
+  await expect(page.locator("#icon")).toHaveAttribute("viewBox", "0 0 10 10");
+  await page.locator("#zoom").click();
+  await expect(page.locator("#icon")).toHaveAttribute("viewBox", "0 0 20 20");
+  // The SVG itself sees it: a lowercase viewbox attribute would leave viewBox.baseVal empty.
+  expect(await page.locator("#icon").evaluate((svg) => (svg as SVGSVGElement).viewBox.baseVal.width)).toBe(20);
+});
