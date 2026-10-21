@@ -343,10 +343,13 @@ to overlapping targets go one at a time. Polls yield to everything. Across sever
 targets, a queue wins over a supersession.
 
 **Generations.** Every target remembers the last commit that touched it, and a commit touches its
-target, every target around it and every target inside it once it has committed. A request
+target and every target inside it once it has committed, never the targets around it. A request
 records the commit sequence when it is dispatched; a fragment for a target touched since then is
-dropped and reported, so a late response never overwrites a newer one. This holds for targets a
-response brings without the request naming them.
+dropped and reported, so a late response never overwrites a newer one. A fragment for a target
+around a newer commit stays valid, since it replaces that commit's target anyway: a visit of
+`content` still lands after a stream event committed to `events` inside it, while a late fragment
+for `events` after a commit to `content` is dropped. This holds for targets a response brings
+without the request naming them.
 
 While a request is queued or in flight, its region targets carry `aria-busy="true"` (for a
 component, the elements directly between its markers; for `page`, `<body>`), and the element
@@ -614,7 +617,8 @@ arrives, under the same target checks as a fragment response, except that a stre
 full load for a missing target: the event is dropped and reported. A `page` event whose tracked
 assets changed does cause a full load of the current page. An event is never stale, since it is
 the newest word on its target; a commit from it counts as a touch of that target (section 4.6),
-so the answer to a request sent before it and still in flight drops its fragment for that target.
+so the answer to a request sent before it and still in flight drops its fragment for that target
+or for a target inside it, and keeps its fragment for a target around it.
 
 ### 7.3 Ids, `retry` and reconnecting
 

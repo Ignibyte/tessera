@@ -77,6 +77,25 @@ test("the stream ends when the last element naming it leaves the page", async ({
   expect(await streamResources(page)).toEqual([]);
 });
 
+test("a visit of a region lands, URL and content, when a stream event commits inside it meanwhile", async ({ page, request }) => {
+  const name = keyFor("inside");
+  await open(page, `count=1&interval=1500&key=${name}`);
+  const visit = page.evaluate((url) => (window as unknown as HarnessWindow).tesseraHarness.visit(url, ["content"]), `/controlled/${name}/next`);
+  await expect
+    .poll(async () => ((await (await request.get(`/_control/${name}/requests`)).json()) as { requests: unknown[] }).requests.length)
+    .toBe(1);
+  // The visit was dispatched before the stream's event, which then commits inside content.
+  await expect(items(page)).toHaveCount(0);
+  await expect(items(page)).toHaveText(["Event 1"]);
+
+  const released = await request.post(`/_control/${name}/release`, { data: { serve: "/about" } });
+  expect(released.ok()).toBe(true);
+  expect((await visit).status).toBe("committed");
+  await expect(page.locator("h1")).toHaveText("About");
+  expect(new URL(page.url()).pathname).toBe(`/controlled/${name}/next`);
+  expect(await page.evaluate(() => (window as unknown as HarnessWindow).tesseraHarness.requestErrors)).toEqual([]);
+});
+
 test("nothing leaks: the kernel's ledger is empty after disposal", async ({ page, request }) => {
   const key = keyFor("dispose");
   await open(page, `count=1&key=${key}`);

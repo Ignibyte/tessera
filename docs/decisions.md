@@ -202,7 +202,10 @@ default so work could go on; Chad confirms or changes it, and until then the cod
   write; a newer read supersedes a read on the same target or inside its own, and queues behind a
   read around it, so a refresh inside a region never aborts the visit replacing that region; polls
   yield to everything. Generations are one commit sequence with each target's last touch, not a
-  counter per target, so fragments a server sends unasked are covered too. A pending region carries
+  counter per target, so fragments a server sends unasked are covered too. A commit touches its
+  target and the targets inside it, never those around it (driver, 2026-10-20; ticket #25): #12
+  touched the targets around too, so a stream event inside `content` made a visit of `content` in
+  flight drop its fragment while history recorded the new URL. A pending region carries
   `aria-busy`, a component's top-level elements do, and the initiating element `data-loading`.
 - **Which link clicks become visits** (**Provisional**, ticket #13, 2026-10-20): the primary
   button, no modifier key, not already prevented, an HTML `<a href>` in the page's document,

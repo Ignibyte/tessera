@@ -3,7 +3,6 @@
 // built there) plus region generations (jqstar digest, "Hardest parts" 2). The table is
 // docs/protocol.md section 4.6.
 import { findTarget, ownersWithin } from "./patch.ts";
-import { scopeOwners } from "./scopes.ts";
 
 /** A read is a GET, a write anything else, a poll a refresh from `data-poll`. */
 export type RequestClass = "read" | "write" | "poll";
@@ -116,8 +115,8 @@ export class Generations {
   }
 
   /**
-   * Records a commit to `target`, after it: the target, every target around it, and every target
-   * now inside it.
+   * Records a commit to `target`, after it: the target and every target now inside it. Targets
+   * around it are left alone, since a fragment for one of them replaces this target anyway.
    */
   touch(target: TargetNode): void {
     const sequence = ++this.#sequence;
@@ -127,7 +126,6 @@ export class Generations {
       for (const owner of ownersWithin(target.document, [])) this.#touched.set(owner, sequence);
       return;
     }
-    for (const owner of scopeOwners(target.kind === "region" ? target.element : target.opener)) this.#touched.set(owner, sequence);
     if (target.kind === "region") {
       for (const owner of ownersWithin(target.element, [])) this.#touched.set(owner, sequence);
       return;

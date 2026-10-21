@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- A commit no longer makes fragments for the targets around it stale: a visit of a region lands,
+  content and URL, when a stream event or another answer commits inside that region while the
+  visit is in flight; a late fragment for the inner target is still dropped (#25).
+
 - Durable streams (`src/streams.ts`): `data-stream` and `streams.open` hold one `fetch`-read SSE
   stream per URL, in the kernel's ledger; reconnects with `Last-Event-ID` after `retry`, doubling
   to 30 s; stops on `tessera-close`, a `204`, the protocol's fatal statuses and the last holder
