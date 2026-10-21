@@ -279,8 +279,10 @@ default so work could go on; Chad confirms or changes it, and until then the cod
   from the kebab case HTML leaves it in, converting hyphens only (`.` and `:` stay). It applies to
   `data-on` (default kebab, so event names stay as written) and to the directives that name a
   signal, `data-computed`, `data-ref` and `data-bind` (default camel, as #7 already does; for
-  `data-bind`, each dotted segment). Not to `data-attr`, `data-style` or `data-class`, whose keys
-  are HTML attribute and CSS names; on those, `__case` is the usual unknown-modifier error.
+  `data-bind`, each dotted segment). `data-attr` takes it too, default kebab (driver, 2026-10-20;
+  ticket #26), since SVG's `viewBox` and other camelCase attributes cannot be spelled otherwise.
+  Not `data-style` or `data-class`, whose keys are CSS names; on those, `__case` is the usual
+  unknown-modifier error.
   `data-signals` takes no key. An unknown case, a missing or extra name, or two `__case` modifiers
   is an error at the attribute.
 

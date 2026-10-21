@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- `data-attr` takes `__case` too, so `data-attr:view-box__case.camel` writes SVG's `viewBox`
+  (#26).
+
 - The `__case` modifier (`camel`, `kebab`, `snake`, `pascal`) on `data-on`, so a camelCase custom
   event can be heard (`data-on:item-selected__case.camel` listens to `itemSelected`), and on
   `data-computed`, `data-ref` and `data-bind`, which stay camelCase by default (#23).

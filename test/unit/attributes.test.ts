@@ -426,12 +426,28 @@ describe("the __case modifier", () => {
     expect(signals.lastSeen).toBe("x");
   });
 
+  it("lets data-attr write a camelCase attribute such as SVG's viewBox, and restores it", async () => {
+    const { find, signals, settle } = setup(
+      `<svg viewBox="0 0 1 1" data-signals="{box: '0 0 10 10'}" data-attr:view-box__case.camel="$box" data-attr:aria-label="'icon'"></svg>`,
+    );
+    const svg = find("svg");
+    expect(svg.getAttribute("viewBox")).toBe("0 0 10 10");
+    expect(svg.getAttribute("aria-label")).toBe("icon");
+    expect(svg.hasAttribute("view-box")).toBe(false);
+    signals.box = "0 0 20 20";
+    await settle();
+    expect(svg.getAttribute("viewBox")).toBe("0 0 20 20");
+    svg.removeAttribute("data-attr:view-box__case.camel");
+    await settle();
+    expect(svg.getAttribute("viewBox")).toBe("0 0 1 1");
+  });
+
   it.each([
     ["an unknown case", "data-on:my-event__case.upper", "__case.upper is not a case; use camel, kebab, snake or pascal"],
     ["two __case modifiers", "data-on:my-event__case.camel__case.snake", "one __case per attribute"],
     ["__case without a name", "data-on:my-event__case", "__case takes one case name, as in __case.camel"],
     ["__case with two names", "data-computed:my-value__case.camel.snake", "__case takes one case name, as in __case.camel"],
-    ["__case where it is not taken", "data-attr:aria-label__case.camel", "data-attr has no modifier case"],
+    ["__case where it is not taken", "data-style:font-size__case.camel", "data-style has no modifier case"],
   ])("refuses %s", (_case, attribute, message) => {
     const { failures } = setup(`<button ${attribute}="1"></button>`);
     expect(messages(failures)).toEqual([expect.stringContaining(message)]);
