@@ -57,7 +57,7 @@ It is part of `npm run test:browser` and `npm run test:browser:webkit`.
 | NAV-14 | preview | As jqstar. | focus (heading) |
 | NAV-15 | server-validation | As jqstar. | URL and history length: a 422 or 409 renders the errors in place and adds no entry |
 | NAV-16 | write-loss | `visibleRecovery`: Tessera's indeterminate message (#15). Without JavaScript the browser must not present the lost answer as a page of the site: Chromium shows its error page, Firefox reports the load failed and keeps the page, WebKit shows an empty document and reports nothing. | all four: Tessera keeps the page with its message (in Firefox nothing differs) |
-| NAV-17 | region | As jqstar. | content: only `activity` changes |
+| NAV-17 | region | As jqstar. | content: only `activity` changes; focus: WebKit on macOS focuses `#main` on the click, not the link, and Tessera keeps focus there since it lies outside `activity` (decision #14, #31) |
 | NAV-18 | region-mismatch | As jqstar: the answer lacks `activity`, so Tessera commits the whole document. | focus (heading) |
 | NAV-19 | supersession | `noStaleCommit`: the fast route stands after the slow answer's time; jqstar read its bridge's outcomes. | focus (heading) |
 | NAV-20 | cancel-intent | The page's own script (`fixture.js`) cancels the click. `zeroDispatch`: jqstar sent nothing. Tessera prefetches on mousedown, before the page cancels the click, so one GET for the link may go; nothing else is sent and nothing commits. `outgoingRootsRemainLive`: the ledger is unchanged. | (JavaScript only) |

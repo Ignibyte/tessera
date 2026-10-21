@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- The browser suite passes in WebKit on macOS: the two history focus tests follow their link from
+  the keyboard, since macOS WebKit does not focus a clicked link, and NAV-17 declares the focus it
+  ends on there (#31).
+
 ## 0.1.0 (2026-10-20)
 
 The first release: the runtime for protocol version 0, in two builds (`README.md`, "Using a
