@@ -3,11 +3,12 @@ number: 22
 uuid: 8d1e2177-9861-407a-bc31-e5612f341d22
 title: "The no-eval expression engine"
 type: feature
-status: in-progress
+status: done
 tags: ["core","port","csp"]
 created: 2026-10-20T22:55:17Z
-updated: 2026-10-21T03:40:05Z
+updated: 2026-10-21T03:40:14Z
 phase: "docs"
+closed: 2026-10-21T03:40:14Z
 ---
 
 Port jqstar's no-eval expression engine (`src/csp/`: tokenizer, parser, AST, evaluator,
@@ -77,3 +78,7 @@ Conformance: six of seven cases pass unchanged against the no-eval engine. `this
 Ported from jqstar: the tokenizer cases, the parser cases, the denied and adversarial vectors that apply (mapped to Tessera's codes), and two of the three properties (totality, the signal write). New: a differential property; over 300 generated well-typed expressions, up to 465 characters, both engines agree. Not ported: jqstar's cases about jQuery, `state`, `computed`, stores, and the owned-getter and cycle rules (gone, as `docs/decisions.md` says).
 
 One choice beyond the plan: an array literal, an object literal and an argument may hold a promise without awaiting it (`[@get('/a'), 1]`), as in JavaScript; operators, conditions and assignments still refuse one.
+
+### 2026-10-21T03:40:14Z
+
+Delivered via PR #28 (3e09f72). The no-eval engine behind the seam, the trusted engine's scope over a closed grammar and a capability table; attributes spec passes under a strict CSP.
