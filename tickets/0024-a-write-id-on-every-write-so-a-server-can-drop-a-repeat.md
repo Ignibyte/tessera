@@ -3,11 +3,12 @@ number: 24
 uuid: 76ca643a-92da-49c6-9c31-535dcbb57586
 title: "A write id on every write, so a server can drop a repeat"
 type: feature
-status: in-progress
+status: done
 tags: ["protocol","transport"]
 created: 2026-10-21T00:00:31Z
-updated: 2026-10-21T00:41:10Z
+updated: 2026-10-21T00:41:26Z
 phase: "docs"
+closed: 2026-10-21T00:41:26Z
 ---
 
 Follow-up to #11. When a server drops a reused keep-alive connection before answering, Chromium
@@ -67,3 +68,7 @@ id refused) and `drop=once`. Browser (`test/browser/write-id.spec.ts`, on the ke
 after a GET leaves an idle connection, a POST to `/counter?drop=once` arrives, the server drops
 the reused connection, the browser's own repeat arrives with the same id, the reference server
 answers it from the store, the count is 1 and the request commits. Chromium and Firefox.
+
+### 2026-10-21T00:41:26Z
+
+Delivered via PR #16 (3f4c0ce). Tessera-Write-Id per submission, protocol 5.8 for servers, the reference server deduplicating; the browser's own repeat shown with the same id.
