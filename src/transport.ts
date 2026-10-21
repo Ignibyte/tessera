@@ -39,6 +39,8 @@ export interface TesseraRequest {
   readonly signals: string | undefined;
   /** For a visit, what it does to history; `none` for anything else. */
   readonly history: HistoryMode;
+  /** On a write: `Tessera-Write-Id`, unique to this submission (protocol 5.8). */
+  readonly writeId: string | undefined;
 }
 
 export interface RequestInput {
@@ -137,7 +139,15 @@ export const EXPIRED_EVENT = "tessera:expired";
 
 export const ACCEPT = "text/vnd.tessera+html, text/html;q=0.9";
 
-const PROTOCOL_HEADERS = ["accept", "tessera-request", "tessera-protocol", "tessera-targets", "tessera-layout", "tessera-signals"];
+const PROTOCOL_HEADERS = [
+  "accept",
+  "tessera-request",
+  "tessera-protocol",
+  "tessera-targets",
+  "tessera-layout",
+  "tessera-signals",
+  "tessera-write-id",
+];
 
 /** A request from admission until it settles, as the coordination sees it (protocol 4.6). */
 interface Operation {
@@ -339,6 +349,7 @@ export function createTransport(options: TransportOptions): Transport {
     const layout = meta(document, "tessera-layout");
     if (layout !== undefined) headers.push(["Tessera-Layout", layout]);
     if (request.signals !== undefined) headers.push(["Tessera-Signals", request.signals]);
+    if (request.writeId !== undefined) headers.push(["Tessera-Write-Id", request.writeId]);
     const token = meta(document, "tessera-csrf-token");
     if (isWrite(request.method) && token !== undefined && new URL(request.url).origin === window.location.origin) {
       headers.push([meta(document, "tessera-csrf-header") ?? "X-CSRF-Token", token]);
@@ -654,6 +665,7 @@ export function createTransport(options: TransportOptions): Transport {
       body: input.body,
       signals,
       history: input.kind === "visit" ? (input.history ?? "push") : "none",
+      writeId: isWrite(method) ? window.crypto.randomUUID() : undefined,
     });
 
     const requestClass: RequestClass = isWrite(method) ? "write" : input.poll ? "poll" : "read";

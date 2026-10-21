@@ -184,8 +184,15 @@ default so work could go on; Chad confirms or changes it, and until then the cod
   new connection, without Tessera's knowledge (Tessera called `fetch` once). `fetch` offers no way
   to opt out. So the reference server runs the browser tests with `--close-connections`, which
   makes every dropped connection a fresh one, and the test counts what Tessera sent: exactly one
-  POST. `docs/protocol.md` section 4.5 tells servers to expect such a repeat. A write id header
-  that lets a server drop the repeat is a possible follow-up; not built.
+  POST. `docs/protocol.md` section 4.5 tells servers to expect such a repeat; #24 gives them the
+  means (the next entry).
+- **`Tessera-Write-Id` on every write** (**Provisional**, ticket #24, 2026-10-20; driver's request):
+  a `crypto.randomUUID()` per submission on POST, PUT, PATCH and DELETE, restored after
+  interceptors; servers answer a repeat within five minutes with the first answer or `409` and
+  never apply it twice, scoping ids to the session (`docs/protocol.md` section 5.8). The reference
+  server does so, with one global store since it has no sessions. Its browser test runs on a
+  second reference server without `--close-connections`, where both engines repeat the dropped
+  POST with the same id.
 - **The policy for overlapping requests** (**Provisional**, ticket #12, 2026-10-20; the table is
   `docs/protocol.md` section 4.6): a write is never aborted, so a second write to an overlapping
   target waits for the first (Livewire queues per scope the same way; refusing it would lose a

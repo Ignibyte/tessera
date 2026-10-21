@@ -228,6 +228,7 @@ it. File inputs go as `multipart/form-data`.
 | `Tessera-Signals` | actions only | the signals (section 4.4) |
 | the CSRF header, `X-CSRF-Token` unless the page names another | POST, PUT, PATCH and DELETE to the page's own origin, when the page has a `tessera-csrf-token` meta | the token, read from the meta when the request is made |
 | `Last-Event-ID` | a stream reconnecting, when an event id was seen | the last id |
+| `Tessera-Write-Id` | POST, PUT, PATCH and DELETE | a UUID made for this submission; a browser's own repeat of the request carries the same one (section 5.8) |
 | `Accept` | every request | `text/event-stream` for a stream; `text/vnd.tessera+html, text/html;q=0.9` for the rest |
 
 The server tells a Tessera request from a plain one by `Tessera-Request` alone, and chooses its
@@ -307,8 +308,8 @@ form's data in the form's encoding. A GET or DELETE action has no body.
   redirect answering a write is never followed by resending the body (section 5.4). Tessera may
   retry a GET. One resend is outside Tessera's reach: a browser resends a request by itself when
   a reused keep-alive connection closes before any answer, on the view that the server never saw
-  it. A server that must apply a write once should therefore be ready to see the same write
-  twice when it drops a connection without answering.
+  it. That repeat carries the first one's `Tessera-Write-Id`, so a server can tell it apart
+  (section 5.8).
 - No second submission of a form while its first is in flight.
 - No CSRF header on a GET, or to another origin.
 - No signals except on actions, and never `_`-prefixed ones.
@@ -489,6 +490,24 @@ the current page's URL for anything else. A full load is always a GET; it never 
 | `Tessera-Full-Visit` | any status | a URL |
 | `Tessera-Stream-Pause` | a stream | `hidden` |
 | `Vary` | every response from a URL that answers Tessera requests | section 8 |
+
+### 5.8 Repeated writes
+
+Every write carries `Tessera-Write-Id`, a UUID Tessera makes for that submission. Submitting the
+same form again is a new submission with a new id; a browser repeating the request by itself
+(section 4.5) sends the same id. Interceptors cannot change or remove it.
+
+A server that sees an id it has already seen:
+
+- must not apply the write a second time;
+- answers with the first answer again, when it still has it, or with `409` when it does not;
+- keeps each id for at least five minutes. A browser repeats within seconds; the margin covers
+  slow networks and proxies that hold a request;
+- treats the id as untrusted input, like the rest of the request: it scopes ids to the session,
+  so one user cannot collide with another's, and answers an id that is not 1 to 64 of
+  `A-Z a-z 0-9 -` with `400`.
+
+A request without the header (a plain form post, an older Tessera) is applied as before.
 
 ## 6. Status codes
 
@@ -985,6 +1004,8 @@ A server layer speaks version 0 when it:
     when finished.
 13. Does the same work for a plain request, so a page with JavaScript off reaches the same results
     by full loads.
+14. Applies a write carrying a `Tessera-Write-Id` it has seen within five minutes no more than
+    once, answering the repeat with the first answer or `409` (section 5.8).
 
 ## 12. Coverage of the design's request table
 

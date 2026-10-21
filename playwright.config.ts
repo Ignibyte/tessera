@@ -18,7 +18,9 @@ async function freePort(): Promise<number> {
 }
 
 process.env.TESSERA_TEST_PORT ??= String(await freePort());
+process.env.TESSERA_KEEPALIVE_PORT ??= String(await freePort());
 const baseURL = `http://127.0.0.1:${process.env.TESSERA_TEST_PORT}`;
+const keepAliveURL = `http://127.0.0.1:${process.env.TESSERA_KEEPALIVE_PORT}`;
 
 export default defineConfig({
   testDir: "test/browser",
@@ -27,12 +29,20 @@ export default defineConfig({
   fullyParallel: true,
   reporter: "list",
   use: { headless: true, baseURL },
-  webServer: {
-    // --close-connections: see the transport's drop test and docs/decisions.md.
-    command: `node test/server/main.ts --port ${process.env.TESSERA_TEST_PORT} --close-connections`,
-    url: `${baseURL}/`,
-    reuseExistingServer: false,
-  },
+  webServer: [
+    {
+      // --close-connections: see the transport's drop test and docs/decisions.md.
+      command: `node test/server/main.ts --port ${process.env.TESSERA_TEST_PORT} --close-connections`,
+      url: `${baseURL}/`,
+      reuseExistingServer: false,
+    },
+    {
+      // Keeps connections alive, so the write-id test sees a browser repeat a write (#24).
+      command: `node test/server/main.ts --port ${process.env.TESSERA_KEEPALIVE_PORT}`,
+      url: `${keepAliveURL}/`,
+      reuseExistingServer: false,
+    },
+  ],
   // WebKit does not run on the dev box (docs/decisions.md); TESSERA_WEBKIT=1 adds it where it does.
   projects: [
     { name: "chromium", use: { ...devices["Desktop Chrome"] } },

@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- `Tessera-Write-Id` on every write, one UUID per submission, so a server can answer a browser's
+  own repeat of a write without applying it twice (`docs/protocol.md` section 5.8); the reference
+  server deduplicates its writes by id (#24).
 - History, focus and scroll (`src/history.ts`): visits push or replace entries holding their targets;
   Back and Forward fetch fresh; focus by the server's `autofocus`, a stored key
   (`data-focus-key`), the fragment, the main heading or the body; scroll to the top, to the

@@ -12,7 +12,11 @@ Every page loads `/assets/harness.js` from its layout, which boots Tessera when 
 Playwright starts it itself (`webServer` in `playwright.config.ts`) with `--close-connections`,
 which closes every connection after its response. A browser resends a request by itself when a
 reused keep-alive connection closes before any answer, so without it a connection the controller
-drops would show the browser's resend, not what Tessera sent.
+drops would show the browser's resend, not what Tessera sent. A second instance without the flag
+runs for the write-id test (`TESSERA_KEEPALIVE_PORT`), where that resend is the point.
+
+Every Tessera write outside the controller passes through a store of write ids (protocol 5.8): a
+repeat within five minutes gets the first answer and reaches no route; a bad id is a `400`.
 
 ## Files
 
@@ -52,6 +56,8 @@ all on the page (and, for a visit, the layout matches), and the full document ot
 | `GET /away` | A Tessera request gets `Tessera-Full-Visit: /about`; a plain one a `302` to `/about` |
 | `GET /stray` | A Tessera request gets a fragment for region `nowhere`; a plain one the Stray page |
 | `GET /scripted` | A page whose content holds an inline script |
+| `GET /counter?key=K` | A count per key; `POST` adds one and answers with the content region; `?drop=once` also destroys the connection instead of answering |
+| `GET /counter/log?key=K` | `{count, arrivals: [{path, id, repeat}]}`: each write to that key that carried `Tessera-Write-Id` |
 | `GET /long` | A tall page with `#section-1` to `#section-3` and a link at the bottom, for scroll |
 | `GET /focus-server` | A page whose field has `autofocus` |
 | `GET /headless` | A page whose content has no heading |

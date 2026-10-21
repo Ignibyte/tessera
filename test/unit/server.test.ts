@@ -162,6 +162,35 @@ describe("documents and fragments", () => {
     expect(await (await request("/redeploy")).text()).toContain('href="/assets/fixture.css" data-track="2"');
   });
 
+  it("applies a Tessera write once per write id, answering a repeat with the first answer", async () => {
+    const send = (id: string) =>
+      request("/counter?key=unit", { method: "POST", headers: { ...tessera("action", "content"), "Tessera-Write-Id": id }, body: "" });
+    const first = await (await send("id-1")).text();
+    const repeat = await (await send("id-1")).text();
+    await send("id-2");
+    expect(repeat).toBe(first);
+    expect(first).toContain('<p id="count">1</p>');
+    const log = (await (await request("/counter/log?key=unit")).json()) as { count: number; arrivals: { id: string; repeat: boolean }[] };
+    expect(log).toEqual({
+      count: 2,
+      arrivals: [
+        { path: "/counter?key=unit", id: "id-1", repeat: false },
+        { path: "/counter?key=unit", id: "id-1", repeat: true },
+        { path: "/counter?key=unit", id: "id-2", repeat: false },
+      ],
+    });
+    expect((await send("not an id")).status).toBe(400);
+  });
+
+  it("drops the connection on the first arrival of drop=once, and answers the repeat", async () => {
+    const send = () =>
+      request("/counter?key=drop&drop=once", { method: "POST", headers: { ...tessera("action", "content"), "Tessera-Write-Id": "d-1" }, body: "" });
+    await expect(send()).rejects.toThrow();
+    const repeat = await send();
+    expect(await repeat.text()).toContain('<p id="count">1</p>');
+    expect(((await (await request("/counter/log?key=drop")).json()) as { count: number }).count).toBe(1);
+  });
+
   it("refuses a protocol version it does not speak, before any side effect", async () => {
     const response = await post(
       "/form",
