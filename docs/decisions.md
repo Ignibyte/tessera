@@ -309,7 +309,7 @@ default so work could go on; Chad confirms or changes it, and until then the cod
   stream gains `beat` (ms between comments, for the whole connection), the stream tests use 250 ms
   and wait for a whole step before acting on it, and protocol 7.1 asks servers for a comment at
   least every 15 seconds, more often where WebKit must see events promptly. Seen in Playwright's
-  Linux WebKit (webkit-2336); Safari on macOS uses another network stack and is untested.
+  Linux WebKit (webkit-2336); for macOS, see the Mac mini run (#29) below.
 - **What the navigation matrix found, and what changed** (**Provisional**, ticket #18,
   2026-10-20; `docs/navigation-matrix.md`):
   - A visit whose GET the network refuses after its retries loads the URL in full, so the
@@ -389,6 +389,39 @@ default so work could go on; Chad confirms or changes it, and until then the cod
   out), so `TesseraRequest.history` is `push` on a submit where it was `none`. Full loads, a
   redirect to another origin and `Tessera-Full-Visit` still change the address. The matrix gains
   TES-02. Reserved as a directive name.
+- **The browser suite and the byte hold on macOS** (ticket #29, 2026-10-20). Run on the Mac mini
+  (macOS 27.0.1, arm64, Node 26.8.1) from `~/scratch/tessera`, a `git archive` of main with its
+  own `npm ci` and browsers under `PLAYWRIGHT_BROWSERS_PATH` there, so the Mac's Playwright
+  install, its launchd agents and `sudo` were left alone. `TESSERA_WEBKIT=1 npx playwright test`:
+  - **Firefox** (firefox-1538): 101 of 101 pass.
+  - **Chromium** (chromium-1234): 100 of 101. NAV-19 fails every run on `requestCancellationFacts`:
+    the second click lands within the first visit's 5 ms buffer, and a visit superseded before it
+    takes its prefetch leaves that prefetch running. A Tessera bug that the Mac's timing exposes,
+    reproduced on the dev box with the transport fixture: split into #30.
+  - **WebKit** (webkit-2336): 97 of 101. NAV-19 as in Chromium, plus three focus tests: macOS
+    WebKit does not focus a link or a button on click, and Tab skips them (`focus()` from script
+    works). Two history tests assume a clicked link has focus; in NAV-17 the click focuses `#main`,
+    outside what changed, so Tessera keeps focus there, an undeclared difference. Split into #31.
+  - **Safari** 27.0.1: remote automation was already on, so `safaridriver` ran the byte-hold probe
+    over WebDriver. Playwright cannot drive Safari, so the suite does not run there.
+  - **The byte hold**: `test/probes/byte-hold.spec.ts` (run with `playwright.probes.config.ts`,
+    never with the suite) reads `/events/stream` with plain `fetch` on a page without Tessera, and
+    counts runs whose third step has not arrived within 1.5 s; with `PROBE_BEAT` the server sends
+    a comment every so many ms, and a held run completes late instead. Same script everywhere,
+    against the reference server with `--close-connections`:
+
+    | Engine | Held, no comments | Late, comment every 300 ms |
+    |---|---|---|
+    | Linux WebKit (the image) | 33 of 200, each at 123 bytes | 12 of 200, at 302 to 312 ms |
+    | Linux Chromium, Firefox | 0 of 200 each | not run |
+    | macOS WebKit (Playwright) | 2 of 12,200, each at 328 bytes | 1 of 8,000, at 306 ms |
+    | macOS Chromium, Firefox | 0 of 200 each | not run |
+    | Safari 27.0.1 | 0 of 10,000 | 0 of 2,000 |
+
+    So the hold happens in Playwright's WebKit on macOS too, about 1 run in 6,000 against 1 in 6
+    on Linux, cut at another place, and released by the next write as on Linux. Real Safari showed
+    none in 10,000 runs, which bounds its rate but does not rule it out. Protocol 7.1's keep-alive
+    comment stays the remedy.
 
 ## Open
 
