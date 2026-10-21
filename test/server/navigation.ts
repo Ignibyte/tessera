@@ -87,7 +87,7 @@ export function navigationDocument(route: string, options: { revision?: number; 
   const region =
     route === "region-mismatch"
       ? '<section id="region-fallback"><h2>Activity document recovery</h2><p>The server intentionally returned a complete document without a matching enhanced region.</p></section>'
-      : `<section id="activity" data-region="activity"><h2 id="activity-title">${activity}</h2><p>Server-authored activity</p>${link("region-link", "region", "Refresh activity", 'data-target="activity"')} ${link("region-mismatch", "region-mismatch", "Open activity recovery", 'data-target="activity"')}</section>`;
+      : `<section id="activity" data-region="activity"><h2 id="activity-title">${activity}</h2><p>Server-authored activity</p>${link("region-link", "region", "Refresh activity", 'data-target="activity"')} ${link("region-tab", "region", "Show updated activity here", 'data-target="activity" data-push="off"')} ${link("region-mismatch", "region-mismatch", "Open activity recovery", 'data-target="activity"')}</section>`;
   // The head route adds tracked assets, so Tessera loads it in full and its script runs.
   const headAssets =
     route === "head"

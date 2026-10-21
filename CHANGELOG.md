@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- `data-push="off"` on a link, a form or a submitter: the visit (or the visit a submission's
+  `Tessera-Location` leads to) commits without adding a history entry, for tab-like region swaps.
+  The navigation matrix gains TES-02 (#28).
+
 - The no-eval expression engine (`src/noeval/`, `createNoEvalExpressionEngine`), ported from
   jqstar `src/csp/` behind the same seam, for pages whose Content-Security-Policy refuses
   `'unsafe-eval'`: the trusted engine's scope over a closed grammar and a capability table

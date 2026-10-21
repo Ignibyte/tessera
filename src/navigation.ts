@@ -7,7 +7,7 @@ import { addHead, headConflict, takeMetadata } from "./head.ts";
 import type { Kernel } from "./kernel.ts";
 import type { Patcher } from "./patch.ts";
 import type { ProgressBar } from "./progress.ts";
-import { elementTargets } from "./transport.ts";
+import { elementHistory, elementTargets } from "./transport.ts";
 import type { DocumentCommit, HistoryMode, RequestOutcome, TesseraRequest, Transport } from "./transport.ts";
 
 export type LinkRefusal =
@@ -123,7 +123,7 @@ export function interceptLinks(options: LinkOptions): Navigation {
     const eligibility = linkEligibility(event as MouseEvent, kernel.document);
     if ("refused" in eligibility) return;
     event.preventDefault();
-    void visit(eligibility.url.href, { targets: elementTargets(eligibility.link), element: eligibility.link });
+    void visit(eligibility.url.href, { targets: elementTargets(eligibility.link), element: eligibility.link, history: elementHistory(eligibility.link) });
   });
 
   const prefetch = (event: Event, modes: readonly PrefetchMode[]): void => {

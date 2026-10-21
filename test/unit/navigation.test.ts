@@ -217,13 +217,32 @@ describe("link interception", () => {
     }
     expect(outcomes).toEqual([true, true, false]);
     expect(request.mock.calls).toEqual([
-      [{ kind: "visit", url: "http://localhost:3000/about", targets: ["content"], element: fixture.find("#in") }],
-      [{ kind: "visit", url: "http://localhost:3000/x", targets: ["sidebar"], element: fixture.find("#plain") }],
+      [{ kind: "visit", url: "http://localhost:3000/about", targets: ["content"], element: fixture.find("#in"), history: "push" }],
+      [{ kind: "visit", url: "http://localhost:3000/x", targets: ["sidebar"], element: fixture.find("#plain"), history: "push" }],
     ]);
     await vi.waitFor(() => {
       expect(stop).toHaveBeenCalledTimes(2);
     });
     expect(start).toHaveBeenCalledTimes(2);
+  });
+
+  it("visits without a history entry from a link under data-push=\"off\"", () => {
+    const fixture = setup(
+      `<main data-region="content"><a id="tab" href="/tabs/2" data-target="content" data-push="off">Two</a><a id="on" href="/tabs/3" data-push="on">Three</a></main>`,
+    );
+    const { transport, request } = fakeTransport();
+    interceptLinks({ kernel: fixture.kernel, transport });
+    const after = (event: Event): void => {
+      event.preventDefault();
+    };
+    window.addEventListener("click", after);
+    try {
+      fixture.find("#tab").click();
+      fixture.find("#on").click();
+    } finally {
+      window.removeEventListener("click", after);
+    }
+    expect(request.mock.calls.map(([input]) => input.history)).toEqual(["none", "push"]);
   });
 
   it("stops listening when the kernel is disposed", () => {
