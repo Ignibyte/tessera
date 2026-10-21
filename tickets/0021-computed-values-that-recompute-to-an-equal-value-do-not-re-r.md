@@ -3,11 +3,12 @@ number: 21
 uuid: 0f8a243e-bdde-46e3-b2fe-4938d82ef5cd
 title: "Computed values that recompute to an equal value do not re-run their dependents"
 type: feature
-status: in-progress
+status: done
 tags: ["core","reactivity"]
 created: 2026-10-20T22:45:29Z
-updated: 2026-10-21T01:49:37Z
+updated: 2026-10-21T01:49:53Z
 phase: "docs"
+closed: 2026-10-21T01:49:53Z
 ---
 
 Follow-up to #5. Today a computed value (`computed()` in `src/reactivity.ts`) tells its
@@ -58,3 +59,7 @@ Check exited 0 (615 unit and property tests), and four full browser runs exited 
 Split off nothing, but fixed one thing outside the plan. The first browser run failed in Firefox: a transport test's controller channel held two POSTs. Their write ids and referers differed, and the first came from `forms.spec.ts`, which ran earlier in the same worker under the same channel name (`name-project-worker-retry`). So the browser tests collided with each other; Tessera did not send twice. Channel names and log keys now come from `testName` in `test/browser/names.ts`, built from the test id, in all six specs that named them per worker.
 
 Also in this PR: the CLAUDE.md step 4 rule that exit codes decide.
+
+### 2026-10-21T01:49:53Z
+
+Delivered via PR #22 (b69b712). Push-pull computed values with versions; equal recomputations stop at the first unchanged value. Browser test channels named per test.
