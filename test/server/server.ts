@@ -151,6 +151,7 @@ const simplePages: Readonly<Record<string, string>> = {
   "/bare": "bare",
   "/coordination": "coordination",
   "/focus-server": "focus-server",
+  "/forms": "forms",
   "/headless": "headless",
   "/links": "links",
   "/long": "long",

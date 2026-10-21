@@ -232,6 +232,16 @@ default so work could go on; Chad confirms or changes it, and until then the cod
   unmorphed, not only a field's value, so a heading focused after one visit kept its old text
   through the next. The patcher instead refuses only the `value` update of a focused `input`,
   `textarea` or `select`, through Idiomorph's `beforeAttributeUpdated` callback.
+- **Which submits Tessera takes, and what it does after** (**Provisional**, ticket #15,
+  2026-10-20): a `get` or `post` form (with the submitter's overrides) of the page's origin,
+  without a `target` other than `_self`, not under `data-enhance="off"`, and not already
+  prevented; the browser's own validation runs first, since `submit` fires only after it. A second
+  submit of a form in flight is blocked, not queued: the user's repeated click sends nothing, even
+  later. After a 422 or 409, focus goes to `[data-error-summary]` in the form's targets, else the
+  first `[aria-invalid="true"]`, with the browser's scrolling. An indeterminate write raises a
+  cancelable `tessera:indeterminate` on the form; uncancelled, a `role="alert"` message goes
+  before the form until its next submit. No interceptor can change the encoding: a request with a
+  body drops any `Content-Type` an interceptor set, and fetch derives it from the body.
 
 ## Open
 

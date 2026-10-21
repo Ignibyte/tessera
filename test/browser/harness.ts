@@ -1,4 +1,4 @@
-// Boots the attributes, a patcher, the transport and link interception on every fixture page
+// Boots the attributes, a patcher, the transport, links and forms on every fixture page
 // (the layouts load it) for the browser tests, with the action recorder as the action seam.
 // test/browser/global-setup.ts builds it; the reference server serves it as /assets/harness.js.
 // It is test tooling, not a public entry.
@@ -7,6 +7,7 @@ import { mountAttributes } from "../../src/attributes.ts";
 import { registerBuiltins } from "../../src/builtins.ts";
 import { createDirectiveRegistry } from "../../src/directive.ts";
 import { createTrustedExpressionEngine } from "../../src/expression.ts";
+import { interceptForms } from "../../src/forms.ts";
 import { createHistory } from "../../src/history.ts";
 import { Kernel } from "../../src/kernel.ts";
 import { createDocumentCommitter, interceptLinks } from "../../src/navigation.ts";
@@ -53,6 +54,7 @@ const transport = createTransport({
 
 history.attach(transport);
 const navigation = interceptLinks({ kernel, transport, progress: createProgressBar(document) });
+interceptForms({ kernel, transport });
 
 /** Submits a form through the transport and returns what can cross into the test. */
 async function submit(form: string, submitter?: string): Promise<{ status: string; httpStatus?: number; redirectedTo?: string }> {

@@ -1,0 +1,36 @@
+<!--page {"title":"Forms","layout":"app"}-->
+<!--slot content-->
+    <h1>Forms</h1>
+    <form id="plain" method="post" action="/form">
+      <input type="hidden" name="_token" value="{{csrf}}">
+      <label for="plain-name">Name</label>
+      <input id="plain-name" name="name" value="">
+      <button id="plain-send">Send</button>
+    </form>
+    <form id="held" method="post" action="/controlled/unset/save">
+      <input name="title" value="Lamp">
+      <button id="draft" name="intent" value="draft">Draft</button>
+      <button id="publish" name="intent" value="publish">Publish</button>
+    </form>
+    <form id="upload" method="post" action="/controlled/unset/upload" enctype="multipart/form-data">
+      <label for="file">Attachment</label>
+      <input id="file" type="file" name="attachment">
+      <button id="upload-send">Upload</button>
+    </form>
+    <form id="search" action="/form/done">
+      <input id="search-name" name="name" value="Grace">
+      <button id="search-go">Search</button>
+    </form>
+    <form id="off" method="post" action="/form" data-enhance="off">
+      <input type="hidden" name="_token" value="{{csrf}}">
+      <input name="name" value="Off">
+      <button id="off-send">Send natively</button>
+    </form>
+    <form id="external" method="post" action="https://example.com/">
+      <button id="external-send">Send elsewhere</button>
+    </form>
+    <form id="required" method="post" action="/controlled/unset/required">
+      <label for="needed">Needed</label>
+      <input id="needed" name="needed" required>
+      <button id="required-send">Send</button>
+    </form>
