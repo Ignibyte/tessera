@@ -590,6 +590,8 @@ export function createTransport(options: TransportOptions): Transport {
     restore();
     for (const interceptor of interceptors) interceptor.before?.({ request, headers });
     restore();
+    // The encoding is the body's: fetch derives Content-Type from it, so no interceptor can change it.
+    if (request.body !== undefined) headers.delete("content-type");
 
     const write = isWrite(request.method);
     for (let attempt = 0; ; attempt++) {

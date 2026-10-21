@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Forms without replay (`src/forms.ts`): same-origin form submits go through the transport with
+  their submitter; a second submit in flight is blocked; a 422 or 409 focuses the error summary or
+  the first invalid field; an indeterminate write shows a message (`tessera:indeterminate`);
+  interceptors cannot change a body's encoding (#15).
 - `Tessera-Write-Id` on every write, one UUID per submission, so a server can answer a browser's
   own repeat of a write without applying it twice (`docs/protocol.md` section 5.8); the reference
   server deduplicates its writes by id (#24).
