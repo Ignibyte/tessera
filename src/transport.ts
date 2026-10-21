@@ -17,7 +17,7 @@ import { encodeSignals } from "./scopes.ts";
 import type { Scopes } from "./scopes.ts";
 import { isPlainRecord } from "./values.ts";
 
-export type RequestKind = "visit" | "submit" | "action" | "refresh";
+export type RequestKind = "visit" | "submit" | "action" | "refresh" | "stream";
 
 /**
  * What a committed visit does to history: a new entry (`push`, the default), the current entry
@@ -44,7 +44,8 @@ export interface TesseraRequest {
 }
 
 export interface RequestInput {
-  readonly kind: RequestKind;
+  /** A stream is opened with `connect`, not `request`. */
+  readonly kind: Exclude<RequestKind, "stream">;
   readonly method?: Method;
   readonly url: string;
   readonly targets?: readonly string[];
@@ -125,8 +126,33 @@ export interface TransportOptions {
   readonly retryDelayMs?: number;
 }
 
+/** What committing one stream event's fragment came to (protocol 7.2). */
+export type StreamCommit = "committed" | "dropped" | "full-load";
+
+/**
+ * A stream's answer read as protocol 7.3 says: `open`, with the body still to read; `retry` after
+ * the backoff (a network failure, a 429, a 5xx); or `stop` for good, already reported, expired or
+ * loaded in full where the protocol says so.
+ */
+export type StreamAnswer =
+  | { readonly status: "open"; readonly response: Response; readonly pauseWhenHidden: boolean }
+  | { readonly status: "retry"; readonly httpStatus?: number; readonly error?: unknown }
+  | { readonly status: "stop"; readonly httpStatus?: number; readonly error?: unknown };
+
 export interface Transport {
   request(input: RequestInput): Promise<RequestOutcome>;
+  /**
+   * Sends a stream's request (protocol 7.1) and reads its status and headers. Interceptors'
+   * `before` runs on each connection; `after` and `error` do not, since a stream has no outcome.
+   * Rejects only when `signal` aborts it.
+   */
+  connect(url: string, options: { readonly lastEventId: string; readonly signal: AbortSignal }): Promise<StreamAnswer>;
+  /**
+   * Commits one `tessera-patch-elements` event (protocol 7.2). It is never stale, since it arrived
+   * last, and it touches the generations, so an older answer in flight for that target is dropped.
+   * A target the page lacks is reported and dropped; `page` commits as a whole document.
+   */
+  commitStream(target: string, mode: PatchMode, markup: string): Promise<StreamCommit>;
   /** Submits a form as the browser would, with its submitter. */
   submit(form: HTMLFormElement, submitter?: HTMLElement | null): Promise<RequestOutcome>;
   /** The seam `@get` … `@delete` call. */
@@ -138,6 +164,8 @@ export interface Transport {
 export const EXPIRED_EVENT = "tessera:expired";
 
 export const ACCEPT = "text/vnd.tessera+html, text/html;q=0.9";
+
+export const STREAM_ACCEPT = "text/event-stream";
 
 const PROTOCOL_HEADERS = [
   "accept",
@@ -341,7 +369,7 @@ export function createTransport(options: TransportOptions): Transport {
 
   const protocolHeaders = (request: TesseraRequest): [string, string][] => {
     const headers: [string, string][] = [
-      ["Accept", ACCEPT],
+      ["Accept", request.kind === "stream" ? STREAM_ACCEPT : ACCEPT],
       ["Tessera-Request", request.kind],
       ["Tessera-Protocol", "0"],
     ];
@@ -727,7 +755,7 @@ export function createTransport(options: TransportOptions): Transport {
     return settled;
   };
 
-  const formRequest = (form: HTMLFormElement, submitter: HTMLElement | null | undefined, kind?: RequestKind, element?: Element): RequestInput | Error => {
+  const formRequest = (form: HTMLFormElement, submitter: HTMLElement | null | undefined, kind?: RequestInput["kind"], element?: Element): RequestInput | Error => {
     const method = (submitterAttribute(submitter, "formmethod") ?? form.getAttribute("method") ?? "get").toLowerCase();
     if (method !== "get" && method !== "post") return new TransportError(`A form with method "${method}" is left to the browser.`);
     const action = new URL(submitterAttribute(submitter, "formaction") ?? form.getAttribute("action") ?? "", document.baseURI);
@@ -773,8 +801,100 @@ export function createTransport(options: TransportOptions): Transport {
     return run({ kind: "action", method, url: call.url, targets, element: call.element, signals: true, ...(body === undefined ? {} : { body }) });
   };
 
+  /** A stream's request, frozen, as interceptors and `commitDocument` see it. */
+  const streamRequest = (url: string): TesseraRequest =>
+    Object.freeze({
+      kind: "stream",
+      method: "GET",
+      url,
+      targets: Object.freeze([]),
+      element: undefined,
+      body: undefined,
+      signals: undefined,
+      history: "none",
+      writeId: undefined,
+    });
+
+  const connect: Transport["connect"] = async (url, { lastEventId, signal }) => {
+    const href = new URL(url, document.baseURI);
+    const request = streamRequest(href.href);
+    if (href.origin !== window.location.origin) {
+      const error = new TransportError(`Tessera does not open streams to another origin: ${href.href}`);
+      report(error, request);
+      return { status: "stop", error };
+    }
+    const headers = new Headers();
+    const restore = (): void => {
+      for (const name of [...PROTOCOL_HEADERS, "last-event-id"]) headers.delete(name);
+      for (const [name, value] of protocolHeaders(request)) headers.set(name, value);
+      if (lastEventId !== "") headers.set("Last-Event-ID", lastEventId);
+    };
+    restore();
+    for (const interceptor of interceptors) interceptor.before?.({ request, headers });
+    restore();
+    let response: Response;
+    try {
+      response = await fetcher(request.url, { method: "GET", headers, signal, credentials: "same-origin", redirect: "follow", cache: "no-store" });
+    } catch (error) {
+      if (signal.aborted) throw error;
+      return { status: "retry", error };
+    }
+    const { status } = response;
+    const stop = (error?: unknown): StreamAnswer => {
+      if (error !== undefined) report(error, request);
+      void response.body?.cancel().catch(() => undefined);
+      return { status: "stop", httpStatus: status, ...(error === undefined ? {} : { error }) };
+    };
+    const versions = response.headers.get("Tessera-Protocol");
+    if (status === 204) return stop();
+    if (status === 419) {
+      expired(request);
+      return stop();
+    }
+    if (status === 400 && versions !== null && !versions.split(",").map((version) => version.trim()).includes("0")) {
+      fullLoad(window.location.href);
+      return stop();
+    }
+    if (status === 429 || status >= 500) {
+      void response.body?.cancel().catch(() => undefined);
+      return { status: "retry", httpStatus: status };
+    }
+    if (status !== 200) return stop(new TransportError(`The stream ${request.url} answered ${status}; it is closed.`));
+    if (mediaType(response) !== "text/event-stream") {
+      return stop(new TransportError(`The stream ${request.url} answered with ${mediaType(response) || "no"} content type, not text/event-stream; it is closed.`));
+    }
+    if (versions !== "0") {
+      fullLoad(window.location.href);
+      return stop();
+    }
+    return { status: "open", response, pauseWhenHidden: response.headers.get("Tessera-Stream-Pause") === "hidden" };
+  };
+
+  const commitStream: Transport["commitStream"] = async (target, mode, markup) => {
+    if (target === "page") {
+      if (mode !== "morph") throw new TransportError(`A stream event for page must use mode morph, not ${mode}.`);
+      const result = options.commitDocument ? await options.commitDocument(markup, window.location.href, streamRequest(window.location.href)) : "full-load";
+      if (result === "full-load") {
+        fullLoad(window.location.href);
+        return "full-load";
+      }
+      generations.touch({ kind: "page", document });
+      return "committed";
+    }
+    if (!PATCH_MODES.includes(mode)) throw new TransportError(`"${mode}" is not a fragment mode.`);
+    if (resolveTarget(document, target) === undefined) {
+      report(new TransportError(`A stream event targets ${target}, which is not on the page; it is dropped.`), undefined);
+      return "dropped";
+    }
+    patcher.patchElements(target, markup, mode);
+    generations.touch(resolveTarget(document, target) ?? { kind: "page", document });
+    return "committed";
+  };
+
   return {
     request: run,
+    connect,
+    commitStream,
     submit(form, submitter) {
       const input = formRequest(form, submitter);
       if (input instanceof Error) {

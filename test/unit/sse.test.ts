@@ -161,4 +161,13 @@ describe("jqstar's cases", () => {
       ]),
     );
   });
+
+  it("carries a last event ID into a new connection, so an event without id keeps it", () => {
+    const parser = new EventStreamParser("41");
+    expect(parser.lastEventId).toBe("41");
+    expect(parser.feed("data: a\n\nid: 42\ndata: b\n\n")).toEqual([
+      { type: "message", data: "a", lastEventId: "41" },
+      { type: "message", data: "b", lastEventId: "42" },
+    ]);
+  });
 });

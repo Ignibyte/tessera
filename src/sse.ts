@@ -27,6 +27,15 @@ export class EventStreamParser {
   #lastEventId = "";
   #retry: number | undefined;
 
+  /**
+   * `lastEventId` carries a stream's last event ID into a new connection: the standard keeps it
+   * across reconnects, so an event without `id` on the new connection does not clear it.
+   */
+  constructor(lastEventId = "") {
+    this.#idBuffer = lastEventId;
+    this.#lastEventId = lastEventId;
+  }
+
   /** The stream's last event ID, as `Last-Event-ID` sends it on a reconnect. */
   get lastEventId(): string {
     return this.#lastEventId;

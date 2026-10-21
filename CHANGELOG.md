@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Durable streams (`src/streams.ts`): `data-stream` and `streams.open` hold one `fetch`-read SSE
+  stream per URL, in the kernel's ledger; reconnects with `Last-Event-ID` after `retry`, doubling
+  to 30 s; stops on `tessera-close`, a `204`, the protocol's fatal statuses and the last holder
+  leaving; pauses while hidden on `Tessera-Stream-Pause: hidden`. Events commit through the
+  transport (`connect`, `commitStream`), so generations apply. The reference stream also morphs a
+  component and patches a signal, can drop its first connection and logs connections (#16).
+
 - Forms without replay (`src/forms.ts`): same-origin form submits go through the transport with
   their submitter; a second submit in flight is blocked; a 422 or 409 focuses the error summary or
   the first invalid field; an indeterminate write shows a message (`tessera:indeterminate`);

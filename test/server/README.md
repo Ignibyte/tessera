@@ -66,8 +66,9 @@ all on the page (and, for a visit, the layout matches), and the full document ot
 | `GET /form` | A form posting `name` and `_token` to `/form` |
 | `POST /form` | `419` on a CSRF token matching neither `X-CSRF-Token` nor `_token`; `422` with the errors for an empty name; `409` for the name `taken`; else `303` to `/form/done?name=…`, or `200` with `Tessera-Location` for a Tessera request |
 | `GET /form/done?name=` | The page after a successful post |
-| `GET /events` | Region `events` with `data-stream="/events/stream"` plus this URL's query |
+| `GET /events` | Region `events` and `#also`, both with `data-stream="/events/stream"` plus this URL's query; component `content/latest`; `$received` in the document scope |
 | `GET /events/stream` | The stream, below |
+| `GET /events/log?key=K` | `{connections: [{key, lastEventId, closed}]}`: each connection to the stream that named `key`, in arrival order |
 | `GET /slow?ms=N` | The Slow page, after N ms (default 1000, at most 10000) |
 | `/expired` | `419`, any method |
 | `/assets/fixture.css`, `/assets/tessera*.js` | The stylesheet, and `dist/` (run `npm run build` first) |
@@ -76,10 +77,12 @@ all on the page (and, for a visit, the layout matches), and the full document ot
 
 ## The stream
 
-`/events/stream` sends `retry` first, then event `k` for `k` from 1 to `count`: a
-`tessera-patch-elements` with id `k` prepending `<li>Event k</li>` to `events`. With a numeric
-`Last-Event-ID` it resumes after that id; with any other id it cannot resume and sends the whole
-region as one `morph`, id `count`. Query parameters:
+`/events/stream` sends `retry` first, then step `k` for `k` from 1 to `count`: a
+`tessera-patch-elements` with id `k` prepending `<li>Event k</li>` to `events`, then, without
+ids, a morph of `content/latest` to `Latest: k` and a `tessera-patch-signals` setting `received`
+to `k` in the document scope. With a numeric `Last-Event-ID` it resumes after that id; with any
+other id it cannot resume and sends the whole region as one `morph`, id `count`, then the
+component and the signal for `count`. Query parameters:
 
 | Parameter | Default | Meaning |
 |---|---|---|
@@ -88,6 +91,8 @@ region as one `morph`, id `count`. Query parameters:
 | `retry` | 1000 | the `retry:` value |
 | `end` | `open` | `open` keeps the connection with a comment every 15 s; `drop` ends the body without `tessera-close`; `close` sends `tessera-close` |
 | `pause` | | `hidden` sends `Tessera-Stream-Pause: hidden` |
+| `drop` | | `K` destroys a connection without `Last-Event-ID` after step `K`, so the client sees a network failure; a resumed connection runs to the end |
+| `key` | | logs the connection under `K` for `/events/log` |
 
 ## The controller
 

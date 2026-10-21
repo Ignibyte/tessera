@@ -242,6 +242,19 @@ default so work could go on; Chad confirms or changes it, and until then the cod
   cancelable `tessera:indeterminate` on the form; uncancelled, a `role="alert"` message goes
   before the form until its next submit. No interceptor can change the encoding: a request with a
   body drops any `Content-Type` an interceptor set, and fetch derives it from the body.
+- **How durable streams live and stop** (**Provisional**, ticket #16, 2026-10-20): one stream per
+  absolute URL per page, held by elements carrying `data-stream` and by handles from the API, each
+  holder a `subscription` in the kernel's ledger rooted at its element, the stream itself a
+  `service`. The last holder leaving stops the stream one task later, so a morph that swaps an
+  element for one naming the same URL keeps the connection. The transport sends each connection
+  (interceptors' `before` runs on each one; `after` and `error` do not, since a stream has no
+  outcome) and commits each fragment without a staleness check, touching the generations. Any
+  status protocol 7.3 does not name, other than `200`, stops the stream and is reported. A stream
+  that stopped for good stays stopped for the elements that held it; a new element naming the URL
+  opens a new one. Every event, unknown names included, reaches the API's listeners after it is
+  applied (protocol 7.2 said only unknown names). A `retry` under 100 ms is used for the first
+  reconnect only; failures in a row back off from 100 ms, so `retry: 0` cannot turn a failing
+  server into a request per task.
 
 ## Open
 

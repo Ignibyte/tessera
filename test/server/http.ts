@@ -33,6 +33,16 @@ export interface ServerState extends Secrets {
   readonly arrivals: { readonly path: string; readonly id: string; readonly repeat: boolean }[];
   /** The first answer to each write id, kept for the protocol's window (section 5.8). */
   readonly writes: Map<string, { readonly response: FixtureResponse; readonly at: number }>;
+  /** Each connection to `/events/stream` that named a `key`, in arrival order. */
+  readonly streams: StreamConnection[];
+}
+
+export interface StreamConnection {
+  readonly key: string;
+  /** The `Last-Event-ID` it sent, or null. */
+  readonly lastEventId: string | null;
+  /** Whether the connection has closed, from either end. */
+  closed: boolean;
 }
 
 /** One header's value, with repeated headers joined as HTTP joins them. */

@@ -187,6 +187,8 @@ describe("link interception", () => {
       submit: () => Promise.resolve({ status: "committed" }),
       actions: () => undefined,
       intercept: () => () => undefined,
+      connect: () => Promise.resolve({ status: "stop" }),
+      commitStream: () => Promise.resolve("dropped"),
     };
     return { transport, request };
   }
