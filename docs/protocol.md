@@ -606,13 +606,15 @@ data: signals {"unread":4}
 **`tessera-close`**: the stream is finished. Tessera stops and does not reconnect. The data lines
 are ignored, but one is required: `data: reason done`.
 
-Events with other names change nothing on the page; Tessera passes them to the stream's listeners
-in the API (ticket #16).
+Events with other names change nothing on the page. Every event, whatever its name, reaches the
+listeners a page registered for the stream through the API, after Tessera has applied it.
 
 Each `tessera-patch-elements` event commits in its own render transaction, in the order it
 arrives, under the same target checks as a fragment response, except that a stream never causes a
 full load for a missing target: the event is dropped and reported. A `page` event whose tracked
-assets changed does cause a full load of the current page.
+assets changed does cause a full load of the current page. An event is never stale, since it is
+the newest word on its target; a commit from it counts as a touch of that target (section 4.6),
+so the answer to a request sent before it and still in flight drops its fragment for that target.
 
 ### 7.3 Ids, `retry` and reconnecting
 
@@ -620,15 +622,22 @@ assets changed does cause a full load of the current page.
   ignored. The server should give an id to every event it could replay.
 - `retry:` (digits only) sets the reconnect delay in milliseconds. The default is 1,000.
 - When the connection drops or the body ends without `tessera-close`, Tessera waits the delay and
-  reconnects with `Last-Event-ID`. Each failed attempt in a row doubles the delay, up to 30
-  seconds; an event arriving resets it.
+  reconnects with `Last-Event-ID` (left out until the stream has set an id). Each failed attempt
+  in a row doubles the delay (from at least 100 ms), up to 30 seconds; an event arriving resets
+  it.
 - The server resumes after the event named by `Last-Event-ID`, so the page sees each event once.
   A server that cannot resume (the id is too old) sends the current state of everything the
   stream covers, as fragments, so a missed change is never silent.
 - Tessera stops for good on `tessera-close`, on a `204`, when the last element naming the stream
-  leaves the page, on a `401`, `403`, `404` or `410` (reported), and on a `200` that is not
-  `text/event-stream` (reported). A `419` raises the "page expired" event. A `429`, a `5xx` or a
-  network failure is retried with the backoff above.
+  leaves the page, on a `401`, `403`, `404` or `410` (reported), on any other status that is not
+  `200` (reported), and on a `200` that is not `text/event-stream` (reported). A `419` raises the
+  "page expired" event and stops. A stream without `Tessera-Protocol: 0`, or a `400` naming other
+  versions, does a full load of the current page (section 1). A `429`, a `5xx` or a network
+  failure is retried with the backoff above.
+- The last element leaving stops the stream one task later, so a render that replaces an element
+  with one naming the same stream keeps the connection. An element whose stream stopped for good
+  does not reopen it while it stays on the page with the same `data-stream`; a new element naming
+  the URL opens a new connection.
 
 ## 8. Caching
 

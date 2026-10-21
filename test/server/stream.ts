@@ -1,13 +1,15 @@
-// The reference server's stream, `/events/stream` (docs/protocol.md, section 7): event `k`
-// prepends `<li>Event k</li>` to region `events`, with id `k`. Query parameters shape it for
-// tests: `count` (events, default 3), `interval` (ms between events, default 0), `retry` (the
+// The reference server's stream, `/events/stream` (docs/protocol.md, section 7): step `k`
+// prepends `<li>Event k</li>` to region `events` with id `k`, then morphs component
+// `content/latest` and patches the document's `received` signal. Query parameters shape it for
+// tests: `count` (steps, default 3), `interval` (ms between steps, default 0), `retry` (the
 // reconnect delay sent first, default 1000), `end` (`open` keeps the connection with comments,
-// `drop` ends the body without `tessera-close`, `close` sends it) and `pause=hidden`.
+// `drop` ends the body without `tessera-close`, `close` sends it), `pause=hidden`, `drop=K`
+// (destroy a first connection after step K) and `key` (log each connection under it).
 import type { ServerResponse } from "node:http";
 import { setTimeout as sleep } from "node:timers/promises";
 import { renderPage } from "./html.ts";
 import { header, send, text, VARY } from "./http.ts";
-import type { FixtureRequest, Secrets } from "./http.ts";
+import type { FixtureRequest, Secrets, ServerState, StreamConnection } from "./http.ts";
 
 interface StreamOptions {
   count: number;
@@ -15,6 +17,8 @@ interface StreamOptions {
   retry: number;
   end: "open" | "drop" | "close";
   pause: boolean;
+  /** Destroy a connection without `Last-Event-ID` after this step. */
+  drop: number | undefined;
 }
 
 function integer(value: string | null, fallback: number, max: number): number | undefined {
@@ -31,12 +35,14 @@ function options(url: URL): StreamOptions | string {
   const retry = integer(query.get("retry"), 1000, 60_000);
   const end = query.get("end") ?? "open";
   const pause = query.get("pause");
+  const drop = query.get("drop") === null ? undefined : integer(query.get("drop"), 0, 1000);
   if (count === undefined) return "count must be an integer from 0 to 1000";
   if (interval === undefined) return "interval must be an integer from 0 to 10000";
   if (retry === undefined) return "retry must be an integer from 0 to 60000";
   if (end !== "open" && end !== "drop" && end !== "close") return "end must be open, drop or close";
   if (pause !== null && pause !== "hidden") return "pause must be hidden";
-  return { count, interval, retry, end, pause: pause !== null };
+  if (query.get("drop") !== null && drop === undefined) return "drop must be an integer from 0 to 1000";
+  return { count, interval, retry, end, pause: pause !== null, drop };
 }
 
 /** One SSE event; each line of `data` becomes a `data:` line. */
@@ -49,11 +55,24 @@ function item(k: number): string {
   return `<li>Event ${k}</li>`;
 }
 
+/** The component and the signal after step `k`; they carry no id. */
+function latest(k: number): string {
+  return (
+    sseEvent("tessera-patch-elements", undefined, ["target content/latest", `elements <!--t:c latest--><p id="latest">Latest: ${k}</p><!--/t:c-->`]) +
+    sseEvent("tessera-patch-signals", undefined, ["scope page", `signals {"received":${k}}`])
+  );
+}
+
+/** Step `k`: the list item with id `k`, then the component and the signal. */
+function step(k: number): string {
+  return sseEvent("tessera-patch-elements", String(k), ["target events", "mode prepend", `elements ${item(k)}`]) + latest(k);
+}
+
 /** The `events` region holding events `count` down to 1, as the page would render it now. */
 function currentState(request: FixtureRequest, count: number, secrets: Secrets): string {
   const items = Array.from({ length: count }, (_, index) => item(count - index)).join("");
   const stream = `${request.url.pathname}${request.url.search}`;
-  const rendered = renderPage("events", { csrf: secrets.csrf, stream, items }, secrets.key);
+  const rendered = renderPage("events", { csrf: secrets.csrf, stream, items, latest: String(count) }, secrets.key);
   const region = rendered.identities.byTarget.get("events");
   if (!region) throw new Error("pages/events.html has no events region");
   return rendered.html.slice(region.start, region.end);
@@ -62,7 +81,7 @@ function currentState(request: FixtureRequest, count: number, secrets: Secrets):
 export async function serveStream(
   request: FixtureRequest,
   res: ServerResponse,
-  secrets: Secrets,
+  secrets: ServerState,
 ): Promise<void> {
   if (request.method !== "GET") {
     send(res, { ...text(405, "Streams are GET only."), headers: { Allow: "GET" } });
@@ -73,7 +92,7 @@ export async function serveStream(
     send(res, text(400, parsed));
     return;
   }
-  const { count, interval, retry, end, pause } = parsed;
+  const { count, interval, retry, end, pause, drop } = parsed;
 
   // Resume after a numeric id this stream issued; any other id cannot be resumed, so the
   // stream sends the current state instead (section 7.3).
@@ -95,8 +114,12 @@ export async function serveStream(
   });
   res.flushHeaders();
 
+  const key = request.url.searchParams.get("key");
+  const connection: StreamConnection | undefined = key === null ? undefined : { key, lastEventId: last ?? null, closed: false };
+  if (connection) secrets.streams.push(connection);
   const closed = new AbortController();
   res.on("close", () => {
+    if (connection) connection.closed = true;
     closed.abort();
   });
   const { signal } = closed;
@@ -109,19 +132,19 @@ export async function serveStream(
         sseEvent("tessera-patch-elements", String(count), [
           "target events",
           ...markup.map((line) => `elements ${line}`),
-        ]),
+        ]) + latest(count),
       );
       next = count + 1;
     }
     for (let k = next; k <= count; k++) {
       if (interval > 0) await sleep(interval, undefined, { signal });
-      res.write(
-        sseEvent("tessera-patch-elements", String(k), [
-          "target events",
-          "mode prepend",
-          `elements ${item(k)}`,
-        ]),
-      );
+      res.write(step(k));
+      if (k === drop && last === undefined) {
+        // Let the step reach the client before the connection goes.
+        await sleep(50, undefined, { signal });
+        res.socket?.destroy();
+        return;
+      }
     }
     if (end === "close") {
       res.end(sseEvent("tessera-close", undefined, ["reason done"]));

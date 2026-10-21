@@ -331,8 +331,32 @@ describe("the stream", () => {
     expect(text.startsWith("retry: 2000\n\n")).toBe(true);
   });
 
+  it("morphs content/latest and patches received after each list event", async () => {
+    const text = await readStream(await request("/events/stream?count=1&end=close"));
+    expect(text).toContain(
+      'event: tessera-patch-elements\ndata: target content/latest\ndata: elements <!--t:c latest--><p id="latest">Latest: 1</p><!--/t:c-->\n\n' +
+        'event: tessera-patch-signals\ndata: scope page\ndata: signals {"received":1}\n\n',
+    );
+  });
+
+  it("destroys a first connection after step drop, and not a resumed one", async () => {
+    const first = await readStream(await request("/events/stream?count=3&drop=2&end=close")).catch((error: unknown) => String(error));
+    expect(first).not.toContain("Event 3");
+    const resumed = await readStream(await request("/events/stream?count=3&drop=2&end=close", { headers: { "Last-Event-ID": "2" } }));
+    expect(eventIds(resumed)).toEqual(["3"]);
+    expect(resumed).toContain("tessera-close");
+  });
+
+  it("logs each connection under its key, with its Last-Event-ID and whether it closed", async () => {
+    await readStream(await request("/events/stream?count=1&end=close&key=log-a"));
+    await readStream(await request("/events/stream?count=1&end=close&key=log-a", { headers: { "Last-Event-ID": "1" } }));
+    const log = (await (await request("/events/log?key=log-a")).json()) as unknown;
+    expect(log).toEqual({ connections: [{ key: "log-a", lastEventId: null, closed: true }, { key: "log-a", lastEventId: "1", closed: true }] });
+  });
+
   it("refuses options it does not know", async () => {
     expect((await request("/events/stream?end=later")).status).toBe(400);
+    expect((await request("/events/stream?drop=x")).status).toBe(400);
   });
 });
 

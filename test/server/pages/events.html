@@ -1,4 +1,7 @@
 <!--page {"title":"Events","layout":"app"}-->
 <!--slot content-->
     <h1>Events</h1>
+    <!--t:c latest--><p id="latest">Latest: {{latest}}</p><!--/t:c-->
+    <p>Received: <span id="received" data-signals__document="{received: 0}" data-text="$received"></span></p>
     <ul data-region="events" data-stream="{{stream}}">{{{items}}}</ul>
+    <div id="also" data-stream="{{stream}}" hidden></div>

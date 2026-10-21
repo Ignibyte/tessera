@@ -1,4 +1,4 @@
-// Boots the attributes, a patcher, the transport, links and forms on every fixture page
+// Boots the attributes, a patcher, the transport, links, forms and streams on every fixture page
 // (the layouts load it) for the browser tests, with the action recorder as the action seam.
 // test/browser/global-setup.ts builds it; the reference server serves it as /assets/harness.js.
 // It is test tooling, not a public entry.
@@ -16,6 +16,7 @@ import type { PatchMode } from "../../src/patch.ts";
 import { createTransport } from "../../src/transport.ts";
 import type { HistoryMode, RequestInput } from "../../src/transport.ts";
 import { createProgressBar } from "../../src/progress.ts";
+import { connectStreams } from "../../src/streams.ts";
 import { Scheduler } from "../../src/reactivity.ts";
 
 const scheduler = new Scheduler();
@@ -55,6 +56,7 @@ const transport = createTransport({
 history.attach(transport);
 const navigation = interceptLinks({ kernel, transport, progress: createProgressBar(document) });
 interceptForms({ kernel, transport });
+const streams = connectStreams({ kernel, transport, patcher, report: (error) => requestErrors.push(error instanceof Error ? error.message : String(error)) });
 
 /** Submits a form through the transport and returns what can cross into the test. */
 async function submit(form: string, submitter?: string): Promise<{ status: string; httpStatus?: number; redirectedTo?: string }> {
@@ -80,6 +82,11 @@ Object.assign(window, {
     }),
     patch: (target: string, markup: string, mode?: PatchMode) => {
       patcher.patchElements(target, markup, mode);
+    },
+    streams: () => streams.urls(),
+    resources: () => kernel.resourceSummary().map(({ kind, owner }) => `${kind} ${owner}`),
+    dispose: () => {
+      kernel.dispose();
     },
   },
 });

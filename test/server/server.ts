@@ -174,15 +174,19 @@ async function respond(request: FixtureRequest, secrets: ServerState): Promise<F
   if (path.startsWith("/assets/") && method === "GET") return asset(path);
 
   const known =
-    path in simplePages || ["/form", "/form/done", "/events", "/slow", "/redeploy", "/away", "/stray", "/counter/log"].includes(path);
+    path in simplePages || ["/form", "/form/done", "/events", "/slow", "/redeploy", "/away", "/stray", "/counter/log", "/events/log"].includes(path);
   if (known && method !== "GET") return { ...text(405, `${path} answers GET.`), headers: { Allow: path === "/form" ? "GET, POST" : "GET" } };
 
   const simple = simplePages[path];
   if (simple !== undefined) return page(simple);
   if (path === "/form") return page("form", formVars("", undefined));
   if (path === "/form/done") return page("form-done", { name: url.searchParams.get("name") ?? "" });
-  if (path === "/events") return page("events", { stream: `/events/stream${url.search}`, items: "" });
+  if (path === "/events") return page("events", { stream: `/events/stream${url.search}`, items: "", latest: "none" });
   if (path === "/redeploy") return page("redeploy", { build: "2" });
+  if (path === "/events/log") {
+    const key = url.searchParams.get("key") ?? "";
+    return json(200, { connections: secrets.streams.filter((connection) => connection.key === key) });
+  }
   if (path === "/counter/log") {
     const key = url.searchParams.get("key") ?? "";
     return json(200, {
@@ -329,6 +333,7 @@ export async function startServer(options: ServerOptions = {}): Promise<RunningS
     csrf: randomBytes(16).toString("hex"),
     counts: new Map(),
     arrivals: [],
+    streams: [],
     writes: new Map(),
   };
   const controller = new Controller((request) => respond(request, secrets));
