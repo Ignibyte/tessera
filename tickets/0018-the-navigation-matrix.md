@@ -3,11 +3,12 @@ number: 18
 uuid: 76ce9579-d569-469d-8afe-393eba637369
 title: "The navigation matrix"
 type: chore
-status: in-progress
+status: done
 tags: ["testing","navigation"]
 created: 2026-10-20T18:00:00Z
-updated: 2026-10-21T03:09:38Z
+updated: 2026-10-21T03:09:57Z
 phase: "docs"
+closed: 2026-10-21T03:09:57Z
 ---
 
 Port jqstar's navigation acceptance fixture (`/srv/stacks/jqstar/test/fixtures/navigation-decision/`,
@@ -60,3 +61,7 @@ Deliberate breakage, each in a scratch copy of `src/transport.ts`, undone after:
 - a write resent after a failure reading its answer: caught by NAV-16 in Chromium only.
 - a write resent after any network failure: caught by NAV-16 in both.
 - a newer read no longer superseding an older one: caught by NAV-19 in both.
+
+### 2026-10-21T03:09:57Z
+
+Delivered via PR #27 (0c71763). The matrix passes in Chromium, Firefox and WebKit; it led to three Tessera fixes and TES-01.
