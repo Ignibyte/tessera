@@ -3,11 +3,12 @@ number: 20
 uuid: 37217c2a-33c6-47c5-b00d-ae0ff0052fc9
 title: "WebKit in the Playwright Docker image"
 type: chore
-status: in-progress
+status: done
 tags: ["testing","webkit"]
 created: 2026-10-20T22:30:55Z
-updated: 2026-10-21T02:03:51Z
+updated: 2026-10-21T02:03:59Z
 phase: "docs"
+closed: 2026-10-21T02:03:59Z
 ---
 
 WebKit does not run on the dev box: Playwright's WebKit build needs Ubuntu libraries Arch lacks
@@ -55,3 +56,7 @@ Check exited 0 (628 unit and property tests); `npm run test:browser` exited 0 wi
 Cleanup, tested: a passing run, a failing run (`--timeout=1`), SIGINT to the process group during container startup and mid-run, and SIGTERM to the script alone all left no container and no reference server. The first SIGTERM test left both reference servers running: Playwright stops its web servers on SIGINT, not on SIGTERM. The script now forwards SIGINT to the run whatever signal it gets, and a retest left nothing. I stopped the two orphaned servers from that test by hand.
 
 Split off: #27. The whole suite in WebKit is 63 or 64 of 65. `write-id.spec.ts` fails every run, because WebKit does not resend a dropped POST. `streams.spec.ts` fails now and then (1 of 50 in a repeated run). Ticket #27 has the evidence and lands before #18.
+
+### 2026-10-21T02:03:59Z
+
+Delivered via PR #25 (b7587bf). npm run test:browser:webkit runs WebKit in the pinned Playwright image against the host's reference server; the suite's WebKit failures are #27.
