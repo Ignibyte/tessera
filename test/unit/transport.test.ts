@@ -44,6 +44,24 @@ describe("no replay: a write is sent once", () => {
     expect(calls).toHaveLength(3);
   });
 
+  it("reports a write indeterminate when its answer is shorter than its Content-Length", async () => {
+    const { transport, calls, respond, navigated } = setup(content);
+    respond(() => new Response(new ReadableStream({ start: (controller) => { controller.close(); } }), { headers: { "Content-Type": "text/html", "Content-Length": "4096" } }));
+    const outcome = await transport.request({ kind: "submit", method: "POST", url: "/save", targets: ["content"], body: "a=1" });
+    expect(outcome.status).toBe("indeterminate");
+    expect(calls).toHaveLength(1);
+    expect(navigated).toEqual([]);
+  });
+
+  it("loads a visit in full after its retries, so the browser shows its own error page", async () => {
+    const { transport, calls, respond, navigated } = setup(content);
+    respond(networkFailure, networkFailure, networkFailure);
+    const outcome = await transport.request({ kind: "visit", url: "/gone", targets: ["content"] });
+    expect(outcome).toEqual({ status: "full-load", url: `${ORIGIN}/gone` });
+    expect(calls).toHaveLength(3);
+    expect(navigated).toEqual([`${ORIGIN}/gone`]);
+  });
+
   it("reports a dispatched write that disposal aborts as indeterminate", async () => {
     const { transport, calls, respond, kernel: current } = setup(content);
     respond(hang);

@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- The navigation matrix (`test/browser/matrix.spec.ts`, `test/server/navigation.ts`,
+  `docs/navigation-matrix.md`): jqstar's 28 navigation scenarios plus TES-01, each run without
+  JavaScript and with Tessera in Chromium, Firefox and WebKit. What it found is fixed: a visit
+  the network refuses now loads in full, a press's prefetch is used even when it says `no-store`,
+  and a body shorter than its `Content-Length` is a lost answer (#18).
+
 - The browser suite passes in WebKit: the write-id test asserts whichever a browser does with a
   dropped write (a repeat answered from the store, or no repeat and an indeterminate write), and
   the stream tests allow for WebKit holding a burst's tail until the next bytes, with the

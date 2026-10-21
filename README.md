@@ -12,6 +12,7 @@ Status: being built, ticket by ticket (`tickets/`). Nothing is released yet.
 - Design: `docs/design.md`
 - Decisions: `docs/decisions.md`
 - Protocol: `docs/protocol.md`, what a server must do to speak Tessera
+- Navigation matrix: `docs/navigation-matrix.md`, the acceptance suite for navigation
 - Research behind it: `docs/research/`
 
 Tessera is built from parts of jqstar (MIT); see `NOTICE`.

@@ -22,7 +22,9 @@ repeat within five minutes gets the first answer and reaches no route; a bad id 
 
 | File | What it holds |
 |---|---|
-| `server.ts` | routing, the response choice of protocol 5.1, the version check, redirects |
+| `server.ts` | routing |
+| `answer.ts` | the response choice of protocol 5.1, the version check, redirects |
+| `navigation.ts` | the navigation matrix's site, `/navigation/…` |
 | `html.ts` | page rendering, the region and component scanner, props tokens, the `Tessera-Targets` parser |
 | `stream.ts` | `/events/stream` |
 | `controller.ts` | the controllable endpoint |
@@ -65,6 +67,7 @@ all on the page (and, for a visit, the layout matches), and the full document ot
 | `GET /poll?key=K` | Region `ticker` polling `/poll/tick?key=K` every 200 ms, showing the ticks so far |
 | `GET /poll/tick?key=K` | Adds one tick for `K` and answers as `/poll` |
 | `GET /persist-a`, `/persist-b`, `/persist-c` | `#player` with `data-permanent` on each; B wraps it in a `<section>`, C is on the `bare` layout |
+| `/navigation/…` | The navigation matrix's site (`navigation.ts`, `docs/navigation-matrix.md`): jqstar's routes on the `navigation` layout, a session per `tessera-nav-session` cookie, and `/navigation/metrics` with what each session's requests carried |
 | `GET /focus-server` | A page whose field has `autofocus` |
 | `GET /headless` | A page whose content has no heading |
 | `GET /bare` | A page on the `bare` layout, so a visit from `app` gets the full document |

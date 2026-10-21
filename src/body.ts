@@ -1,6 +1,8 @@
 // The body lease: a response body read once, as text or as a stream of chunks, and cancelled
 // when the request is aborted or the reader is done without reading it all. Ported from the
-// body lease in jqstar `src/protocol.ts` (`createBodyLease`), without the profile registry.
+// body lease in jqstar `src/protocol.ts` (`createBodyLease`), without the profile registry. A body
+// shorter than its Content-Length is a failure here even where the browser reports it complete:
+// WebKit resolves such a body as if it had ended (found by the navigation matrix, #18).
 
 export interface BodyLease {
   readonly claimed: boolean;
@@ -14,6 +16,14 @@ export interface BodyLease {
 
 function abortError(): DOMException {
   return new DOMException("The request was aborted.", "AbortError");
+}
+
+/** The body's promised length in bytes, when the bytes read can be held to it (no encoding). */
+function promisedLength(response: Response): number | undefined {
+  const encoding = (response.headers.get("Content-Encoding") ?? "identity").trim().toLowerCase();
+  const length = response.headers.get("Content-Length");
+  if (encoding !== "identity" || length === null || !/^\d+$/.test(length.trim())) return undefined;
+  return Number(length);
 }
 
 export function leaseBody(response: Response, signal: AbortSignal): BodyLease {
@@ -50,12 +60,18 @@ export function leaseBody(response: Response, signal: AbortSignal): BodyLease {
       return;
     }
     reader = response.body.getReader();
+    const promised = promisedLength(response);
+    let received = 0;
     try {
       for (;;) {
         const { done, value } = await reader.read();
         if (done) break;
+        received += value.byteLength;
         await consume(value);
         if (signal.aborted) throw abortError();
+      }
+      if (promised !== undefined && received < promised) {
+        throw new TypeError(`The answer ended after ${String(received)} of its ${String(promised)} bytes.`);
       }
       complete = true;
     } finally {

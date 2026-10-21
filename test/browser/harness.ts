@@ -93,8 +93,11 @@ Object.assign(window, {
     },
     streams: () => streams.urls(),
     resources: () => kernel.resourceSummary().map(({ kind, owner }) => `${kind} ${owner}`),
+    /** Disposes the kernel; what failed or stayed, and what is left in the ledger. */
     dispose: () => {
-      kernel.dispose();
+      const report = kernel.dispose();
+      return { failed: report.failed.length, remaining: report.remaining.length, left: kernel.resourceSummary().length };
     },
+    mounts: () => kernel.mountCount(),
   },
 });
