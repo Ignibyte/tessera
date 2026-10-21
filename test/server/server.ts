@@ -149,6 +149,7 @@ const simplePages: Readonly<Record<string, string>> = {
   "/about": "about",
   "/attributes": "attributes",
   "/bare": "bare",
+  "/coordination": "coordination",
   "/patch": "patch",
   "/transport": "transport",
 };

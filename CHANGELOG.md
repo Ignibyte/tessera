@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Coordination (`src/coordination.ts`): the table for overlapping requests, frozen in
+  `docs/protocol.md` section 4.6 (writes queue and are never aborted, reads supersede or queue,
+  polls yield), generations that drop a late fragment for a target a newer commit touched, and
+  `aria-busy` on pending targets with `data-loading` on the initiating element (#12).
 - The transport (`src/transport.ts`, rewritten from jqstar's `fetch.ts`; `src/body.ts`): requests as
   protocol section 4 builds them, writes sent once and reported indeterminate on any failure after
   dispatch, only GETs retried, `Tessera-Location` followed as a fresh GET visit, 4xx and 5xx

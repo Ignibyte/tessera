@@ -163,7 +163,7 @@ function ignored(node: Node): boolean {
 }
 
 /** Every scope owner in a tree (the tree itself included), outside the skipped subtrees. */
-function ownersWithin(root: Node, skip: readonly Node[]): (Element | Comment)[] {
+export function ownersWithin(root: Node, skip: readonly Node[]): (Element | Comment)[] {
   const owners: (Element | Comment)[] = [];
   const visit = (node: Node): void => {
     if (skip.includes(node)) return;

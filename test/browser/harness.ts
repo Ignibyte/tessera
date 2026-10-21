@@ -10,6 +10,7 @@ import { Kernel } from "../../src/kernel.ts";
 import { createPatcher } from "../../src/patch.ts";
 import type { PatchMode } from "../../src/patch.ts";
 import { createTransport } from "../../src/transport.ts";
+import type { RequestInput } from "../../src/transport.ts";
 import { Scheduler } from "../../src/reactivity.ts";
 
 const scheduler = new Scheduler();
@@ -61,6 +62,7 @@ Object.assign(window, {
     settle: () => kernel.whenEnhanced(),
     requestErrors,
     submit,
+    request: async (input: RequestInput) => ({ status: (await transport.request(input)).status }),
     patch: (target: string, markup: string, mode?: PatchMode) => {
       patcher.patchElements(target, markup, mode);
     },

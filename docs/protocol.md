@@ -317,6 +317,40 @@ form's data in the form's encoding. A GET or DELETE action has no body.
   `X-Requested-With` (Laravel's `expectsJson()`) keep rendering HTML for Tessera.
 - No body on a GET.
 
+### 4.6 Overlapping requests
+
+Two requests overlap when one's target is the other's, lies inside it or contains it: a region by
+its element, a component by the run between its markers, and `page` contains everything. A
+request with several targets overlaps another if any pair does. Requests whose targets are apart
+run side by side.
+
+For a newer request against an older one still queued or in flight, by class (a read is a GET,
+a write anything else, a poll a refresh from `data-poll`):
+
+| Older | Newer read | Newer write | Newer poll |
+|---|---|---|---|
+| read, newer's target the same or around it | supersedes the older | supersedes the older | is skipped |
+| read, newer's target inside it | queues behind it | supersedes the older | is skipped |
+| write, any overlap | queues behind it | queues behind it | is skipped |
+| poll, any overlap | supersedes the older | supersedes the older | is skipped |
+| apart | runs alongside | runs alongside | runs alongside |
+
+To supersede is to abort the older request; one still queued or in its 5 ms wait is never sent.
+A write is never superseded: what overlaps it waits until it settles, in arrival order, so writes
+to overlapping targets go one at a time. Polls yield to everything. Across several pairs of
+targets, a queue wins over a supersession.
+
+**Generations.** Every target remembers the last commit that touched it, and a commit touches its
+target, every target around it and every target inside it once it has committed. A request
+records the commit sequence when it is dispatched; a fragment for a target touched since then is
+dropped and reported, so a late response never overwrites a newer one. This holds for targets a
+response brings without the request naming them.
+
+While a request is queued or in flight, its region targets carry `aria-busy="true"` (for a
+component, the elements directly between its markers; for `page`, `<body>`), and the element
+that started it carries `data-loading`. Both go when the last request holding them settles. A
+server need do nothing for any of this, beyond rendering targets fresh on every request.
+
 ## 5. Responses
 
 ### 5.1 Choosing the answer
