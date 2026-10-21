@@ -3,11 +3,12 @@ number: 12
 uuid: bdd19345-f071-4803-8b61-7b4e1bc607b5
 title: "Region targeting and commit, with generations"
 type: feature
-status: in-progress
+status: done
 tags: ["regions"]
 created: 2026-10-20T18:00:00Z
-updated: 2026-10-21T00:08:13Z
+updated: 2026-10-21T00:08:29Z
 phase: "docs"
+closed: 2026-10-21T00:08:29Z
 ---
 
 The concurrency model jqstar never built: jqstar 0028 AC-08 plus region generations (digest
@@ -79,3 +80,7 @@ stale fragment dropped, busy attributes set and cleared, a followed redirect not
 Browser (`test/browser/coordination.spec.ts`, a `/coordination` page, the controller delivering
 out of order): a late read for a component is dropped after a write's response re-rendered that
 component; two disjoint regions answered in reverse order both update.
+
+### 2026-10-21T00:08:29Z
+
+Delivered via PR #13 (32e2008). The overlap table frozen in protocol 4.6, generations as one commit sequence, aria-busy and data-loading.
