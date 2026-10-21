@@ -50,6 +50,7 @@ all on the page (and, for a visit, the layout matches), and the full document ot
 | `GET /` | Home: regions `sidebar`, `content` and `notes` (inside `content`); components `content/greeting`, `content/greeting/count`, `notes/note-1`, `notes/note-2`, `page/crumb` |
 | `GET /about` | A second page on `app` |
 | `GET /attributes` | The attribute vocabulary of #7 on one page, booted by `/assets/harness.js` |
+| `?csp=1` on any route | Adds `Content-Security-Policy: script-src 'self'`, which refuses `'unsafe-eval'`; with `?engine=no-eval` the harness boots the no-eval expression engine (#22) |
 | `GET /coordination` | Component `content/cart` and regions `left` and `right`, for out-of-order responses through the controller |
 | `GET /patch` | Region `form-area` with an input, for patches driven through `/assets/harness.js` |
 | `GET /transport` | A form posting to `/form` and one posting to the controller, for the transport's tests |

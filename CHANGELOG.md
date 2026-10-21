@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- The no-eval expression engine (`src/noeval/`, `createNoEvalExpressionEngine`), ported from
+  jqstar `src/csp/` behind the same seam, for pages whose Content-Security-Policy refuses
+  `'unsafe-eval'`: the trusted engine's scope over a closed grammar and a capability table
+  (`docs/decisions.md`). The shared parts of both engines move to `src/expression-shared.ts`;
+  `npm run size` measures each engine alone (#22).
+
 - The navigation matrix (`test/browser/matrix.spec.ts`, `test/server/navigation.ts`,
   `docs/navigation-matrix.md`): jqstar's 28 navigation scenarios plus TES-01, each run without
   JavaScript and with Tessera in Chromium, Firefox and WebKit. What it found is fixed: a visit

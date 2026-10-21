@@ -8,6 +8,7 @@ import { mountAttributes } from "../../src/attributes.ts";
 import { registerBuiltins } from "../../src/builtins.ts";
 import { createDirectiveRegistry } from "../../src/directive.ts";
 import { createTrustedExpressionEngine } from "../../src/expression.ts";
+import { createNoEvalExpressionEngine } from "../../src/noeval/engine.ts";
 import { interceptForms } from "../../src/forms.ts";
 import { createHistory } from "../../src/history.ts";
 import { Kernel } from "../../src/kernel.ts";
@@ -31,7 +32,8 @@ const failures: string[] = [];
 const mount = mountAttributes(document.body, {
   kernel,
   scheduler,
-  expressions: createTrustedExpressionEngine(),
+  // `?engine=no-eval` picks the no-eval engine, for pages served with a strict policy (`?csp=1`).
+  expressions: new URLSearchParams(location.search).get("engine") === "no-eval" ? createNoEvalExpressionEngine() : createTrustedExpressionEngine(),
   registry,
   actions: recorder.seam,
   report: ({ attribute, error }) => failures.push(`${attribute}: ${error instanceof Error ? error.message : String(error)}`),

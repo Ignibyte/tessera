@@ -2,8 +2,8 @@
 // split into a key and modifiers, and the helpers expressions may call. Ported from jqstar
 // `src/directive.ts`, without the plugin install, `$element` and jqstar's built-ins; the
 // key and modifier grammar is new (jqstar parsed `data-on` modifiers in `src/declarative.ts`).
-import type { ExpressionContext, ExpressionEngine, HelperScope } from "./expression.ts";
-import { EXPRESSION_BUILTINS } from "./expression.ts";
+import type { ExpressionContext, ExpressionEngine, HelperScope } from "./expression-shared.ts";
+import { EXPRESSION_BUILTINS } from "./expression-shared.ts";
 import type { ScopeLevel } from "./scopes.ts";
 
 export type DirectiveCleanup = () => void;
