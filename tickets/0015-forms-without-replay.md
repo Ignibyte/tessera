@@ -3,11 +3,12 @@ number: 15
 uuid: ed4cabcf-8a15-43f5-be55-84ca669d3c30
 title: "Forms without replay"
 type: feature
-status: in-progress
+status: done
 tags: ["forms"]
 created: 2026-10-20T18:00:00Z
-updated: 2026-10-21T00:50:55Z
+updated: 2026-10-21T00:51:11Z
 phase: "docs"
+closed: 2026-10-21T00:51:11Z
 ---
 
 jqstar 0027's contract, implemented on the transport from #11. Read the ticket in
@@ -68,3 +69,7 @@ landing as a GET visit; a 307 answering the write not followed; a 422 committing
 focus on the summary; a dropped connection sending exactly one POST, with the message; a second
 submit while in flight sending nothing; a file arriving as multipart; an invalid form sending
 nothing. Chromium and Firefox.
+
+### 2026-10-21T00:51:11Z
+
+Delivered via PR #18 (e44bcfc). Form interception on the transport, a blocked second submit, focus after 422 and 409, the indeterminate message, and the encoding guard.
