@@ -173,9 +173,8 @@ default so work could go on; Chad confirms or changes it, and until then the cod
   once; after dispatch a network failure, an abort or a redirect answering it is
   **indeterminate**, reported and never resent. Only a GET is retried, twice, after a network
   failure before any answer (250 ms, then 500 ms). Every request waits 5 ms before it goes
-  (Livewire's buffer), so a read superseded in that window is never sent. A newer request naming
-  a target aborts an older **read** naming it; a write is never aborted by a newer request (#12
-  decides queuing). A GET waits while the page is hidden. A 419 raises `tessera:expired` on the
+  (Livewire's buffer), so a read superseded in that window is never sent. Overlapping requests
+  follow #12's table (protocol 4.6), which replaced #11's same-target rule. A GET waits while the page is hidden. A 419 raises `tessera:expired` on the
   document; unless it is cancelled, `confirm()` offers a reload. Interceptors (`before`, `after`,
   `error`) run once per logical request, and the protocol's own headers are restored after
   `before`. Until #13, a whole-document answer is a full load.
@@ -187,6 +186,15 @@ default so work could go on; Chad confirms or changes it, and until then the cod
   makes every dropped connection a fresh one, and the test counts what Tessera sent: exactly one
   POST. `docs/protocol.md` section 4.5 tells servers to expect such a repeat. A write id header
   that lets a server drop the repeat is a possible follow-up; not built.
+- **The policy for overlapping requests** (**Provisional**, ticket #12, 2026-10-20; the table is
+  `docs/protocol.md` section 4.6): a write is never aborted, so a second write to an overlapping
+  target waits for the first (Livewire queues per scope the same way; refusing it would lose a
+  click); a newer write supersedes an overlapping read, since the read's answer would predate the
+  write; a newer read supersedes a read on the same target or inside its own, and queues behind a
+  read around it, so a refresh inside a region never aborts the visit replacing that region; polls
+  yield to everything. Generations are one commit sequence with each target's last touch, not a
+  counter per target, so fragments a server sends unasked are covered too. A pending region carries
+  `aria-busy`, a component's top-level elements do, and the initiating element `data-loading`.
 
 ## Open
 

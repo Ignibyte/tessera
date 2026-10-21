@@ -7,6 +7,8 @@
 import type { ActionCall, ActionSeam } from "./actions.ts";
 import { ERROR_EVENT } from "./attributes.ts";
 import { leaseBody } from "./body.ts";
+import { busyElements, decideAll, Generations, resolveTarget } from "./coordination.ts";
+import type { RequestClass, TargetNode } from "./coordination.ts";
 import type { Kernel } from "./kernel.ts";
 import { findTarget, PATCH_MODES } from "./patch.ts";
 import type { Patcher, PatchMode } from "./patch.ts";
@@ -39,6 +41,8 @@ export interface RequestInput {
   readonly body?: FormData | URLSearchParams | string;
   /** Send the signals of the element's scope chain (actions only). */
   readonly signals?: boolean;
+  /** A refresh from `data-poll`: it yields to every overlapping request (protocol 4.6). */
+  readonly poll?: boolean;
 }
 
 export type OutcomeStatus =
@@ -47,6 +51,7 @@ export type OutcomeStatus =
   | "full-load"
   | "expired"
   | "superseded"
+  | "skipped"
   | "aborted"
   | "failed"
   | "indeterminate";
@@ -54,7 +59,8 @@ export type OutcomeStatus =
 export interface RequestOutcome {
   /**
    * `indeterminate`: a write was dispatched and its fate is unknown (it may have been saved);
-   * it is never resent. `superseded` and `aborted`: nothing more will happen for this request.
+   * it is never resent. `superseded`, `skipped` (a poll that yielded) and `aborted`: nothing
+   * more will happen for this request.
    */
   readonly status: OutcomeStatus;
   readonly httpStatus?: number;
@@ -110,10 +116,17 @@ export const ACCEPT = "text/vnd.tessera+html, text/html;q=0.9";
 
 const PROTOCOL_HEADERS = ["accept", "tessera-request", "tessera-protocol", "tessera-targets", "tessera-layout", "tessera-signals"];
 
-interface Flight {
+/** A request from admission until it settles, as the coordination sees it (protocol 4.6). */
+interface Operation {
+  readonly class: RequestClass;
+  readonly targets: readonly TargetNode[];
   readonly controller: AbortController;
-  readonly write: boolean;
-  readonly targets: readonly string[];
+  readonly settled: Promise<void>;
+  /** The commit sequence when it was dispatched. */
+  dispatched: number;
+  done: boolean;
+  /** Resolves `settled`: the requests queued behind this one may go. */
+  readonly release: () => void;
 }
 
 class TransportError extends Error {
@@ -237,7 +250,25 @@ export function createTransport(options: TransportOptions): Transport {
   const retryDelayMs = options.retryDelayMs ?? 250;
   const owner = `transport:${++transportId}`;
   const interceptors = new Set<Interceptor>();
-  const flights = new Set<Flight>();
+  const operations: Operation[] = [];
+  const generations = new Generations();
+  const busy = new Map<Element, number>();
+  const loading = new Map<Element, number>();
+
+  /** Counts a holder of an attribute on an element; the attribute stays while any holds it. */
+  const hold = (counts: Map<Element, number>, element: Element, name: string, value: string): (() => void) => {
+    const count = counts.get(element) ?? 0;
+    counts.set(element, count + 1);
+    if (count === 0) element.setAttribute(name, value);
+    return () => {
+      const left = (counts.get(element) ?? 1) - 1;
+      if (left > 0) counts.set(element, left);
+      else {
+        counts.delete(element);
+        element.removeAttribute(name);
+      }
+    };
+  };
 
   const report = (error: unknown, request: TesseraRequest | undefined): void => {
     if (options.report) {
@@ -345,7 +376,7 @@ export function createTransport(options: TransportOptions): Transport {
     return Boolean(after && before);
   };
 
-  const commitFragments = (text: string, request: TesseraRequest, response: Response, url: string): RequestOutcome => {
+  const commitFragments = (text: string, request: TesseraRequest, response: Response, url: string, operation: Operation): RequestOutcome => {
     const fail = (error: unknown): RequestOutcome => {
       report(error, request);
       return { status: "failed", httpStatus: response.status, error };
@@ -379,7 +410,17 @@ export function createTransport(options: TransportOptions): Transport {
     }
 
     try {
-      for (const { target, mode, markup } of resolved) patcher.patchElements(target, markup, mode);
+      for (const { target, mode, markup, found } of resolved) {
+        const node: TargetNode = found.kind === "region" ? { kind: "region", element: found.element } : { kind: "component", opener: found.opener, closer: found.closer };
+        if (generations.stale(node, operation.dispatched)) {
+          report(new TransportError(`${target} changed after this request was sent; its older fragment is dropped.`), request);
+          continue;
+        }
+        patcher.patchElements(target, markup, mode);
+        const after = resolveTarget(document, target);
+        if (after) generations.touch(after);
+        else generations.touch({ kind: "page", document });
+      }
       for (const { scope, patch, onlyIfMissing } of parsed.signals) patcher.patchSignals(scope, patch, { onlyIfMissing });
     } catch (error) {
       return fail(error);
@@ -400,7 +441,8 @@ export function createTransport(options: TransportOptions): Transport {
   };
 
   /** Reads an answer as protocol sections 5 and 6 say. */
-  const interpret = async (request: TesseraRequest, response: Response, signal: AbortSignal): Promise<RequestOutcome> => {
+  const interpret = async (request: TesseraRequest, response: Response, operation: Operation): Promise<RequestOutcome> => {
+    const { signal } = operation.controller;
     const lease = leaseBody(response, signal);
     try {
       if (response.type === "opaqueredirect") {
@@ -420,6 +462,8 @@ export function createTransport(options: TransportOptions): Transport {
       if (location !== null) {
         const url = new URL(location, finalUrl);
         if (url.origin !== window.location.origin) return fullLoad(url.href);
+        // The visit leaves this request's place first, so it cannot queue behind its own write.
+        finish(operation);
         const followed = await run({ kind: "visit", method: "GET", url: url.href, targets: request.targets, ...(request.element ? { element: request.element } : {}) });
         return { ...followed, redirectedTo: url.href };
       }
@@ -432,7 +476,7 @@ export function createTransport(options: TransportOptions): Transport {
       const type = mediaType(response);
       if (type === "text/vnd.tessera+html") {
         if (versions !== "0") return fullLoad(request.kind === "visit" ? finalUrl : window.location.href);
-        return commitFragments(await lease.text(), request, response, finalUrl);
+        return commitFragments(await lease.text(), request, response, finalUrl, operation);
       }
       if (type === "text/html") {
         const html = await lease.text();
@@ -453,24 +497,36 @@ export function createTransport(options: TransportOptions): Transport {
 
   // --- Dispatch ------------------------------------------------------------------------------
 
-  const supersede = (targets: readonly string[]): void => {
-    const keys = targets.length > 0 ? targets : ["page"];
-    for (const flight of flights) {
-      if (flight.write) continue;
-      const theirs = flight.targets.length > 0 ? flight.targets : ["page"];
-      if (theirs.some((target) => keys.includes(target))) flight.controller.abort(new DOMException("superseded", "AbortError"));
-    }
+  /** Takes a request out of the coordination; idempotent. */
+  const finish = (operation: Operation): void => {
+    if (operation.done) return;
+    operation.done = true;
+    const index = operations.indexOf(operation);
+    if (index >= 0) operations.splice(index, 1);
+    operation.release();
   };
 
-  const dispatch = async (request: TesseraRequest, flight: Flight): Promise<RequestOutcome> => {
-    const { signal } = flight.controller;
+  const dispatch = async (request: TesseraRequest, operation: Operation, blockers: readonly Operation[]): Promise<RequestOutcome> => {
+    const { signal } = operation.controller;
     const stopped = (): RequestOutcome => ({ status: (signal.reason as DOMException | undefined)?.message === "superseded" ? "superseded" : "aborted" });
     try {
       await sleep(bufferMs, signal);
+      await new Promise<void>((resolve, reject) => {
+        const aborted = (): void => {
+          reject(signal.reason as Error);
+        };
+        if (signal.aborted) aborted();
+        signal.addEventListener("abort", aborted, { once: true });
+        void Promise.all(blockers.map((blocker) => blocker.settled)).then(() => {
+          signal.removeEventListener("abort", aborted);
+          resolve();
+        });
+      });
       if (request.method === "GET") await visible(document, signal);
     } catch {
       return stopped();
     }
+    operation.dispatched = generations.current;
 
     const headers = new Headers();
     const restore = (): void => {
@@ -509,7 +565,7 @@ export function createTransport(options: TransportOptions): Transport {
         return { status: "failed", error };
       }
       try {
-        return await interpret(request, response, signal);
+        return await interpret(request, response, operation);
       } catch (error) {
         if (signal.aborted && !write) return stopped();
         return { status: write ? "indeterminate" : "failed", httpStatus: response.status, error };
@@ -556,20 +612,50 @@ export function createTransport(options: TransportOptions): Transport {
       signals,
     });
 
-    supersede(request.targets);
-    const flight: Flight = { controller: new AbortController(), write: isWrite(method), targets: request.targets };
-    flights.add(flight);
+    const requestClass: RequestClass = isWrite(method) ? "write" : input.poll ? "poll" : "read";
+    const targets = request.targets.flatMap((target) => resolveTarget(document, target) ?? []);
+    const pending = { class: requestClass, targets };
+    const decisions = operations.map((older) => [older, decideAll(pending, older, document)] as const);
+    if (decisions.some(([, decision]) => decision === "skip")) return { status: "skipped" };
+    for (const [older, decision] of decisions) {
+      if (decision === "supersede") older.controller.abort(new DOMException("superseded", "AbortError"));
+    }
+    const blockers = decisions.flatMap(([older, decision]) => (decision === "queue" ? [older] : []));
+
+    let settle: () => void = () => undefined;
+    const settledPromise = new Promise<void>((resolve) => {
+      settle = resolve;
+    });
+    const operation: Operation = {
+      class: requestClass,
+      targets,
+      controller: new AbortController(),
+      settled: settledPromise,
+      dispatched: 0,
+      done: false,
+      release: () => {
+        settle();
+      },
+    };
+    operations.push(operation);
+    const releases = [
+      ...(targets.length > 0 ? targets : [{ kind: "page", document } as const]).flatMap((target) =>
+        busyElements(target).map((element) => hold(busy, element, "aria-busy", "true")),
+      ),
+      ...(request.element ? [hold(loading, request.element, "data-loading", "")] : []),
+    ];
     const releaseAbort = kernel.own("task", `${owner}:${request.kind}`, () => {
-      flight.controller.abort(new DOMException("disposed", "AbortError"));
+      operation.controller.abort(new DOMException("disposed", "AbortError"));
     });
     const settled = (async (): Promise<RequestOutcome> => {
       let outcome: RequestOutcome;
       try {
-        outcome = await dispatch(request, flight);
+        outcome = await dispatch(request, operation, blockers);
       } catch (error) {
-        outcome = { status: flight.write ? "indeterminate" : "failed", error };
+        outcome = { status: requestClass === "write" ? "indeterminate" : "failed", error };
       } finally {
-        flights.delete(flight);
+        finish(operation);
+        for (const release of releases) release();
         if (!kernel.disposed) releaseAbort();
       }
       if (outcome.status === "indeterminate" || (outcome.status === "failed" && outcome.error !== undefined)) {

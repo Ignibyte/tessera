@@ -46,6 +46,29 @@ function isElement(node: Node): node is Element {
   return node.nodeType === 1;
 }
 
+/**
+ * The owners of a node's scopes, innermost first, ending with the document: at each level the
+ * node itself if it is a region, then every unmatched opening marker among its previous
+ * siblings. Block markers (`t:b`) are not scopes.
+ */
+export function scopeOwners(start: Element | Comment): ScopeOwner[] {
+  const owners: ScopeOwner[] = [];
+  for (let node: Node | null = start; node && node.nodeType !== 9; node = node.parentNode) {
+    if (isElement(node) && node.hasAttribute("data-region")) owners.push(node);
+    let depth = 0;
+    for (let sibling = node.previousSibling; sibling; sibling = sibling.previousSibling) {
+      if (!isComment(sibling)) continue;
+      if (sibling.data === CLOSER) depth++;
+      else if (OPENER.test(sibling.data)) {
+        if (depth === 0) owners.push(sibling);
+        else depth--;
+      }
+    }
+  }
+  owners.push(start.ownerDocument);
+  return owners;
+}
+
 let scopesId = 0;
 
 export class Scopes {
@@ -67,21 +90,7 @@ export class Scopes {
    * component's opening comment the chain starts with the components around it.
    */
   owners(start: Element | Comment): ScopeOwner[] {
-    const owners: ScopeOwner[] = [];
-    for (let node: Node | null = start; node && node.nodeType !== 9; node = node.parentNode) {
-      if (isElement(node) && node.hasAttribute("data-region")) owners.push(node);
-      let depth = 0;
-      for (let sibling = node.previousSibling; sibling; sibling = sibling.previousSibling) {
-        if (!isComment(sibling)) continue;
-        if (sibling.data === CLOSER) depth++;
-        else if (OPENER.test(sibling.data)) {
-          if (depth === 0) owners.push(sibling);
-          else depth--;
-        }
-      }
-    }
-    owners.push(start.ownerDocument);
-    return owners;
+    return scopeOwners(start);
   }
 
   /**
