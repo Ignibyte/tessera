@@ -3,11 +3,12 @@ number: 16
 uuid: f817d47f-2ea4-4f1f-bc21-b92dfe3c8610
 title: "Durable SSE streams"
 type: feature
-status: in-progress
+status: done
 tags: ["sse"]
 created: 2026-10-20T18:00:00Z
-updated: 2026-10-21T01:09:14Z
+updated: 2026-10-21T01:09:47Z
 phase: "docs"
+closed: 2026-10-21T01:09:47Z
 ---
 
 jqstar has only one-shot response streams. Build a stream channel on the parser from #10.
@@ -54,3 +55,7 @@ Check passed (typecheck, lint, 575 unit and property tests, build, size), and th
 Two changes to the plan. The reference server reports connections through `/events/log?key=K` rather than the controller. The backoff has a floor: failures in a row back off from at least 100 ms, so `retry: 0` cannot turn a failing server into a request per task (recorded in docs/decisions.md and protocol 7.3).
 
 One consequence of #12's generations for the driver to look at: a commit touches every target around its own, so a stream event for `events` (inside `content`) arriving while a visit of `content` is in flight makes that visit's fragment stale. The fragment is dropped and reported, while history still records the new URL. Requests already behave this way (a component refresh committing during a visit of its region), and the ticket asks for generations to apply, so I left it alone. With a busy stream it will happen often enough to notice. One option: let a visit's fragment win over touches from inside it.
+
+### 2026-10-21T01:09:47Z
+
+Delivered via PR #19 (7cd3b43). Streams from data-stream and the API, one per URL, in the kernel's ledger; reconnect with Last-Event-ID and backoff; commits through the transport's generations.
