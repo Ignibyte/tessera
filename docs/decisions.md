@@ -207,6 +207,22 @@ default so work could go on; Chad confirms or changes it, and until then the cod
   changes; new stylesheets get 4 s to load or fail before the body commits; `<title>`, `lang`,
   `dir` and the `tessera-layout` and `tessera-csrf-token` metas are taken by value, everything
   else in the head by markup. The progress bar appears after 200 ms (Livewire uses 150).
+- **History, focus and scroll** (**Provisional**, ticket #14, 2026-10-20): each entry Tessera owns
+  keeps `history.state.tessera = { v: 1, kind, targets, scroll, focus }` (no HTML; other keys of a
+  plain state are kept, a state that is not a plain object is never touched). Back and Forward
+  fetch the entry again, fresh, as a visit of the targets that made it; the first entry has none,
+  so going back to it fetches the whole page. A change of fragment alone is the browser's; a
+  foreign entry, or a failed fetch, reloads. No back cache. `scrollRestoration` is manual from
+  install to disposal. Focus, after enhancement: `autofocus` in what arrived, the stored key on
+  Back and Forward, the fragment's target, the main heading of what arrived, the body. "Focus
+  outside the updated region stays" is read as: the first three always apply, the heading and the
+  body only when focus was inside what changed or lost. A visit keeps its URL's fragment past the
+  response, as a browser does.
+- **Idiomorph's `ignoreActiveValue` is not used** (ticket #14, 2026-10-20): found by the history
+  tests in Firefox. With it, Idiomorph leaves the children of whatever element has focus
+  unmorphed, not only a field's value, so a heading focused after one visit kept its old text
+  through the next. The patcher instead refuses only the `value` update of a focused `input`,
+  `textarea` or `select`, through Idiomorph's `beforeAttributeUpdated` callback.
 
 ## Open
 

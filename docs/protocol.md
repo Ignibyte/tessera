@@ -173,6 +173,7 @@ column builds the browser behaviour; the name and the meaning are fixed here.
 | `data-enhance="off"` | any element | Links and forms inside it, and the element itself, are left to the browser. `data-enhance="on"` inside an `off` element turns enhancement back on; the nearest one wins. | #13 |
 | `data-track` | `<script src>`, `<link href>` in `<head>` | A tracked asset. Any change to the set of tracked assets forces a full load (section 9). The value is optional and is compared too, so `data-track="v42"` can carry a build id. | #13 |
 | `autofocus` | a focusable element in a fragment | The server's choice of focus after an update. | #14 |
+| `data-focus-key="KEY"` | any element | A stable name for the element, under which Back and Forward restore focus to it when its `id` is not stable across renders. | #14 |
 | `data-error-summary` | the element listing a form's errors | After a `422` or `409`, Tessera focuses it; without one, the first field with `aria-invalid="true"`. | #15 |
 | `aria-invalid="true"` | a form field | The standard attribute; Tessera uses it as the focus fallback above. | #15 |
 | `data-permanent` | an element with an `id` | Kept as the same live node across whole-document visits, when the incoming page has an element with the same `id` and `data-permanent`. | #17 |

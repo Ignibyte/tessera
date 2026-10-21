@@ -7,12 +7,13 @@ import { mountAttributes } from "../../src/attributes.ts";
 import { registerBuiltins } from "../../src/builtins.ts";
 import { createDirectiveRegistry } from "../../src/directive.ts";
 import { createTrustedExpressionEngine } from "../../src/expression.ts";
+import { createHistory } from "../../src/history.ts";
 import { Kernel } from "../../src/kernel.ts";
 import { createDocumentCommitter, interceptLinks } from "../../src/navigation.ts";
 import { createPatcher } from "../../src/patch.ts";
 import type { PatchMode } from "../../src/patch.ts";
 import { createTransport } from "../../src/transport.ts";
-import type { RequestInput } from "../../src/transport.ts";
+import type { HistoryMode, RequestInput } from "../../src/transport.ts";
 import { createProgressBar } from "../../src/progress.ts";
 import { Scheduler } from "../../src/reactivity.ts";
 
@@ -40,14 +41,17 @@ const patcher = createPatcher({
 });
 
 const requestErrors: string[] = [];
+const history = createHistory({ kernel });
 const transport = createTransport({
   kernel,
   patcher,
   scopes: mount.scopes,
+  history,
   commitDocument: createDocumentCommitter({ kernel, patcher }),
   report: (error) => requestErrors.push(error instanceof Error ? error.message : String(error)),
 });
 
+history.attach(transport);
 const navigation = interceptLinks({ kernel, transport, progress: createProgressBar(document) });
 
 /** Submits a form through the transport and returns what can cross into the test. */
@@ -69,7 +73,9 @@ Object.assign(window, {
     requestErrors,
     submit,
     request: async (input: RequestInput) => ({ status: (await transport.request(input)).status }),
-    visit: async (url: string, targets?: string[]) => ({ status: (await navigation.visit(url, targets ? { targets } : {})).status }),
+    visit: async (url: string, targets?: string[], mode?: HistoryMode) => ({
+      status: (await navigation.visit(url, { ...(targets ? { targets } : {}), ...(mode ? { history: mode } : {}) })).status,
+    }),
     patch: (target: string, markup: string, mode?: PatchMode) => {
       patcher.patchElements(target, markup, mode);
     },

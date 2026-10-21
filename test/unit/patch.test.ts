@@ -230,6 +230,14 @@ describe("the morph", () => {
     expect(find("label").textContent).toBe("Your name");
   });
 
+  it("morphs the children of a focused element that is not a field", () => {
+    const { patcher, find } = fixture(`<main data-region="content"><h1 tabindex="-1">Old</h1><p>a</p></main>`);
+    find("h1").focus();
+    patcher.patchElements("content", `<main data-region="content"><h1 tabindex="-1">New</h1><p>b</p></main>`);
+    expect(find("h1").textContent).toBe("New");
+    expect(find("main").textContent).toBe("Newb");
+  });
+
   it("tears nested mounts down deepest first, while they are still connected", () => {
     const { patcher, find, kernel: current } = fixture(
       `<main data-region="content"><section id="outer"><div id="inner"></div></section></main>`,

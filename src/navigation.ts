@@ -7,7 +7,7 @@ import type { Kernel } from "./kernel.ts";
 import type { Patcher } from "./patch.ts";
 import type { ProgressBar } from "./progress.ts";
 import { elementTargets } from "./transport.ts";
-import type { DocumentCommit, RequestOutcome, TesseraRequest, Transport } from "./transport.ts";
+import type { DocumentCommit, HistoryMode, RequestOutcome, TesseraRequest, Transport } from "./transport.ts";
 
 export type LinkRefusal =
   | "prevented"
@@ -83,7 +83,7 @@ export interface LinkOptions {
 
 export interface Navigation {
   /** A visit from code, as a click on a link to `url` would make. */
-  visit(url: string, options?: { targets?: readonly string[]; element?: Element }): Promise<RequestOutcome>;
+  visit(url: string, options?: { targets?: readonly string[]; element?: Element; history?: HistoryMode }): Promise<RequestOutcome>;
 }
 
 /** Turns eligible link clicks on the document into visits. The listener is owned by the kernel. */
@@ -97,6 +97,7 @@ export function interceptLinks(options: LinkOptions): Navigation {
         url,
         targets: visitOptions.targets ?? [],
         ...(visitOptions.element ? { element: visitOptions.element } : {}),
+        ...(visitOptions.history ? { history: visitOptions.history } : {}),
       });
     } finally {
       stop?.();

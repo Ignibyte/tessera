@@ -1,5 +1,5 @@
 // Patching: server markup morphed into the page, targeted by identity (docs/protocol.md,
-// sections 2 and 5.3). Ported from jqstar `src/patch.ts`: Idiomorph with `ignoreActiveValue`,
+// sections 2 and 5.3). Ported from jqstar `src/patch.ts`: Idiomorph keeping a focused field's value,
 // `restoreFocus` and preserved nodes, inert parsing through `<template>`, one render transaction
 // per patch. jqstar's id and CSS-selector targeting is replaced by regions and components.
 //
@@ -239,7 +239,7 @@ export function createPatcher(options: PatcherOptions): Patcher {
       if (!inside) copy.push(child.cloneNode(true));
       if (child === last) inside = false;
     }
-    Idiomorph.morph(parent, copy, { morphStyle: "innerHTML", ignoreActiveValue: true, restoreFocus: true, callbacks });
+    Idiomorph.morph(parent, copy, { morphStyle: "innerHTML", restoreFocus: true, callbacks });
   };
 
   const apply = (
@@ -287,6 +287,11 @@ export function createPatcher(options: PatcherOptions): Patcher {
     const held: Node[] = [];
     const morphed: Element[] = [];
     const callbacks: IdiomorphCallbacks = {
+      // In place of Idiomorph's ignoreActiveValue, which also leaves the children of any focused
+      // element unmorphed (a heading focused after a visit kept its old text): only a focused
+      // field keeps the value the user is typing.
+      beforeAttributeUpdated: (name, element) =>
+        name === "value" && element === document.activeElement && ["input", "textarea", "select"].includes(element.localName) ? false : undefined,
       beforeNodeMorphed: (oldNode) => (keep(oldNode) ? false : undefined),
       afterNodeMorphed: (oldNode) => {
         if (oldNode.nodeType === 1) morphed.push(oldNode as Element);
@@ -306,9 +311,9 @@ export function createPatcher(options: PatcherOptions): Patcher {
     if (resolved.kind === "region") {
       const [element] = significant(nodes);
       if (mode === "morph" && element) {
-        Idiomorph.morph(resolved.element, element, { morphStyle: "outerHTML", ignoreActiveValue: true, restoreFocus: true, callbacks });
+        Idiomorph.morph(resolved.element, element, { morphStyle: "outerHTML", restoreFocus: true, callbacks });
       } else {
-        Idiomorph.morph(resolved.element, nodes, { morphStyle: "innerHTML", ignoreActiveValue: true, restoreFocus: true, callbacks });
+        Idiomorph.morph(resolved.element, nodes, { morphStyle: "innerHTML", restoreFocus: true, callbacks });
       }
     } else {
       const parent = resolved.opener.parentNode;

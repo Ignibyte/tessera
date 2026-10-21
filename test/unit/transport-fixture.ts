@@ -106,7 +106,12 @@ export function setup(html: string, options: Partial<TransportOptions> = {}, hea
     scopes: mount.scopes,
     fetch,
     navigate: (url) => navigated.push(url),
-    pushUrl: (url) => pushed.push(url),
+    history: {
+      capture: () => undefined,
+      commit: (url) => {
+        pushed.push(url);
+      },
+    },
     report: (error) => reported.push(error),
     reload: vi.fn(),
     confirm: vi.fn(() => false),

@@ -52,6 +52,9 @@ all on the page (and, for a visit, the layout matches), and the full document ot
 | `GET /away` | A Tessera request gets `Tessera-Full-Visit: /about`; a plain one a `302` to `/about` |
 | `GET /stray` | A Tessera request gets a fragment for region `nowhere`; a plain one the Stray page |
 | `GET /scripted` | A page whose content holds an inline script |
+| `GET /long` | A tall page with `#section-1` to `#section-3` and a link at the bottom, for scroll |
+| `GET /focus-server` | A page whose field has `autofocus` |
+| `GET /headless` | A page whose content has no heading |
 | `GET /bare` | A page on the `bare` layout, so a visit from `app` gets the full document |
 | `GET /form` | A form posting `name` and `_token` to `/form` |
 | `POST /form` | `419` on a CSRF token matching neither `X-CSRF-Token` nor `_token`; `422` with the errors for an empty name; `409` for the name `taken`; else `303` to `/form/done?name=…`, or `200` with `Tessera-Location` for a Tessera request |

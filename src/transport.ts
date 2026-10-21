@@ -18,6 +18,12 @@ import type { Scopes } from "./scopes.ts";
 import { isPlainRecord } from "./values.ts";
 
 export type RequestKind = "visit" | "submit" | "action" | "refresh";
+
+/**
+ * What a committed visit does to history: a new entry (`push`, the default), the current entry
+ * (`replace`), the entry the browser moved to (`pop`, back and forward), or nothing (`none`).
+ */
+export type HistoryMode = "push" | "replace" | "pop" | "none";
 export type Method = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 
 /** A request as it is sent; frozen before interceptors see it. */
@@ -31,6 +37,8 @@ export interface TesseraRequest {
   readonly body: FormData | URLSearchParams | string | undefined;
   /** The `Tessera-Signals` value, on actions only. */
   readonly signals: string | undefined;
+  /** For a visit, what it does to history; `none` for anything else. */
+  readonly history: HistoryMode;
 }
 
 export interface RequestInput {
@@ -44,6 +52,8 @@ export interface RequestInput {
   readonly signals?: boolean;
   /** A refresh from `data-poll`: it yields to every overlapping request (protocol 4.6). */
   readonly poll?: boolean;
+  /** For a visit: what it does to history. Default `push`. */
+  readonly history?: HistoryMode;
 }
 
 export type OutcomeStatus =
@@ -71,6 +81,15 @@ export interface RequestOutcome {
   readonly redirectedTo?: string;
 }
 
+/**
+ * The history seam: `capture` runs just before a visit's commit changes the page, `commit` right
+ * after it, before what arrived is enhanced. Neither runs for a 409 or 422, or for mode `none`.
+ */
+export interface VisitHistory {
+  capture(request: TesseraRequest): void;
+  commit(url: string, request: TesseraRequest, updated: readonly TargetNode[]): void;
+}
+
 /** What committing a whole document came to: committed in place, or a full load is needed. */
 export type DocumentCommit = "committed" | "full-load";
 
@@ -91,8 +110,8 @@ export interface TransportOptions {
   /** Reload after a confirmed "page expired" prompt. Default `location.reload`. */
   readonly reload?: () => void;
   readonly confirm?: (message: string) => boolean;
-  /** Records a committed visit's URL. Default `history.pushState`; #14 owns the ordering. */
-  readonly pushUrl?: (url: string) => void;
+  /** History around a visit's commit (src/history.ts). Default: push or replace the URL alone. */
+  readonly history?: VisitHistory;
   /** Commits a whole document in place (src/navigation.ts). Without it, a document answer is a full load. */
   readonly commitDocument?: (html: string, url: string, request: TesseraRequest) => Promise<DocumentCommit>;
   readonly report?: (error: unknown, request: TesseraRequest | undefined) => void;
@@ -150,6 +169,12 @@ function meta(document: Document, name: string): string | undefined {
 
 function mediaType(response: Response): string {
   return (response.headers.get("Content-Type") ?? "").split(";")[0]?.trim().toLowerCase() ?? "";
+}
+
+function withFragment(url: string, hash: string): string {
+  const parsed = new URL(url);
+  if (parsed.hash === "" && hash !== "") parsed.hash = hash;
+  return parsed.href;
 }
 
 function sleep(ms: number, signal: AbortSignal): Promise<void> {
@@ -235,9 +260,16 @@ export function createTransport(options: TransportOptions): Transport {
     window.location.reload();
   });
   const confirm = options.confirm ?? ((message: string) => window.confirm(message));
-  const pushUrl = options.pushUrl ?? ((url: string) => {
-    if (url !== window.location.href) window.history.pushState(null, "", url);
-  });
+  const history: VisitHistory = options.history ?? {
+    capture: () => undefined,
+    commit: (url, request) => {
+      if (request.history === "push" && url !== window.location.href) window.history.pushState(null, "", url);
+      else if (request.history === "replace") window.history.replaceState(null, "", url);
+    },
+  };
+  /** Whether a visit's answer is recorded in history. */
+  const recorded = (request: TesseraRequest, status: number): boolean =>
+    request.kind === "visit" && request.history !== "none" && status !== 409 && status !== 422;
   const bufferMs = options.bufferMs ?? 5;
   const retries = options.retries ?? 2;
   const retryDelayMs = options.retryDelayMs ?? 250;
@@ -402,6 +434,9 @@ export function createTransport(options: TransportOptions): Transport {
       if (inner) return fail(new TransportError(`The response targets both ${outer.target} and ${inner.target}; send the outer target only.`));
     }
 
+    const record = recorded(request, response.status);
+    const updated: TargetNode[] = [];
+    if (record) history.capture(request);
     try {
       for (const { target, mode, markup, found } of resolved) {
         const node: TargetNode = found.kind === "region" ? { kind: "region", element: found.element } : { kind: "component", opener: found.opener, closer: found.closer };
@@ -411,8 +446,10 @@ export function createTransport(options: TransportOptions): Transport {
         }
         patcher.patchElements(target, markup, mode);
         const after = resolveTarget(document, target);
-        if (after) generations.touch(after);
-        else generations.touch({ kind: "page", document });
+        if (after) {
+          generations.touch(after);
+          updated.push(after);
+        } else generations.touch({ kind: "page", document });
       }
       for (const { scope, patch, onlyIfMissing } of parsed.signals) patcher.patchSignals(scope, patch, { onlyIfMissing });
     } catch (error) {
@@ -423,7 +460,7 @@ export function createTransport(options: TransportOptions): Transport {
       const current = document.head.querySelector<HTMLMetaElement>('meta[name="tessera-csrf-token"]');
       if (current) current.content = parsed.csrf;
     }
-    if (request.kind === "visit" && response.status !== 409 && response.status !== 422) pushUrl(url);
+    if (record) history.commit(url, request, updated);
     return { status: "committed", httpStatus: response.status, url };
   };
 
@@ -441,7 +478,8 @@ export function createTransport(options: TransportOptions): Transport {
       if (response.type === "opaqueredirect") {
         return { status: "indeterminate", error: new TransportError("The write was answered with a redirect Tessera does not follow; it may have been saved.") };
       }
-      const finalUrl = response.url || request.url;
+      // A response's URL has no fragment; the request's carries over, as a browser does.
+      const finalUrl = withFragment(response.url || request.url, new URL(request.url).hash);
       const fullVisit = response.headers.get("Tessera-Full-Visit");
       if (fullVisit !== null) {
         const url = new URL(fullVisit, finalUrl);
@@ -457,7 +495,14 @@ export function createTransport(options: TransportOptions): Transport {
         if (url.origin !== window.location.origin) return fullLoad(url.href);
         // The visit leaves this request's place first, so it cannot queue behind its own write.
         finish(operation);
-        const followed = await run({ kind: "visit", method: "GET", url: url.href, targets: request.targets, ...(request.element ? { element: request.element } : {}) });
+        const followed = await run({
+          kind: "visit",
+          method: "GET",
+          url: url.href,
+          targets: request.targets,
+          history: request.kind === "visit" ? request.history : "push",
+          ...(request.element ? { element: request.element } : {}),
+        });
         return { ...followed, redirectedTo: url.href };
       }
       const versions = response.headers.get("Tessera-Protocol");
@@ -474,10 +519,12 @@ export function createTransport(options: TransportOptions): Transport {
       if (type === "text/html") {
         const html = await lease.text();
         if (options.commitDocument) {
+          const record = recorded(request, response.status);
+          if (record) history.capture(request);
           const result = await options.commitDocument(html, finalUrl, request);
           if (result === "full-load") return fullLoad(request.kind === "visit" ? finalUrl : window.location.href);
           generations.touch({ kind: "page", document });
-          if (request.kind === "visit" && response.status !== 409 && response.status !== 422) pushUrl(finalUrl);
+          if (record) history.commit(finalUrl, request, [{ kind: "page", document }]);
           return { status: "committed", httpStatus: response.status, url: finalUrl };
         }
         return fullLoad(request.kind === "visit" ? finalUrl : window.location.href);
@@ -606,6 +653,7 @@ export function createTransport(options: TransportOptions): Transport {
       element: input.element,
       body: input.body,
       signals,
+      history: input.kind === "visit" ? (input.history ?? "push") : "none",
     });
 
     const requestClass: RequestClass = isWrite(method) ? "write" : input.poll ? "poll" : "read";
