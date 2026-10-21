@@ -428,6 +428,23 @@ export async function runFlow(key: string, context: FlowContext): Promise<void> 
       check("regionAsDocumentWithoutEnhancement", candidate.javascript || ((await canonical("region")) && path() === "/navigation/region"));
       break;
     }
+    case "region-push-off": {
+      const length = await page.evaluate(() => history.length);
+      const previous = await page.evaluate(() => performance.timeOrigin);
+      await page.locator("#region-tab").click();
+      await until(() => page.locator("#activity-title").textContent(), (value) => value === "Updated activity");
+      await ready(page, candidate);
+      check("canonicalRegion", (await page.locator("#activity-title").textContent()) === "Updated activity");
+      check(
+        "unrelatedContentRetainedWhenEnhanced",
+        !candidate.javascript || (previous === (await page.evaluate(() => performance.timeOrigin)) && (await canonical("start"))),
+      );
+      // Without JavaScript the link is a plain link: the region's document and a new entry.
+      const added = (await page.evaluate(() => history.length)) - length;
+      check("urlKeptWhenEnhanced", candidate.javascript ? path() === "/navigation/start" : path() === "/navigation/region");
+      check("historyKeptWhenEnhanced", added === (candidate.javascript ? 0 : 1));
+      break;
+    }
     case "region-mismatch": {
       await page.locator("#region-mismatch").click();
       await route(page, "region-mismatch", candidate);

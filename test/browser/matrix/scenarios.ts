@@ -158,4 +158,18 @@ export const SCENARIOS: readonly Scenario[] = [
       historyLength: "the same: Tessera adds no entry",
     },
   },
+  // Tessera's own, for `data-push="off"` (ticket #28): a region link that leaves history as it
+  // was, where NAV-17's region link pushes the region's URL.
+  {
+    id: "TES-02",
+    key: "region-push-off",
+    applicability: "all",
+    assertions: ["canonicalRegion", "unrelatedContentRetainedWhenEnhanced", "urlKeptWhenEnhanced", "historyKeptWhenEnhanced"],
+    differences: {
+      url: "a link under data-push=\"off\" updates its region and keeps the page's URL (protocol 3), where the browser follows the plain link",
+      content: "the region link updates the activity region alone and leaves the rest of the page as it was; the browser loads the region's whole document",
+      focus: "Tessera moves neither focus nor scroll for a visit that adds no entry, so focus stays on the link the region kept where the engine focuses a clicked link; the browser leaves it on the body",
+      historyLength: "the visit adds no entry; the browser's plain link adds one",
+    },
+  },
 ];

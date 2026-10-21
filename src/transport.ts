@@ -37,7 +37,10 @@ export interface TesseraRequest {
   readonly body: FormData | URLSearchParams | string | undefined;
   /** The `Tessera-Signals` value, on actions only. */
   readonly signals: string | undefined;
-  /** For a visit, what it does to history; `none` for anything else. */
+  /**
+   * For a visit, what it does to history; for a submit, what the visit following its
+   * `Tessera-Location` does; `none` for anything else.
+   */
   readonly history: HistoryMode;
   /** On a write: `Tessera-Write-Id`, unique to this submission (protocol 5.8). */
   readonly writeId: string | undefined;
@@ -55,7 +58,7 @@ export interface RequestInput {
   readonly signals?: boolean;
   /** A refresh from `data-poll`: it yields to every overlapping request (protocol 4.6). */
   readonly poll?: boolean;
-  /** For a visit: what it does to history. Default `push`. */
+  /** For a visit: what it does to history; for a submit: what its redirect's visit does. Default `push`. */
   readonly history?: HistoryMode;
 }
 
@@ -320,6 +323,15 @@ export function elementTargets(element: Element, submitter?: Element | null): st
   if (named !== null) return named.split(/\s+/).filter((target) => target !== "" && target !== "page");
   const region = element.closest("[data-region]")?.getAttribute("data-region");
   return region ? [region] : [];
+}
+
+/**
+ * What a link's or a form's visit does to history: `none` under `data-push="off"` on the submitter,
+ * else on the element, else `push`. A submitter's `data-push`, whatever its value, overrides the form's.
+ */
+export function elementHistory(element: Element, submitter?: Element | null): HistoryMode {
+  const push = submitter?.getAttribute("data-push") ?? element.getAttribute("data-push");
+  return push === "off" ? "none" : "push";
 }
 
 // --- The transport ------------------------------------------------------------------------
@@ -706,7 +718,7 @@ export function createTransport(options: TransportOptions): Transport {
           method: "GET",
           url: url.href,
           targets: request.targets,
-          history: request.kind === "visit" ? request.history : "push",
+          history: request.kind === "visit" || request.kind === "submit" ? request.history : "push",
           ...(request.element ? { element: request.element } : {}),
         });
         return { ...followed, redirectedTo: url.href };
@@ -858,7 +870,7 @@ export function createTransport(options: TransportOptions): Transport {
       element: input.element,
       body: input.body,
       signals,
-      history: input.kind === "visit" ? (input.history ?? "push") : "none",
+      history: input.kind === "visit" || input.kind === "submit" ? (input.history ?? "push") : "none",
       writeId: isWrite(method) ? window.crypto.randomUUID() : undefined,
     });
 
@@ -930,12 +942,13 @@ export function createTransport(options: TransportOptions): Transport {
       return error instanceof Error ? error : new TransportError(String(error));
     }
     const targets = elementTargets(form, submitter);
+    const history = elementHistory(form, submitter);
     if (method === "get") {
       action.search = new URLSearchParams(textEntries(data)).toString();
-      return { kind: kind ?? "visit", method: "GET", url: action.href, targets, element: element ?? form };
+      return { kind: kind ?? "visit", method: "GET", url: action.href, targets, element: element ?? form, history };
     }
     const type = encoding(submitterAttribute(submitter, "formenctype") ?? form.getAttribute("enctype"));
-    return { kind: kind ?? "submit", method: "POST", url: action.href, targets, element: element ?? form, body: encodeForm(data, type) };
+    return { kind: kind ?? "submit", method: "POST", url: action.href, targets, element: element ?? form, body: encodeForm(data, type), history };
   };
 
   const actions: ActionSeam = (call: ActionCall) => {

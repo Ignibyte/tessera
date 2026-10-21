@@ -170,6 +170,7 @@ column builds the browser behaviour; the name and the meaning are fixed here.
 |---|---|---|---|
 | `data-region="NAME"` | any element | The element is region `NAME` (section 2.1). | #9 |
 | `data-target="TARGETS"` | `<a>`, `<form>`, a submit `<button>` or `<input>` | The targets a visit or submission updates, space-separated (`content`, `content sidebar`, `page`). On a submitter it overrides the form's. Without it: the innermost region containing the element, or `page` when there is none. | #13 |
+| `data-push="off"` | `<a>`, `<form>`, a submit `<button>` or `<input>` | The visit, or the visit a submission's `Tessera-Location` leads to, commits as usual and leaves history as it was: no entry, the URL unchanged. For tab-like swaps. On a submitter, `data-push` with any value overrides the form's, so `data-push="on"` there pushes. Any value but `off` pushes, which is the default. | #28 |
 | `data-enhance="off"` | any element | Links and forms inside it, and the element itself, are left to the browser. `data-enhance="on"` inside an `off` element turns enhancement back on; the nearest one wins. | #13 |
 | `data-track` | `<script src>`, `<link href>` in `<head>` | A tracked asset. Any change to the set of tracked assets forces a full load (section 9). The value is optional and is compared too, so `data-track="v42"` can carry a build id. | #13 |
 | `autofocus` | a focusable element in a fragment | The server's choice of focus after an update. | #14 |
@@ -182,6 +183,16 @@ column builds the browser behaviour; the name and the meaning are fixed here.
 | `data-prefetch="hover"` or `"off"` | an `<a>` or any element around links | Enhanced links prefetch their visit on mousedown; `hover` also prefetches after the pointer rests on the link for 60 ms, and `off` never prefetches. The nearest one wins. | #17 |
 | `data-stream="URL"` | any element | Open a stream (section 7) that lives as long as the element. | #16 |
 | `data-signals__region`, `data-signals__document` | any element | Declare signals into the enclosing region's scope or the document's scope instead of the nearest one. | #8 |
+
+`data-push="off"` changes only what a visit does to history. With `data-target` it is the usual
+tab: the named targets update and the address stays. Without `data-target` the visit still targets
+the innermost region, or `page`; a `page` visit that keeps the old URL shows a document the address
+does not name, so keep `off` to regions. A GET form under it sends its query as usual and leaves
+the URL without it. A `Tessera-Location` answer is followed as section 5.4 says, with no entry.
+Tessera moves neither focus nor scroll after such a visit, as after a refresh. Anything that ends
+in a full load (section 5.6), a `Tessera-Location` on another origin and `Tessera-Full-Visit`
+change the address regardless, since the browser loads the URL itself. With JavaScript off the
+link or form is a plain one and the browser pushes as usual.
 
 Tessera also reads three `<meta>` elements in `<head>`:
 
@@ -460,7 +471,8 @@ Vary: Tessera-Request, Tessera-Protocol, Tessera-Targets, Tessera-Layout
 - The value is a URL, absolute or relative to the request's URL, as in `Location`.
 - Tessera follows it with a fresh GET: a `visit` with the original request's `Tessera-Targets`.
   The body of the original request is never sent again. A same-origin URL becomes an enhanced
-  visit and its URL is pushed to history; a URL on another origin becomes a full load.
+  visit and its URL is pushed to history, unless the link or form opted out with
+  `data-push="off"` (section 3); a URL on another origin becomes a full load.
 - A server must not send `307` or `308` to a Tessera write. Tessera sends writes with
   `redirect: "manual"`, so any real redirect reaching it, from the server or from a proxy in
   front of it, arrives without a location: Tessera reports the write as indeterminate and follows
@@ -518,14 +530,14 @@ A request without the header (a plain form post, an older Tessera) is applied as
 
 | Status | What the server means | What Tessera does |
 |---|---|---|
-| `200` | Here is the result. | Commits the body: a full document, fragments, or `Tessera-Location`. A visit pushes its URL. |
+| `200` | Here is the result. | Commits the body: a full document, fragments, or `Tessera-Location`. A visit pushes its URL, unless it opted out (section 3). |
 | `204` | Nothing changes. | Nothing: no commit, no history entry. A visit stays on the current page, as a browser does. A stream stops. |
 | `301`, `302`, `303` | Look elsewhere. | Never seen from a server speaking the protocol (section 5.4). From a proxy: a read follows it; a write is reported as indeterminate. |
 | `307`, `308` | Resend the request elsewhere. | A read follows it. A write is reported as indeterminate and never resent. |
 | `400` with a `Tessera-Protocol` header not listing `0` | This server does not speak your version. | Full load (section 1). |
 | `409`, `422` | The write was refused; here is why. | Commits the fragments in place: the form's region with its errors. No history entry; the URL stays. Focus goes to `data-error-summary`, else the first `aria-invalid="true"` field. |
 | `419` | The page expired (the session or the CSRF token is stale). | Raises a "page expired" event (`tessera:expired`, cancelable, on the document). Its default prompt offers a reload of the current page. Nothing is resent. |
-| other `4xx` with a recognized body | The request failed; here is the page or region to show (a `404` page, a `403` notice). | Commits it as for `200`. A visit pushes its URL, as the browser would show the error page at that URL. |
+| other `4xx` with a recognized body | The request failed; here is the page or region to show (a `404` page, a `403` notice). | Commits it as for `200`. A visit pushes its URL, as the browser would show the error page at that URL, unless it opted out (section 3). |
 | `5xx` with a recognized body | The server failed and rendered an error. | Commits it as for a `4xx`. |
 | any status without a recognized body | A response Tessera cannot use. | Reports an error. A visit does a full load; a write is reported as indeterminate. |
 

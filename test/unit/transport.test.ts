@@ -101,6 +101,18 @@ describe("redirects", () => {
     expect(pushed).toEqual([`${ORIGIN}/done`]);
   });
 
+  it("follows Tessera-Location without a history entry after a form under data-push=\"off\"", async () => {
+    const { transport, calls, respond, find, form, pushed } = setup(
+      `<main data-region="content"><form id="f" method="post" action="/save" data-push="off"><button id="go">Go</button></form><p id="text">old</p></main>`,
+    );
+    respond(() => empty(200, { "Tessera-Location": "/done", "Tessera-Protocol": "0" }), () => fragments(contentFragment("done")));
+    const outcome = await transport.submit(form("#f"), find("#go"));
+    expect(outcome).toMatchObject({ status: "committed", redirectedTo: `${ORIGIN}/done` });
+    expect(calls[1]?.headers).toMatchObject({ "tessera-request": "visit", "tessera-targets": "content" });
+    expect(find("#text").textContent).toBe("done");
+    expect(pushed).toEqual([]);
+  });
+
   it("hands a Tessera-Location on another origin to the browser", async () => {
     const { transport, respond, navigated, calls } = setup(content);
     respond(() => empty(200, { "Tessera-Location": "https://elsewhere.example/x" }));
@@ -188,6 +200,22 @@ describe("forms: the submitter and its overrides", () => {
     const { transport, calls, find, form } = setup(formHtml);
     expect((await transport.submit(form("#f"), find("#dialog"))).status).toBe("failed");
     expect(calls).toEqual([]);
+  });
+
+  it("takes data-push from the submitter, then the form: off commits without a history entry", async () => {
+    const { transport, calls, respond, find, form, pushed } = setup(
+      `<nav><form id="off" action="/tabs" data-target="content" data-push="off"><button id="keep">Keep</button><button id="push" data-push="on">Push</button></form>` +
+        `<form id="on" action="/tabs" data-target="content"><button id="plain">Plain</button><button id="skip" data-push="off">Skip</button></form></nav>${content}`,
+    );
+    respond(...["a", "b", "c", "d"].map((text) => () => fragments(contentFragment(text))));
+    const outcomes: RequestOutcome[] = [];
+    for (const [selector, submitter] of [["#off", "#keep"], ["#off", "#push"], ["#on", "#plain"], ["#on", "#skip"]] as const) {
+      outcomes.push(await transport.submit(form(selector), find(submitter)));
+    }
+    expect(outcomes.map(({ status }) => status)).toEqual(["committed", "committed", "committed", "committed"]);
+    expect(calls.map(({ headers }) => headers["tessera-request"])).toEqual(["visit", "visit", "visit", "visit"]);
+    expect(find("#text").textContent).toBe("d");
+    expect(pushed).toEqual([`${ORIGIN}/tabs`, `${ORIGIN}/tabs`]);
   });
 
   it("takes data-target from the submitter, then the form", async () => {

@@ -79,7 +79,7 @@ default so work could go on; Chad confirms or changes it, and until then the cod
 - **Names of the attributes a server renders** (**Provisional**, ticket #2, 2026-10-20):
   `data-target`, `data-enhance="off"`, `data-track`, `data-error-summary`, `data-permanent`,
   `data-lazy`, `data-poll`, `data-stream`, `data-signals__region` and `data-signals__document`
-  (and `data-prefetch`, added by ticket #17),
+  (and `data-prefetch`, added by ticket #17, and `data-push`, added by ticket #28),
   plus the standard `autofocus` and `aria-invalid`, and the metas `tessera-layout`,
   `tessera-csrf-token` and `tessera-csrf-header` (default header `X-CSRF-Token`). The owning
   tickets build the behaviour; the names are fixed in `docs/protocol.md`.
@@ -378,6 +378,17 @@ default so work could go on; Chad confirms or changes it, and until then the cod
     path limit bounds a read, and Tessera's computed signals are getters on the scope itself.
   - The #6 conformance suite passes with one named adaptation: `location-aware-errors` fails
     asynchronously through a helper's rejected promise, since there is no `throw` or `new`.
+
+- **`data-push="off"`: a visit that leaves history as it was** (**Provisional**, ticket #28,
+  2026-10-20; the driver asked for the opt-out after NAV-17). On a link, a form or a submitter;
+  the submitter's `data-push`, with any value, overrides the form's, as `data-target` does. Only
+  `off` opts out. The visit runs with history mode `none`: it commits as any visit does, but adds
+  or changes no entry, and Tessera moves neither focus nor scroll, as after a refresh or an action,
+  since #14's focus and scroll rules belong to entries. A submission's request now carries the
+  history mode of the visit its `Tessera-Location` leads to (`push`, or `none` when it opted
+  out), so `TesseraRequest.history` is `push` on a submit where it was `none`. Full loads, a
+  redirect to another origin and `Tessera-Full-Visit` still change the address. The matrix gains
+  TES-02. Reserved as a directive name.
 
 ## Open
 

@@ -70,6 +70,7 @@ It is part of `npm run test:browser` and `npm run test:browser:webkit`.
 | NAV-27 | prefetch | As jqstar: a hover alone sends nothing, since links prefetch on mousedown unless `data-prefetch="hover"`. | |
 | NAV-28 | accessibility | As jqstar. | |
 | TES-01 | write-307 | Tessera's own scenario. No frozen scenario answers a write with a real redirect, so a Tessera that followed one passed. A 307 asks for the same request again, body and all, and the protocol never converts it. Without JavaScript the browser sends the POST again to the new address; Tessera sends it once and shows its indeterminate message. | all four |
+| TES-02 | region-push-off | Tessera's own (#28): `#region-tab` is the region link with `data-push="off"`. Tessera updates `activity` and keeps the URL and the history length; the baseline is the plain link. | url, content, history length; focus stays on the kept link where the engine focuses a clicked link |
 
 ## What it found
 
@@ -102,3 +103,4 @@ and was undone:
 | A write is sent again after a failure reading its answer | NAV-16 in Chromium (Firefox fails the fetch itself, which this break did not touch) |
 | A write is sent again after any network failure | NAV-16 in both |
 | A newer read no longer supersedes an older one | NAV-19 in both (`requestCancellationFacts`) |
+| `data-push="off"` is ignored and the visit pushes (#28) | TES-02 in Chromium, the one engine it ran in (`urlKeptWhenEnhanced`, `historyKeptWhenEnhanced`) |
