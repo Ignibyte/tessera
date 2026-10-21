@@ -3,11 +3,12 @@ number: 25
 uuid: 886115fe-0cbb-4a36-b934-8597b3284b54
 title: "A commit inside a target makes a visit of that target drop its fragment"
 type: bug
-status: in-progress
+status: done
 tags: ["coordination","streams"]
 created: 2026-10-21T01:11:17Z
-updated: 2026-10-21T01:13:51Z
+updated: 2026-10-21T01:14:05Z
 phase: "docs"
+closed: 2026-10-21T01:14:05Z
 ---
 
 Found in #16 and confirmed as a bug by the driver. #12's generations touch a commit's target, every target around it and every target inside it, so a stream event that commits to `events` (inside `content`) while a visit of `content` is in flight makes the visit's fragment stale. The fragment is dropped and reported, but history still records the new URL: the URL changes and the content does not.
@@ -33,3 +34,7 @@ Files: `src/coordination.ts`, `test/unit/coordination.test.ts` (the first genera
 Acceptance:
 - Browser test: on `/events` with a slow stream, a visit of `content` is held by the controller; while it is held a stream event commits to `events`; the visit is then answered with the About page. The test checks the heading, the URL and that no stale-fragment error was reported. I will run it before the fix to see it fail.
 - The existing generation tests (unit and browser) still pass.
+
+### 2026-10-21T01:14:05Z
+
+Delivered via PR #20 (f9de0f8). A commit touches its target and what is inside it, never what is around it; a visit of a region lands when a stream event commits inside it.
