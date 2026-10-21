@@ -136,7 +136,8 @@ default so work could go on; Chad confirms or changes it, and until then the cod
   a signal that already holds a number, give a number, or `null` when empty; a checkbox gives a
   boolean, or toggles its value in a signal holding an array; a radio gives its value when
   checked and leaves the signal alone otherwise; a multiple select gives an array. Paths are
-  dotted, and each segment is camelCased (`data-bind:user.first-name` binds `$user.firstName`).
+  dotted, and each segment is camelCased (`data-bind:user.first-name` binds `$user.firstName`),
+  unless `__case` names another spelling (#23).
 - **How scopes resolve, declare and live** (**Provisional**, ticket #8, 2026-10-20): an
   element's scopes are its enclosing components (each opening marker), its enclosing regions and
   the document, innermost first. `$name` reads the innermost scope that has the name; a write
@@ -273,6 +274,15 @@ default so work could go on; Chad confirms or changes it, and until then the cod
   answer once, recording the prefetch's generation, so a commit between mousedown and click makes
   its fragment stale. 30 s, at most 8 waiting; a failed or `no-store` answer is not used.
   `data-permanent` now also holds through fragment morphs, as the same live node, unmorphed.
+- **Where `__case` applies** (**Provisional**, ticket #23, 2026-10-20): Datastar's modifier,
+  `__case.camel`, `__case.kebab`, `__case.snake` or `__case.pascal`, spells the attribute's key
+  from the kebab case HTML leaves it in, converting hyphens only (`.` and `:` stay). It applies to
+  `data-on` (default kebab, so event names stay as written) and to the directives that name a
+  signal, `data-computed`, `data-ref` and `data-bind` (default camel, as #7 already does; for
+  `data-bind`, each dotted segment). Not to `data-attr`, `data-style` or `data-class`, whose keys
+  are HTML attribute and CSS names; on those, `__case` is the usual unknown-modifier error.
+  `data-signals` takes no key. An unknown case, a missing or extra name, or two `__case` modifiers
+  is an error at the attribute.
 
 ## Open
 

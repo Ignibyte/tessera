@@ -381,6 +381,63 @@ describe("data-on", () => {
   });
 });
 
+describe("the __case modifier", () => {
+  const dispatch = (element: Element, type: string): void => {
+    element.dispatchEvent(new Event(type, { bubbles: true }));
+  };
+
+  it.each([
+    ["camel", "myEvent"],
+    ["snake", "my_event"],
+    ["pascal", "MyEvent"],
+    ["kebab", "my-event"],
+  ])("data-on:my-event__case.%s listens to %s", (spelling, type) => {
+    const { find, signals } = setup(`<button data-signals="{n: 0}" data-on:my-event__case.${spelling}="$n++"></button>`);
+    for (const other of ["myEvent", "my_event", "MyEvent", "my-event"]) dispatch(find("button"), other);
+    expect(signals.n).toBe(1);
+    dispatch(find("button"), type);
+    expect(signals.n).toBe(2);
+  });
+
+  it("leaves data-on's key in kebab case by default, and converts only hyphens", () => {
+    const { find, signals } = setup(
+      `<button data-signals="{n: 0, m: 0}" data-on:my-event="$n++" data-on:lib:after-swap.done__case.camel="$m++"></button>`,
+    );
+    dispatch(find("button"), "myEvent");
+    expect(signals.n).toBe(0);
+    dispatch(find("button"), "my-event");
+    expect(signals.n).toBe(1);
+    dispatch(find("button"), "lib:afterSwap.done");
+    expect(signals.m).toBe(1);
+  });
+
+  it("spells the signal data-computed, data-ref and data-bind name, camelCase by default", () => {
+    const { signals } = setup(
+      `<div data-signals="{n: 2}" data-computed:twice-n="$n * 2" data-computed:half-n__case.snake="$n / 2">
+         <input data-ref:the-field__case.pascal>
+         <input value="Ada" data-bind:user.first-name__case.snake>
+         <input value="x" data-bind:last-seen>
+       </div>`,
+    );
+    expect(signals.twiceN).toBe(4);
+    expect(signals.half_n).toBe(1);
+    expect((signals.TheField as Element).localName).toBe("input");
+    expect(signals.user).toEqual({ first_name: "Ada" });
+    expect(signals.lastSeen).toBe("x");
+  });
+
+  it.each([
+    ["an unknown case", "data-on:my-event__case.upper", "__case.upper is not a case; use camel, kebab, snake or pascal"],
+    ["two __case modifiers", "data-on:my-event__case.camel__case.snake", "one __case per attribute"],
+    ["__case without a name", "data-on:my-event__case", "__case takes one case name, as in __case.camel"],
+    ["__case with two names", "data-computed:my-value__case.camel.snake", "__case takes one case name, as in __case.camel"],
+    ["__case where it is not taken", "data-attr:aria-label__case.camel", "data-attr has no modifier case"],
+  ])("refuses %s", (_case, attribute, message) => {
+    const { failures } = setup(`<button ${attribute}="1"></button>`);
+    expect(messages(failures)).toEqual([expect.stringContaining(message)]);
+  });
+});
+
 describe("data-ignore", () => {
   it("skips an element and its subtree, or with __self only the element", () => {
     const { doc } = setup(
