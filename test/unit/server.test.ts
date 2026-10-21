@@ -354,9 +354,17 @@ describe("the stream", () => {
     expect(log).toEqual({ connections: [{ key: "log-a", lastEventId: null, closed: true }, { key: "log-a", lastEventId: "1", closed: true }] });
   });
 
+  it("sends a keep-alive comment every beat, from the start", async () => {
+    const started = performance.now();
+    const text = await readStream(await request("/events/stream?count=0&beat=100"), ": keep-alive\n\n: keep-alive\n\n");
+    expect(performance.now() - started).toBeGreaterThanOrEqual(190);
+    expect(text).toBe("retry: 1000\n\n: keep-alive\n\n: keep-alive\n\n");
+  });
+
   it("refuses options it does not know", async () => {
     expect((await request("/events/stream?end=later")).status).toBe(400);
     expect((await request("/events/stream?drop=x")).status).toBe(400);
+    expect((await request("/events/stream?beat=10")).status).toBe(400);
   });
 });
 

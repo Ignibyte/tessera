@@ -94,10 +94,11 @@ component and the signal for `count`. Query parameters:
 | `count` | 3 | events, 0 to 1000 |
 | `interval` | 0 | ms between events |
 | `retry` | 1000 | the `retry:` value |
-| `end` | `open` | `open` keeps the connection with a comment every 15 s; `drop` ends the body without `tessera-close`; `close` sends `tessera-close` |
+| `end` | `open` | `open` keeps the connection; `drop` ends the body without `tessera-close`; `close` sends `tessera-close` |
 | `pause` | | `hidden` sends `Tessera-Stream-Pause: hidden` |
 | `drop` | | `K` destroys a connection without `Last-Event-ID` after step `K`, so the client sees a network failure; a resumed connection runs to the end |
 | `key` | | logs the connection under `K` for `/events/log` |
+| `beat` | 15000 | ms between `: keep-alive` comments, from the start of the connection (100 to 60000); WebKit can hold received bytes until more arrive, so the stream tests use 250 |
 
 ## The controller
 

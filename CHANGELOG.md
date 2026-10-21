@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- The browser suite passes in WebKit: the write-id test asserts whichever a browser does with a
+  dropped write (a repeat answered from the store, or no repeat and an indeterminate write), and
+  the stream tests allow for WebKit holding a burst's tail until the next bytes, with the
+  reference stream's new `beat` comments; protocol 7.1 asks servers for a comment at least every
+  15 seconds (#27).
+
 - `npm run test:browser:webkit` runs the browser tests in WebKit from the pinned Playwright Docker
   image (`scripts/webkit.ts`), with the runner and the reference server on the host; a unit test
   fails when the image tag and `@playwright/test` drift (#20).
