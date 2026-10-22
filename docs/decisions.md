@@ -423,7 +423,7 @@ default so work could go on; Chad confirms or changes it, and until then the cod
     on Linux, cut at another place, and released by the next write as on Linux. Real Safari showed
     none in 10,000 runs, which bounds its rate but does not rule it out. Protocol 7.1's keep-alive
     comment stays the remedy.
-- **A release ships two builds** (**Provisional**, ticket #19, 2026-10-20; the driver's decision,
+- **A release ships two builds** (**Confirmed by Chad 2026-10-22**, ticket #19, 2026-10-20; the driver's decision,
   Chad to confirm): the default, `tessera.js`, `tessera.min.js` and `tessera.iife.js`, with the
   trusted engine, and `tessera.csp.js`, `tessera.csp.min.js` and `tessera.csp.iife.js` with the
   no-eval engine. Each has its source map, and `SHA256SUMS` covers the twelve files
@@ -431,7 +431,7 @@ default so work could go on; Chad confirms or changes it, and until then the cod
   `tessera.csp` and recommends it as the safe default for frameworks. `npm run size` holds each
   minified ES module to a budget and checks that the default build holds nothing of the no-eval
   engine and the csp build nothing that compiles code from a string (`Function(`, `eval(`).
-- **The public API** (**Provisional**, ticket #19, 2026-10-20): each build exports `start`,
+- **The public API** (**Confirmed by Chad 2026-10-22**, ticket #19, 2026-10-20): each build exports `start`,
   `version` and the three event names; `src/start.ts` is the runtime both share, and each entry
   binds its engine, so the choice of engine is the choice of file, not an option.
   `start({ helpers })` boots what the test harness boots (with the transport's real action seam)
