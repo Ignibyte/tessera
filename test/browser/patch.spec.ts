@@ -32,6 +32,20 @@ test("morphing a region keeps the focused input, its value and its caret", async
   await expect(field).toHaveValue("typed!");
 });
 
+test("a component patch leaves the fields beside it as the user set them (#32)", async ({ page }) => {
+  await page.locator("#field").fill("typed");
+  await page.locator("#choice").selectOption("b");
+  await page.locator("h1").click();
+
+  await page.evaluate(() => {
+    (window as unknown as HarnessWindow).tesseraHarness.patch("form-area/list", `<!--t:c list--><p id="list">new list</p><!--/t:c-->`);
+  });
+
+  await expect(page.locator("#list")).toHaveText("new list");
+  await expect(page.locator("#field")).toHaveValue("typed");
+  await expect(page.locator("#choice")).toHaveValue("b");
+});
+
 test("a fragment's script is inserted as markup and never runs", async ({ page }) => {
   await page.evaluate(() => {
     (window as unknown as HarnessWindow).tesseraHarness.patch(

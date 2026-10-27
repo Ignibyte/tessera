@@ -251,19 +251,29 @@ export function createPatcher(options: PatcherOptions): Patcher {
   const { kernel, scopes, refresh } = options;
   const { document } = kernel;
 
-  /** Morphs `parent`'s children so that the run `first`…`last` becomes `replacement`. */
+  /**
+   * Morphs `parent`'s children so that the run `first`…`last` becomes `replacement`. The children
+   * outside the run go in as copies so Idiomorph keeps their places, and are never morphed from
+   * them: a copy carries a field's markup, not what the user set (#32).
+   */
   const morphRange = (parent: Node, first: Node, last: Node, replacement: readonly Node[], callbacks: IdiomorphCallbacks): void => {
     const copy: Node[] = [];
+    const outside = new Set<Node>();
     let inside = false;
     for (const child of Array.from(parent.childNodes)) {
       if (child === first) {
         inside = true;
         copy.push(...replacement);
       }
-      if (!inside) copy.push(child.cloneNode(true));
+      if (!inside) {
+        outside.add(child);
+        copy.push(child.cloneNode(true));
+      }
       if (child === last) inside = false;
     }
-    Idiomorph.morph(parent, copy, { morphStyle: "innerHTML", restoreFocus: true, callbacks });
+    const beforeNodeMorphed: IdiomorphCallbacks["beforeNodeMorphed"] = (oldNode, newNode) =>
+      outside.has(oldNode) ? false : callbacks.beforeNodeMorphed?.(oldNode, newNode);
+    Idiomorph.morph(parent, copy, { morphStyle: "innerHTML", restoreFocus: true, callbacks: { ...callbacks, beforeNodeMorphed } });
   };
 
   const apply = (

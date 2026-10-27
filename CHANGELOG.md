@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- A morph of a component no longer resets the fields beside it: the nodes that share the
+  component's parent kept their place in the morph but were morphed from copies, so a select or a
+  checkbox the user had set went back to its markup (#32).
+
 - The browser suite passes in WebKit on macOS: the two history focus tests follow their link from
   the keyboard, since macOS WebKit does not focus a clicked link, and NAV-17 declares the focus it
   ends on there (#31).
