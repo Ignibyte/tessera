@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+## 0.1.1 (2026-10-27)
+
+A component morph keeps the fields beside it, and the browser suite passes in WebKit on macOS. No
+known issues.
+
 - A morph of a component no longer resets the fields beside it: the nodes that share the
   component's parent kept their place in the morph but were morphed from copies, so a select or a
   checkbox the user had set went back to its markup (#32).
