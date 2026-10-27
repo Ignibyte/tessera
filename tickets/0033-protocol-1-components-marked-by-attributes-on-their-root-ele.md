@@ -3,11 +3,12 @@ number: 33
 uuid: badf4141-f6b3-4355-9dc1-021717509bcd
 title: "Protocol 1: components marked by attributes on their root element"
 type: feature
-status: in-progress
+status: done
 tags: ["protocol","patch"]
 created: 2026-10-27T13:01:41Z
-updated: 2026-10-27T13:55:27Z
+updated: 2026-10-27T14:06:05Z
 phase: "check"
+closed: 2026-10-27T14:06:05Z
 ---
 
 Chad, 2026-10-28: components are marked by data attributes, not comments. Protocol 0 spells a component <!--t:c KEY PROPS--> ... <!--/t:c--> and a block <!--t:b-->...<!--/t:b--> (decision 'Identity spelling', ticket #2). Protocol 1: a component is exactly one element carrying data-t-c="KEY" (and data-t-props="TOKEN" when it has props); its path is the data-t-c keys of its ancestors from the region (data-region) down, as before. A component may carry data-t-anchor="NAME"; a link, form or poll may target "@NAME", which the runtime resolves to that component's path from the DOM before it sends Tessera-Targets (an unknown or doubled anchor is an error). Blocks: decide in plan whether keyed morphing makes t:b unnecessary, or blocks become an attribute on an element. The runtime finds [data-t-c] by selector instead of walking comments; patch and scopes follow. Tessera-Protocol 1; 0 is refused with the versions spoken (400). docs/protocol.md, decisions.md, the reference server and the browser suite move to 1. Release 0.2.0.
@@ -46,3 +47,7 @@ Acceptance, shown by:
 - `npm run check`, `npm run test:browser`, `npm run test:browser:webkit` exit 0, run one at a time.
 
 The release (0.2.0) is left to the driver.
+
+### 2026-10-27T14:06:05Z
+
+Delivered via PR #36 (a14717c). Protocol 1: components on their element (data-t-c, data-t-props), anchors (@NAME via data-t-anchor), blocks dropped, Tessera-Protocol 1; check, test:browser (220) and test:browser:webkit (110) exit 0. Release 0.2.0 left to the driver.
