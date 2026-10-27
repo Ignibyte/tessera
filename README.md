@@ -70,7 +70,7 @@ Most of it is markup the server renders (`docs/protocol.md`, section 3):
 | Member | What it does |
 |---|---|
 | `signals` | The document's signal scope, reactive: writing `signals.count = 3` updates every directive that reads `$count` from it. |
-| `visit(url, { targets, history })` | Visits `url` as a click on a link would. `targets` names regions or components (none: the page); `history` is `push` (the default), `replace` or `none`. Resolves to the outcome (`committed`, `full-load`, `superseded`, …). |
+| `visit(url, { targets, history })` | Visits `url` as a click on a link would. `targets` names regions or components by path, or a component as `@NAME` by its `data-t-anchor` (none: the page); `history` is `push` (the default), `replace` or `none`. Resolves to the outcome (`committed`, `full-load`, `superseded`, …). |
 | `intercept({ before, after, error })` | Adds an interceptor to every request; returns the function that removes it. `before({ request, headers })` runs once before dispatch and may set headers (Tessera's own are restored after it); `after({ request, outcome })` and `error({ request, error })` run when the request settles. A stream's connection runs `before` only. |
 | `stop()` | Releases everything Tessera started on the document: listeners, streams, polls, history ownership. Links and forms go back to the browser. |
 

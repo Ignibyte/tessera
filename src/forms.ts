@@ -4,6 +4,7 @@
 // message when a write's fate is unknown.
 import { busyElements, resolveTarget } from "./coordination.ts";
 import type { Kernel } from "./kernel.ts";
+import { resolveAnchors } from "./patch.ts";
 import { elementTargets } from "./transport.ts";
 import type { RequestOutcome, Transport } from "./transport.ts";
 
@@ -104,7 +105,13 @@ export function interceptForms(options: FormOptions): void {
     inFlight.add(form);
     messages.get(form)?.remove();
     messages.delete(form);
-    const targets = elementTargets(form, submitter);
+    // The paths the request names; an anchor that does not resolve fails the submission itself.
+    let targets: string[] = [];
+    try {
+      targets = resolveAnchors(document, elementTargets(form, submitter));
+    } catch {
+      // The transport reports it.
+    }
     void transport
       .submit(form, submitter)
       .then(async (outcome) => {

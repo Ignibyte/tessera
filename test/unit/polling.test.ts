@@ -86,7 +86,7 @@ describe("shared clocks", () => {
   });
 
   it("sends a refresh of the element's innermost component or region, as a poll", async () => {
-    const { calls, requested } = start(`<main data-region="content"><!--t:c cart--><div data-poll__100ms="/cart"></div><!--/t:c--></main>`, quiet(1));
+    const { calls, requested } = start(`<main data-region="content"><div data-t-c="cart"><div data-poll__100ms="/cart"></div></div></main>`, quiet(1));
     await advance(100);
     expect(requested.mock.calls[0]?.[0]).toMatchObject({ kind: "refresh", url: "/cart", targets: ["content/cart"], poll: true });
     // The transport's 0 ms buffer is a 1 ms timer under fake timers.

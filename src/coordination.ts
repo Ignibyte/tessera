@@ -12,11 +12,10 @@ export type Relation = "same" | "inside" | "around" | "disjoint";
 
 export type Decision = "independent" | "supersede" | "queue" | "skip";
 
-/** A target found on the page: the document, a region's element, or a component's markers. */
+/** A target found on the page: the document, a region's element, or a component's element. */
 export type TargetNode =
   | { readonly kind: "page"; readonly document: Document }
-  | { readonly kind: "region"; readonly element: Element }
-  | { readonly kind: "component"; readonly opener: Comment; readonly closer: Comment };
+  | { readonly kind: "region" | "component"; readonly element: Element };
 
 /**
  * The table (docs/protocol.md 4.6), for a newer request against an older one in flight or
@@ -37,30 +36,21 @@ export function decide(newer: RequestClass, older: RequestClass, relation: Relat
 export function resolveTarget(document: Document, target: string): TargetNode | undefined {
   if (target === "page") return { kind: "page", document };
   try {
-    const found = findTarget(document, target);
-    return found.kind === "region"
-      ? { kind: "region", element: found.element }
-      : { kind: "component", opener: found.opener, closer: found.closer };
+    return findTarget(document, target);
   } catch {
     return undefined;
   }
 }
 
 function nodeOf(target: TargetNode): Node {
-  if (target.kind === "page") return target.document;
-  return target.kind === "region" ? target.element : target.opener;
+  return target.kind === "page" ? target.document : target.element;
 }
 
 /** Whether `inner` lies strictly within `outer`. */
 function contains(outer: TargetNode, inner: TargetNode): boolean {
   if (inner.kind === "page") return false;
   if (outer.kind === "page") return true;
-  const node = nodeOf(inner);
-  if (outer.kind === "region") return outer.element !== node && outer.element.contains(node);
-  if (node === outer.opener) return false;
-  const after = outer.opener.compareDocumentPosition(node) & Node.DOCUMENT_POSITION_FOLLOWING;
-  const before = outer.closer.compareDocumentPosition(node) & Node.DOCUMENT_POSITION_PRECEDING;
-  return Boolean(after && before);
+  return outer.element !== inner.element && outer.element.contains(inner.element);
 }
 
 /** How `a` lies against `b`: the same target, inside it, around it, or apart. */
@@ -122,27 +112,11 @@ export class Generations {
     const sequence = ++this.#sequence;
     const node = nodeOf(target);
     this.#touched.set(node, sequence);
-    if (target.kind === "page") {
-      for (const owner of ownersWithin(target.document, [])) this.#touched.set(owner, sequence);
-      return;
-    }
-    if (target.kind === "region") {
-      for (const owner of ownersWithin(target.element, [])) this.#touched.set(owner, sequence);
-      return;
-    }
-    for (let inside = target.opener.nextSibling; inside && inside !== target.closer; inside = inside.nextSibling) {
-      for (const owner of ownersWithin(inside, [])) this.#touched.set(owner, sequence);
-    }
+    for (const owner of ownersWithin(node, [])) this.#touched.set(owner, sequence);
   }
 }
 
 /** The elements that carry `aria-busy` for a target. */
 export function busyElements(target: TargetNode): Element[] {
-  if (target.kind === "page") return [target.document.body];
-  if (target.kind === "region") return [target.element];
-  const elements: Element[] = [];
-  for (let node = target.opener.nextSibling; node && node !== target.closer; node = node.nextSibling) {
-    if (node.nodeType === 1) elements.push(node as Element);
-  }
-  return elements;
+  return [target.kind === "page" ? target.document.body : target.element];
 }

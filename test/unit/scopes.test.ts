@@ -1,5 +1,5 @@
 // Signal scopes: resolution through the chain, isolation, declaring with modifiers, writes,
-// disposal, moves, morph-like changes to a component's marker, and the request payload.
+// disposal, moves, morph-like changes to a component's element, and the request payload.
 import { afterEach, describe, expect, it } from "vitest";
 import { encodeSignals, MAX_SIGNALS_BYTES } from "../../src/scopes.ts";
 import { disposeFixtures, setup } from "./attributes-fixture.ts";
@@ -13,9 +13,9 @@ function messages(failures: readonly { error: unknown }[]): string[] {
 const page = `
   <p id="top" data-signals="{label: 'document', d: 1}" data-text="$label"></p>
   <main data-region="content" data-signals="{label: 'region', r: 1}">
-    <!--t:c card eyJpZCI6MX0.c2ln-->
+    <div data-t-c="card" data-t-props="eyJpZCI6MX0.c2ln">
       <p id="inner" data-signals="{label: 'card'}" data-text="[$label, $r, $d].join()"></p>
-    <!--/t:c-->
+    </div>
     <p id="middle" data-text="[$label, $r, $d].join()"></p>
   </main>`;
 
@@ -28,23 +28,25 @@ describe("resolution", () => {
     expect(failures).toEqual([]);
   });
 
-  it("follows the chain innermost first, through nested components at one level, past blocks", () => {
+  it("follows the chain innermost first, from the element itself out through its components and regions", () => {
     const { find, mount } = setup(`
       <section data-region="list">
-        <!--t:c outer--><!--t:b--><!--/t:b--><!--t:c inner--><p id="x"></p><!--/t:c--><p id="y"></p><!--/t:c-->
+        <div data-t-c="outer"><ul><li data-t-c="inner" id="z"><p id="x"></p></li></ul><p id="y"></p></div>
       </section>`);
     const describe = (id: string) =>
       mount.scopes.owners(find(id)).map((owner) =>
-        owner.nodeType === 8 ? (owner as Comment).data : owner.nodeType === 1 ? (owner as Element).localName : "document",
+        owner.nodeType === 1 ? ((owner as Element).getAttribute("data-t-c") ?? (owner as Element).localName) : "document",
       );
-    expect(describe("#x")).toEqual(["t:c inner", "t:c outer", "section", "document"]);
-    expect(describe("#y")).toEqual(["t:c outer", "section", "document"]);
+    expect(describe("#x")).toEqual(["inner", "outer", "section", "document"]);
+    expect(describe("#y")).toEqual(["outer", "section", "document"]);
+    expect(describe("#z")).toEqual(["inner", "outer", "section", "document"]);
+    expect(mount.scopes.pathOf(find("#z"))).toBe("list/outer/inner");
   });
 
   it("re-runs a read when an inner scope later declares the name", async () => {
     const { find, doc, settle } = setup(`
       <p data-signals="{tone: 'document'}"></p>
-      <!--t:c note--><div id="host"><span data-text="$tone"></span></div><!--/t:c-->`);
+      <div data-t-c="note"><div id="host"><span data-text="$tone"></span></div></div>`);
     expect(find("span").textContent).toBe("document");
     const declare = doc.createElement("i");
     declare.setAttribute("data-signals", "{tone: 'component'}");
@@ -57,7 +59,7 @@ describe("resolution", () => {
 describe("isolation", () => {
   it("keeps same-named signals in sibling components apart", async () => {
     const card = (key: string) =>
-      `<!--t:c ${key}--><div id="${key}" data-signals="{open: false}"><button data-on:click="$open = !$open"></button><span data-text="$open"></span></div><!--/t:c-->`;
+      `<div data-t-c="${key}" id="${key}" data-signals="{open: false}"><button data-on:click="$open = !$open"></button><span data-text="$open"></span></div>`;
     const { find, settle, signals } = setup(`<main data-region="content">${card("a")}${card("b")}</main>`);
     (find("#a button") as HTMLButtonElement).click();
     await settle();
@@ -68,7 +70,7 @@ describe("isolation", () => {
 
   it("gives refs, computed values and new bindings to the nearest scope", () => {
     const card = (key: string) =>
-      `<!--t:c ${key}--><input id="${key}" value="${key}" data-ref:field data-bind:text data-computed:shout="$text.toUpperCase()"><!--/t:c-->`;
+      `<span data-t-c="${key}"><input id="${key}" value="${key}" data-ref:field data-bind:text data-computed:shout="$text.toUpperCase()"></span>`;
     const { find, mount, signals } = setup(card("a") + card("b"));
     const [a, b] = [find("#a"), find("#b")];
     const scopeA = mount.scopes.scopeFor(a, "nearest");
@@ -83,7 +85,7 @@ describe("isolation", () => {
 describe("declaring and writing", () => {
   it("declares into the region or the document with __region and __document", () => {
     const { find, mount, signals } = setup(`
-      <main data-region="content"><!--t:c card--><p data-signals__region="{shared: 1}" data-signals__document="{global: 2}"></p><!--/t:c--></main>
+      <main data-region="content"><div data-t-c="card"><p data-signals__region="{shared: 1}" data-signals__document="{global: 2}"></p></div></main>
       <p id="loose" data-signals__region="{fallback: 3}"></p>`);
     expect(mount.scopes.scopeOf(find("main"))).toEqual({ shared: 1 });
     expect(signals).toEqual({ global: 2, fallback: 3 });
@@ -97,7 +99,7 @@ describe("declaring and writing", () => {
   it("writes to the scope that has the name, else to the nearest scope", async () => {
     const { find, mount, settle, signals } = setup(`
       <main data-region="content" data-signals="{r: 1}">
-        <!--t:c card--><button data-on:click="$r = 2; $fresh = 'here'"></button><!--/t:c-->
+        <div data-t-c="card"><button data-on:click="$r = 2; $fresh = 'here'"></button></div>
       </main>`);
     find("button").click();
     await settle();
@@ -115,7 +117,7 @@ describe("lifetime", () => {
     const card = mount.scopes.scopeFor(find("#inner"), "nearest");
 
     const main = find("main");
-    for (const node of Array.from(main.childNodes).slice(0, 4)) node.remove();
+    find('[data-t-c="card"]').remove();
     await settle();
     expect(scopeOwners()).toEqual(["region:content"]);
 
@@ -140,8 +142,8 @@ describe("lifetime", () => {
 
   it("rebinds an element moved into another component to that component's scope", async () => {
     const { find, settle } = setup(
-      `<!--t:c a--><div id="a" data-signals="{who: 'a'}"></div><!--/t:c-->` +
-        `<!--t:c b--><div id="b" data-signals="{who: 'b'}"></div><!--/t:c-->` +
+      `<div data-t-c="a"><div id="a" data-signals="{who: 'a'}"></div></div>` +
+        `<div data-t-c="b"><div id="b" data-signals="{who: 'b'}"></div></div>` +
         `<p id="p" data-text="$who ?? 'none'"></p>`,
     );
     const p = find("#p");
@@ -172,47 +174,56 @@ describe("lifetime", () => {
 
 describe("across a morph", () => {
   function component(key: string) {
-    const fixture = setup(`<!--t:c ${key}--><p data-signals="{n: 1}"></p><!--/t:c-->`);
-    const opener = fixture.doc.body.firstChild as Comment;
-    // Replaces what lies between whichever opening marker is now first and its closer.
+    const fixture = setup(`<div data-t-c="${key}"><p data-signals="{n: 1}"></p></div>`);
+    const element = fixture.doc.body.firstElementChild as HTMLElement;
+    // Replaces the children of whichever component element is now first.
     const replaceContent = async (html: string): Promise<void> => {
-      const current = fixture.doc.body.firstChild as Comment;
-      current.nextSibling?.remove();
-      const holder = fixture.doc.createElement("template");
-      holder.innerHTML = html;
-      current.after(holder.content);
+      const current = fixture.doc.body.firstElementChild as HTMLElement;
+      current.innerHTML = html;
       await fixture.settle();
     };
-    return { ...fixture, opener, replaceContent };
+    return { ...fixture, element, replaceContent };
   }
 
-  it("keeps the scope when the marker and its key stay", async () => {
+  it("keeps the scope when the element and its key stay", async () => {
     const { find, replaceContent, signals } = component("card");
     await replaceContent(`<span data-text="$n ?? 'reset'"></span>`);
     expect(find("span").textContent).toBe("1");
     expect(signals).toEqual({});
   });
 
-  it("starts afresh when the marker's key changes", async () => {
-    const { find, opener, replaceContent } = component("card");
-    opener.data = "t:c other";
+  it("starts afresh when the element's key changes", async () => {
+    const { find, element, replaceContent } = component("card");
+    element.setAttribute("data-t-c", "other");
     await replaceContent(`<span data-text="$n ?? 'reset'"></span>`);
     expect(find("span").textContent).toBe("reset");
   });
 
-  it("carries the scope to a new marker with the same key, and not to another key", async () => {
+  it("carries the scope to a new element with the same key, and not to another key", async () => {
     const first = component("card");
-    const replacement = first.doc.createComment("t:c card");
-    first.opener.replaceWith(replacement);
-    first.mount.scopes.transfer(first.opener, replacement);
+    const replacement = first.doc.createElement("div");
+    replacement.setAttribute("data-t-c", "card");
+    first.element.replaceWith(replacement);
+    first.mount.scopes.transfer(first.element, replacement);
     await first.replaceContent(`<span data-text="$n ?? 'reset'"></span>`);
     expect(first.find("span").textContent).toBe("1");
 
     const second = component("card");
-    const other = second.doc.createComment("t:c other");
-    second.opener.replaceWith(other);
-    second.mount.scopes.transfer(second.opener, other);
+    const other = second.doc.createElement("div");
+    other.setAttribute("data-t-c", "other");
+    second.element.replaceWith(other);
+    second.mount.scopes.transfer(second.element, other);
     expect(second.mount.scopes.scopeOf(other)).toEqual({});
+  });
+
+  it("does not carry a component's scope to a region of the same name", () => {
+    const { element, mount, doc } = component("card");
+    mount.scopes.scopeOf(element).n = 5;
+    const region = doc.createElement("div");
+    region.setAttribute("data-region", "card");
+    element.replaceWith(region);
+    mount.scopes.transfer(element, region);
+    expect(mount.scopes.scopeOf(region)).toEqual({});
   });
 });
 
@@ -221,8 +232,8 @@ describe("the request payload", () => {
     const { find, mount } = setup(`
       <p data-signals="{d: 1, label: 'document'}"></p>
       <main data-region="content" data-signals="{r: 1, label: 'region'}">
-        <!--t:c a--><p id="a" data-signals="{x: 1, label: 'a'}"></p><!--/t:c-->
-        <!--t:c b--><p id="b" data-signals="{y: 2}"></p><!--/t:c-->
+        <p data-t-c="a" id="a" data-signals="{x: 1, label: 'a'}"></p>
+        <p data-t-c="b" id="b" data-signals="{y: 2}"></p>
       </main>`);
     expect(mount.scopes.payload(find("#a"))).toEqual({ d: 1, r: 1, x: 1, label: "a" });
     expect(mount.scopes.payload(find("#b"))).toEqual({ d: 1, r: 1, y: 2, label: "region" });

@@ -3,7 +3,7 @@
 // fixture site (server.ts) and the navigation matrix's site (navigation.ts).
 import { contains, fragmentBody, parseTargets, verify } from "./html.ts";
 import type { Identity, Rendered } from "./html.ts";
-import { header, isTessera, text } from "./http.ts";
+import { header, isTessera, PROTOCOL, text } from "./http.ts";
 import type { FixtureRequest, FixtureResponse, Secrets } from "./http.ts";
 
 export function documentResponse(rendered: Rendered, status: number): FixtureResponse {
@@ -13,7 +13,7 @@ export function documentResponse(rendered: Rendered, status: number): FixtureRes
 export function fragmentResponse(rendered: Rendered, targets: Identity[], status: number): FixtureResponse {
   return {
     status,
-    headers: { "Content-Type": "text/vnd.tessera+html; charset=utf-8", "Tessera-Protocol": "0" },
+    headers: { "Content-Type": "text/vnd.tessera+html; charset=utf-8", "Tessera-Protocol": PROTOCOL },
     body: fragmentBody(rendered, targets),
   };
 }
@@ -54,15 +54,15 @@ export function answer(
 /** Section 5.4: a redirect travels as `Tessera-Location` on a `200` for a Tessera request. */
 export function redirect(request: FixtureRequest, location: string): FixtureResponse {
   return isTessera(request)
-    ? { status: 200, headers: { "Tessera-Location": location, "Tessera-Protocol": "0" }, body: "" }
+    ? { status: 200, headers: { "Tessera-Location": location, "Tessera-Protocol": PROTOCOL }, body: "" }
     : { status: 303, headers: { Location: location }, body: "" };
 }
 
 /** Section 1: a version this server does not speak is refused before anything else happens. */
 export function versionRefusal(request: FixtureRequest): FixtureResponse | undefined {
-  if (!isTessera(request) || header(request.headers, "tessera-protocol") === "0") return undefined;
+  if (!isTessera(request) || header(request.headers, "tessera-protocol") === PROTOCOL) return undefined;
   return {
-    ...text(400, "This server speaks Tessera protocol 0."),
-    headers: { "Content-Type": "text/plain; charset=utf-8", "Tessera-Protocol": "0" },
+    ...text(400, `This server speaks Tessera protocol ${PROTOCOL}.`),
+    headers: { "Content-Type": "text/plain; charset=utf-8", "Tessera-Protocol": PROTOCOL },
   };
 }

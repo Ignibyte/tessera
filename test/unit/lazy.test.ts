@@ -64,7 +64,7 @@ describe("lazy regions", () => {
   });
 
   it("loads an element that arrives later, for its innermost component", async () => {
-    const { calls, find } = start(`<main data-region="content"><!--t:c cart--><div id="slot"></div><!--/t:c--></main>`);
+    const { calls, find } = start(`<main data-region="content"><div data-t-c="cart"><div id="slot"></div></div></main>`);
     find("#slot").innerHTML = `<p data-lazy="/cart">Loading</p>`;
     await vi.waitFor(() => {
       expect(calls).toHaveLength(1);

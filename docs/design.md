@@ -18,13 +18,15 @@ the markup:
 
 - **Regions** are elements named by the layout: `<div data-region="content">`. One attribute,
   one name grammar (`^[a-z][a-z0-9]*(-[a-z0-9]+)*$`), unique on the page. Never a CSS selector.
-- **Components** are comment pairs, since a wrapper element is invalid inside `<h2>` or `<p>`:
-  an opening marker carrying the component's key and a closing marker. Keys are unique among
-  siblings; the full identity is the path from the region. AIC renders them today as
-  `<!--aic:c KEY-->` ... `<!--/aic:c-->`; Tessera's protocol fixes the generic spelling and AIC
-  follows it.
-- **Control-flow blocks** (conditionals and loops in a template) are comment pairs too, so they
-  morph as units.
+- **Components** are elements too: one root element carrying `data-t-c="KEY"`, and its signed
+  props in `data-t-props`. A component that renders siblings is wrapped by its server, and one
+  inside `<h2>` or `<p>` is a `<span>`. Keys are unique among siblings; the full identity is the
+  path from the region. A component may carry `data-t-anchor="NAME"` so a link can name it as
+  `@NAME` without spelling its path. Protocol 0 marked components with comment pairs; protocol 1
+  (ticket #33) moved them onto elements.
+- **Control-flow blocks** have no markers. A conditional that appears may shift its siblings in a
+  morph, so a server gives fields and other state-bearing elements a stable `id`, which Idiomorph
+  matches.
 
 An update targets the page, a region or a component, and one response can carry any mix. The
 server can leave out what did not change. A component rendered alone needs its inputs back; they

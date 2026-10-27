@@ -11,7 +11,7 @@ import { trackedSet } from "./head.ts";
 import { busyElements, decideAll, Generations, resolveTarget } from "./coordination.ts";
 import type { RequestClass, TargetNode } from "./coordination.ts";
 import type { Kernel } from "./kernel.ts";
-import { findTarget, PATCH_MODES } from "./patch.ts";
+import { findTarget, PATCH_MODES, resolveAnchors } from "./patch.ts";
 import type { Patcher, PatchMode } from "./patch.ts";
 import { encodeSignals } from "./scopes.ts";
 import type { Scopes } from "./scopes.ts";
@@ -189,6 +189,9 @@ export const EXPIRED_EVENT = "tessera:expired";
 export const ACCEPT = "text/vnd.tessera+html, text/html;q=0.9";
 
 export const STREAM_ACCEPT = "text/event-stream";
+
+/** The protocol version Tessera speaks (docs/protocol.md, section 1). */
+const PROTOCOL = "1";
 
 const PROTOCOL_HEADERS = [
   "accept",
@@ -413,8 +416,8 @@ export function createTransport(options: TransportOptions): Transport {
         if (!target.includes("/")) return target;
         try {
           const found = findTarget(document, target);
-          const props = found.kind === "component" ? found.opener.data.split(" ")[2] : undefined;
-          return props === undefined ? target : `${target} ${props}`;
+          const props = found.kind === "component" ? found.element.getAttribute("data-t-props") : null;
+          return props === null ? target : `${target} ${props}`;
         } catch {
           return target;
         }
@@ -425,7 +428,7 @@ export function createTransport(options: TransportOptions): Transport {
     const headers: [string, string][] = [
       ["Accept", request.kind === "stream" ? STREAM_ACCEPT : ACCEPT],
       ["Tessera-Request", request.kind],
-      ["Tessera-Protocol", "0"],
+      ["Tessera-Protocol", PROTOCOL],
     ];
     if (request.targets.length > 0) headers.push(["Tessera-Targets", targetsHeader(request.targets)]);
     const layout = meta(document, "tessera-layout");
@@ -480,11 +483,17 @@ export function createTransport(options: TransportOptions): Transport {
       return;
     }
     if (url.origin !== window.location.origin) return;
+    let named: string[];
+    try {
+      named = resolveAnchors(document, input.targets ?? []);
+    } catch {
+      return;
+    }
     const request: TesseraRequest = Object.freeze({
       kind: "visit",
       method: "GET",
       url: url.href,
-      targets: Object.freeze([...(input.targets ?? [])]),
+      targets: Object.freeze(named),
       element: input.element,
       body: undefined,
       signals: undefined,
@@ -610,16 +619,8 @@ export function createTransport(options: TransportOptions): Transport {
     return { ...parsed, title, csrf };
   };
 
-  const nodeOf = (target: ReturnType<typeof findTarget>): Node => (target.kind === "region" ? target.element : target.opener);
-
-  const containsTarget = (outer: ReturnType<typeof findTarget>, inner: ReturnType<typeof findTarget>): boolean => {
-    const node = nodeOf(inner);
-    if (outer.kind === "region") return outer.element !== node && outer.element.contains(node);
-    if (node === outer.opener) return false;
-    const after = outer.opener.compareDocumentPosition(node) & Node.DOCUMENT_POSITION_FOLLOWING;
-    const before = outer.closer.compareDocumentPosition(node) & Node.DOCUMENT_POSITION_PRECEDING;
-    return Boolean(after && before);
-  };
+  const containsTarget = (outer: ReturnType<typeof findTarget>, inner: ReturnType<typeof findTarget>): boolean =>
+    outer.element !== inner.element && outer.element.contains(inner.element);
 
   const commitFragments = (text: string, request: TesseraRequest, response: Response, url: string, operation: Operation): RequestOutcome => {
     const fail = (error: unknown): RequestOutcome => {
@@ -659,8 +660,7 @@ export function createTransport(options: TransportOptions): Transport {
     if (record) history.capture(request);
     try {
       for (const { target, mode, markup, found } of resolved) {
-        const node: TargetNode = found.kind === "region" ? { kind: "region", element: found.element } : { kind: "component", opener: found.opener, closer: found.closer };
-        if (generations.stale(node, operation.dispatched)) {
+        if (generations.stale(found, operation.dispatched)) {
           report(new TransportError(`${target} changed after this request was sent; its older fragment is dropped.`), request);
           continue;
         }
@@ -726,14 +726,14 @@ export function createTransport(options: TransportOptions): Transport {
         return { ...followed, redirectedTo: url.href };
       }
       const versions = response.headers.get("Tessera-Protocol");
-      if (response.status === 400 && versions !== null && !versions.split(",").map((version) => version.trim()).includes("0")) {
+      if (response.status === 400 && versions !== null && !versions.split(",").map((version) => version.trim()).includes(PROTOCOL)) {
         return fullLoad(request.kind === "visit" ? finalUrl : window.location.href);
       }
       if (response.status === 419) return expired(request);
 
       const type = mediaType(response);
       if (type === "text/vnd.tessera+html") {
-        if (versions !== "0") return fullLoad(request.kind === "visit" ? finalUrl : window.location.href);
+        if (versions !== PROTOCOL) return fullLoad(request.kind === "visit" ? finalUrl : window.location.href);
         return commitFragments(await lease.text(), request, response, finalUrl, operation);
       }
       if (type === "text/html") {
@@ -859,6 +859,14 @@ export function createTransport(options: TransportOptions): Transport {
       report(error, undefined);
       return { status: "failed", error };
     }
+    // An anchor names a component by `data-t-anchor`; the server only ever sees its path.
+    let named: string[];
+    try {
+      named = resolveAnchors(document, input.targets ?? []);
+    } catch (error) {
+      report(error, undefined);
+      return { status: "failed", error };
+    }
     let signals: string | undefined;
     if (input.signals && input.kind === "action" && scopes && input.element) {
       try {
@@ -872,7 +880,7 @@ export function createTransport(options: TransportOptions): Transport {
       kind: input.kind,
       method,
       url: url.href,
-      targets: Object.freeze([...(input.targets ?? [])]),
+      targets: Object.freeze(named),
       element: input.element,
       body: input.body,
       signals,
@@ -968,7 +976,7 @@ export function createTransport(options: TransportOptions): Transport {
     else if (options.target !== undefined) throw new TypeError(`@${call.method} target must be a string of targets.`);
     else if (scopes) {
       const [nearest] = scopes.owners(call.element);
-      targets = nearest && nearest.nodeType !== 9 ? [scopes.pathOf(nearest as Element | Comment)] : [];
+      targets = nearest && nearest.nodeType !== 9 ? [scopes.pathOf(nearest as Element)] : [];
     } else {
       targets = elementTargets(call.element);
     }
@@ -1035,7 +1043,7 @@ export function createTransport(options: TransportOptions): Transport {
       expired(request);
       return stop();
     }
-    if (status === 400 && versions !== null && !versions.split(",").map((version) => version.trim()).includes("0")) {
+    if (status === 400 && versions !== null && !versions.split(",").map((version) => version.trim()).includes(PROTOCOL)) {
       fullLoad(window.location.href);
       return stop();
     }
@@ -1047,7 +1055,7 @@ export function createTransport(options: TransportOptions): Transport {
     if (mediaType(response) !== "text/event-stream") {
       return stop(new TransportError(`The stream ${request.url} answered with ${mediaType(response) || "no"} content type, not text/event-stream; it is closed.`));
     }
-    if (versions !== "0") {
+    if (versions !== PROTOCOL) {
       fullLoad(window.location.href);
       return stop();
     }

@@ -9,14 +9,11 @@ import { isPlainRecord } from "./values.ts";
 
 export type ScopeLevel = "nearest" | "region" | "document";
 
-/** A scope's owner: a region element, a component's opening comment, or the document. */
-export type ScopeOwner = Element | Comment | Document;
+/** A scope's owner: a region element, a component element, or the document. */
+export type ScopeOwner = Element | Document;
 
 /** The longest `Tessera-Signals` value Tessera sends (docs/protocol.md, section 4.4). */
 export const MAX_SIGNALS_BYTES = 4096;
-
-const OPENER = /^t:c ([^ ]+)(?: [^ ]+)?$/;
-const CLOSER = "/t:c";
 
 interface ScopeRecord {
   readonly signals: Record<string, unknown>;
@@ -24,46 +21,28 @@ interface ScopeRecord {
   readonly release: () => void;
 }
 
-function componentKey(comment: Comment): string | undefined {
-  return OPENER.exec(comment.data)?.[1];
+function isComponent(element: Element): boolean {
+  return element.hasAttribute("data-t-c");
 }
 
 /** What a scope remembers of its owner: a component's key, a region's name. */
-function keyOf(owner: Element | Comment): string | undefined {
-  return owner.nodeType === 8 ? componentKey(owner as Comment) : ((owner as Element).getAttribute("data-region") ?? undefined);
+function keyOf(owner: Element): string | undefined {
+  return (isComponent(owner) ? owner.getAttribute("data-t-c") : owner.getAttribute("data-region")) ?? undefined;
 }
 
-/** Whether a node owns a scope: a component's opening comment, or a region element. */
-export function isScopeOwner(node: Node): node is Element | Comment {
-  return node.nodeType === 8 ? OPENER.test((node as Comment).data) : node.nodeType === 1 && (node as Element).hasAttribute("data-region");
-}
-
-function isComment(node: Node): node is Comment {
-  return node.nodeType === 8;
-}
-
-function isElement(node: Node): node is Element {
-  return node.nodeType === 1;
+/** Whether a node owns a scope: a component element or a region element. */
+export function isScopeOwner(node: Node): node is Element {
+  return node.nodeType === 1 && ((node as Element).hasAttribute("data-t-c") || (node as Element).hasAttribute("data-region"));
 }
 
 /**
- * The owners of a node's scopes, innermost first, ending with the document: at each level the
- * node itself if it is a region, then every unmatched opening marker among its previous
- * siblings. Block markers (`t:b`) are not scopes.
+ * The owners of a node's scopes, innermost first, ending with the document: the node itself if
+ * it is a component or a region, then each enclosing component and region.
  */
-export function scopeOwners(start: Element | Comment): ScopeOwner[] {
+export function scopeOwners(start: Element): ScopeOwner[] {
   const owners: ScopeOwner[] = [];
-  for (let node: Node | null = start; node && node.nodeType !== 9; node = node.parentNode) {
-    if (isElement(node) && node.hasAttribute("data-region")) owners.push(node);
-    let depth = 0;
-    for (let sibling = node.previousSibling; sibling; sibling = sibling.previousSibling) {
-      if (!isComment(sibling)) continue;
-      if (sibling.data === CLOSER) depth++;
-      else if (OPENER.test(sibling.data)) {
-        if (depth === 0) owners.push(sibling);
-        else depth--;
-      }
-    }
+  for (let element: Element | null = start; element; element = element.parentElement) {
+    if (isScopeOwner(element)) owners.push(element);
   }
   owners.push(start.ownerDocument);
   return owners;
@@ -73,16 +52,16 @@ export function scopeOwners(start: Element | Comment): ScopeOwner[] {
  * The target spelling of a scope's owner (docs/protocol.md, section 2.4): a region's name, or a
  * component's path from its nearest region (or `page`).
  */
-export function ownerPath(owner: Element | Comment): string {
-  if (isElement(owner)) return owner.getAttribute("data-region") ?? "";
-  const keys = [componentKey(owner) ?? ""];
+export function ownerPath(owner: Element): string {
+  if (!isComponent(owner)) return owner.getAttribute("data-region") ?? "";
+  const keys: string[] = [];
   let base = "page";
-  for (const enclosing of scopeOwners(owner)) {
-    if (enclosing.nodeType === 8) keys.unshift(componentKey(enclosing as Comment) ?? "");
-    else if (enclosing.nodeType === 1) {
-      base = (enclosing as Element).getAttribute("data-region") ?? "";
+  for (let element: Element | null = owner; element; element = element.parentElement) {
+    if (element !== owner && element.hasAttribute("data-region")) {
+      base = element.getAttribute("data-region") ?? "";
       break;
     }
+    if (isComponent(element)) keys.unshift(element.getAttribute("data-t-c") ?? "");
   }
   return [base, ...keys].join("/");
 }
@@ -95,7 +74,7 @@ export class Scopes {
 
   readonly #kernel: Kernel;
   readonly #owner = `scopes:${++scopesId}`;
-  readonly #records = new Map<Element | Comment, ScopeRecord>();
+  readonly #records = new Map<Element, ScopeRecord>();
   #disposed = false;
 
   constructor(kernel: Kernel, documentSignals: Record<string, unknown> = reactive({})) {
@@ -103,11 +82,8 @@ export class Scopes {
     this.document = documentSignals;
   }
 
-  /**
-   * The owners of a node's scopes, innermost first, ending with the document. For a
-   * component's opening comment the chain starts with the components around it.
-   */
-  owners(start: Element | Comment): ScopeOwner[] {
+  /** The owners of a node's scopes, innermost first, ending with the document. */
+  owners(start: Element): ScopeOwner[] {
     return scopeOwners(start);
   }
 
@@ -115,21 +91,21 @@ export class Scopes {
    * The target spelling of a scope's owner (docs/protocol.md, section 2.4): a region's name, or a
    * component's path from its nearest region (or `page`).
    */
-  pathOf(owner: Element | Comment): string {
+  pathOf(owner: Element): string {
     return ownerPath(owner);
   }
 
   /** The scope an owner holds, created on first use, started afresh if a component's key changed. */
   scopeOf(owner: ScopeOwner): Record<string, unknown> {
     if (owner.nodeType === 9) return this.document;
-    const node = owner as Element | Comment;
+    const node = owner as Element;
     const key = keyOf(node);
     const current = this.#records.get(node);
     if (current && current.key === key) return current.signals;
     if (current) this.#dispose(node, current);
     if (this.#disposed) throw new Error("These Tessera scopes have been disposed.");
     const signals = reactive<Record<string, unknown>>({});
-    const label = isComment(node) ? `component:${key ?? ""}` : `region:${node.getAttribute("data-region") ?? ""}`;
+    const label = isComponent(node) ? `component:${key ?? ""}` : `region:${key ?? ""}`;
     const release = this.#kernel.own("service", `${this.#owner}:${label}`, () => {
       if (this.#records.get(node)?.signals === signals) this.#records.delete(node);
     });
@@ -144,7 +120,7 @@ export class Scopes {
     const owner =
       level === "nearest"
         ? owners[0]
-        : owners.find((candidate) => candidate.nodeType === 1);
+        : owners.find((candidate) => candidate.nodeType === 1 && (candidate as Element).hasAttribute("data-region"));
     return this.scopeOf(owner ?? element.ownerDocument);
   }
 
@@ -183,17 +159,17 @@ export class Scopes {
   }
 
   /**
-   * Hands a scope to the node replacing its owner: a component's opening comment with the same
-   * key, or a region element with the same name. Any other replacement starts afresh. A list of
+   * Hands a scope to the element replacing its owner: a component with the same key, or a region
+   * with the same name. Any other replacement starts afresh. A list of
    * pairs moves together, so two owners can trade places (a morph that reorders components).
    */
-  transfer(from: Element | Comment, to: Element | Comment): void;
-  transfer(pairs: readonly (readonly [Element | Comment, Element | Comment])[]): void;
+  transfer(from: Element, to: Element): void;
+  transfer(pairs: readonly (readonly [Element, Element])[]): void;
   transfer(
-    first: Element | Comment | readonly (readonly [Element | Comment, Element | Comment])[],
-    second?: Element | Comment,
+    first: Element | readonly (readonly [Element, Element])[],
+    second?: Element,
   ): void {
-    const pairs: readonly (readonly [Element | Comment, Element | Comment])[] =
+    const pairs: readonly (readonly [Element, Element])[] =
       "nodeType" in first ? (second ? [[first, second]] : []) : first;
     const moving = pairs.flatMap(([from, to]) => {
       const record = this.#records.get(from);
@@ -202,7 +178,7 @@ export class Scopes {
       return [{ record, from, to }];
     });
     for (const { record, from, to } of moving) {
-      if (from.nodeType !== to.nodeType || record.key !== keyOf(to) || this.#records.has(to)) record.release();
+      if (isComponent(from) !== isComponent(to) || record.key !== keyOf(to) || this.#records.has(to)) record.release();
       else this.#records.set(to, record);
     }
   }
@@ -226,7 +202,7 @@ export class Scopes {
     for (const [owner, record] of [...this.#records]) this.#dispose(owner, record);
   }
 
-  #dispose(owner: Element | Comment, record: ScopeRecord): void {
+  #dispose(owner: Element, record: ScopeRecord): void {
     if (this.#records.get(owner) === record) this.#records.delete(owner);
     record.release();
   }

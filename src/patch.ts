@@ -3,13 +3,13 @@
 // `restoreFocus` and preserved nodes, inert parsing through `<template>`, one render transaction
 // per patch. jqstar's id and CSS-selector targeting is replaced by regions and components.
 //
-// A component is the run of nodes between two comments, and Idiomorph's public `morph` takes one
-// node. So a component is morphed by morphing its markers' parent against a copy of its children
-// in which only that run is new: every node outside the run meets its own copy and stays as it is.
+// A region and a component are both one element (`data-region`, `data-t-c`), so every mode acts
+// on that element the same way: a morph is Idiomorph on the element itself, the other modes act
+// on its children.
 import { Idiomorph } from "idiomorph";
 import type { IdiomorphCallbacks } from "idiomorph";
 import type { Kernel, RenderTransaction } from "./kernel.ts";
-import { isScopeOwner } from "./scopes.ts";
+import { isScopeOwner, ownerPath } from "./scopes.ts";
 import type { Scopes } from "./scopes.ts";
 import { cloneValue, isPlainRecord } from "./values.ts";
 
@@ -19,8 +19,7 @@ export const PATCH_MODES: readonly PatchMode[] = ["morph", "inner", "append", "p
 
 const REGION_NAME = /^[a-z][a-z0-9]*(-[a-z0-9]+)*$/;
 const COMPONENT_KEY = /^[A-Za-z0-9_.:]+(-[A-Za-z0-9_.:]+)*$/;
-const OPENER = /^t:c ([^ ]+)(?: [^ ]+)?$/;
-const CLOSER = "/t:c";
+const OWNER = "[data-t-c], [data-region]";
 
 /** A patch that names a target the page lacks, or brings markup that does not fit its mode. */
 export class PatchError extends Error {
@@ -33,59 +32,25 @@ export class PatchError extends Error {
   }
 }
 
-interface RegionTarget {
-  readonly kind: "region";
+/** A target found on the page: a region's element or a component's element. */
+export interface Target {
+  readonly kind: "region" | "component";
   readonly element: Element;
 }
 
-interface ComponentTarget {
-  readonly kind: "component";
-  readonly key: string;
-  readonly opener: Comment;
-  readonly closer: Comment;
-}
-
-type Target = RegionTarget | ComponentTarget;
-
-interface Component {
-  readonly key: string;
-  readonly opener: Comment;
-  readonly closer: Comment;
-  readonly content: readonly Node[];
-}
-
-function openerKey(node: Node): string | undefined {
-  return node.nodeType === 8 ? OPENER.exec((node as Comment).data)?.[1] : undefined;
-}
-
-function isCloser(node: Node): boolean {
-  return node.nodeType === 8 && (node as Comment).data === CLOSER;
+/** The element a component or region sits in: its nearest enclosing component or region. */
+function enclosingOwner(element: Element): Element | null {
+  return element.parentElement?.closest(OWNER) ?? null;
 }
 
 /**
- * The components directly under a run of nodes: those whose nearest enclosing component or
- * region is the run's container. Nested regions start paths of their own and are skipped.
+ * The components directly under a container (a region element, a component element, or `null`
+ * for the page): those whose nearest enclosing component or region is the container. Nested
+ * regions start paths of their own, so the components inside them are not the container's.
  */
-function childComponents(nodes: Iterable<Node>): Component[] {
-  const found: Component[] = [];
-  let open: { key: string; opener: Comment; content: Node[]; depth: number } | undefined;
-  for (const node of nodes) {
-    const key = openerKey(node);
-    if (open) {
-      if (key !== undefined) open.depth++;
-      else if (isCloser(node) && open.depth-- === 0) {
-        found.push({ key: open.key, opener: open.opener, closer: node as Comment, content: open.content });
-        open = undefined;
-        continue;
-      }
-      open.content.push(node);
-    } else if (key !== undefined) {
-      open = { key, opener: node as Comment, content: [], depth: 0 };
-    } else if (node.nodeType === 1 && !(node as Element).hasAttribute("data-region")) {
-      found.push(...childComponents(node.childNodes));
-    }
-  }
-  return found;
+function childComponents(document: Document, container: Element | null, key: string): Element[] {
+  const scope = container ?? document.body;
+  return Array.from(scope.querySelectorAll(`[data-t-c="${key}"]`)).filter((element) => enclosingOwner(element) === container);
 }
 
 /** Finds a target by its spelling (protocol 2.6); throws a PatchError when the page lacks it. */
@@ -97,29 +62,44 @@ export function findTarget(document: Document, target: string): Target {
   }
   for (const key of keys) if (!COMPONENT_KEY.test(key)) throw new PatchError(target, `"${key}" is not a component key.`);
 
-  let container: readonly Node[];
-  if (base === "page") {
-    container = Array.from(document.body.childNodes);
-  } else {
+  let container: Element | null = null;
+  if (base !== "page") {
     const regions = document.querySelectorAll(`[data-region="${base}"]`);
     if (regions.length === 0) throw new PatchError(target, `the page has no region ${base}.`);
     if (regions.length > 1) throw new PatchError(target, `two elements are region ${base}.`);
-    const element = regions[0] as Element;
-    if (keys.length === 0) return { kind: "region", element };
-    container = Array.from(element.childNodes);
+    container = regions[0] as Element;
+    if (keys.length === 0) return { kind: "region", element: container };
   }
 
-  let component: Component | undefined;
   for (const [index, key] of keys.entries()) {
-    const matches = childComponents(container).filter((candidate) => candidate.key === key);
+    const matches = childComponents(document, container, key);
     const path = [base, ...keys.slice(0, index + 1)].join("/");
     if (matches.length === 0) throw new PatchError(target, `the page has no component ${path}.`);
     if (matches.length > 1) throw new PatchError(target, `two components are ${path}.`);
-    component = matches[0];
-    container = component?.content ?? [];
+    container = matches[0] as Element;
+    if (container.hasAttribute("data-region")) throw new PatchError(target, `${path} is both a region and a component.`);
   }
-  if (!component) throw new PatchError(target, "no component key.");
-  return { kind: "component", key: component.key, opener: component.opener, closer: component.closer };
+  if (!container) throw new PatchError(target, "no component key.");
+  return { kind: "component", element: container };
+}
+
+/**
+ * Resolves each `@NAME` among `targets` to the path of the component carrying
+ * `data-t-anchor="NAME"` (protocol 2.7); other targets pass unchanged. Throws a PatchError for an
+ * anchor that is badly spelled, missing, doubled or on an element that is not a component.
+ */
+export function resolveAnchors(document: Document, targets: readonly string[]): string[] {
+  return targets.map((target) => {
+    if (!target.startsWith("@")) return target;
+    const name = target.slice(1);
+    if (!COMPONENT_KEY.test(name) || name.length > 64) throw new PatchError(target, `"${name}" is not an anchor name.`);
+    const anchored = document.querySelectorAll(`[data-t-anchor="${name}"]`);
+    if (anchored.length === 0) throw new PatchError(target, `the page has no anchor ${name}.`);
+    if (anchored.length > 1) throw new PatchError(target, `two elements carry the anchor ${name}.`);
+    const element = anchored[0] as Element;
+    if (!element.hasAttribute("data-t-c")) throw new PatchError(target, `the anchor ${name} is not on a component.`);
+    return ownerPath(element);
+  });
 }
 
 /** Parses markup inertly: scripts in it never run. */
@@ -134,27 +114,14 @@ function significant(nodes: readonly Node[]): Node[] {
 }
 
 function checkMorph(target: string, resolved: Target, nodes: readonly Node[]): void {
-  const meaningful = significant(nodes);
-  if (resolved.kind === "region") {
-    const [element, extra] = meaningful;
-    const name = resolved.element.getAttribute("data-region");
-    if (!element || extra || element.nodeType !== 1 || (element as Element).getAttribute("data-region") !== name) {
-      throw new PatchError(target, `a morph of a region brings exactly one element with data-region="${name ?? ""}".`);
-    }
-    if ((element as Element).localName !== resolved.element.localName) {
-      throw new PatchError(target, `the region is a <${resolved.element.localName}>, the markup a <${(element as Element).localName}>.`);
-    }
-    return;
+  const [element, extra] = significant(nodes);
+  const attribute = resolved.kind === "region" ? "data-region" : "data-t-c";
+  const name = resolved.element.getAttribute(attribute) ?? "";
+  if (!element || extra || element.nodeType !== 1 || (element as Element).getAttribute(attribute) !== name) {
+    throw new PatchError(target, `a morph of a ${resolved.kind} brings exactly one element with ${attribute}="${name}".`);
   }
-  const components = childComponents(meaningful);
-  const [only] = components;
-  if (
-    components.length !== 1 ||
-    only?.key !== resolved.key ||
-    meaningful[0] !== only.opener ||
-    meaningful[meaningful.length - 1] !== only.closer
-  ) {
-    throw new PatchError(target, `a morph of a component brings exactly its markers, <!--t:c ${resolved.key} …--> and <!--/t:c-->, and what lies between.`);
+  if ((element as Element).localName !== resolved.element.localName) {
+    throw new PatchError(target, `the ${resolved.kind} is a <${resolved.element.localName}>, the markup a <${(element as Element).localName}>.`);
   }
 }
 
@@ -163,8 +130,8 @@ function ignored(node: Node): boolean {
 }
 
 /** Every scope owner in a tree (the tree itself included), outside the skipped subtrees. */
-export function ownersWithin(root: Node, skip: readonly Node[]): (Element | Comment)[] {
-  const owners: (Element | Comment)[] = [];
+export function ownersWithin(root: Node, skip: readonly Node[]): Element[] {
+  const owners: Element[] = [];
   const visit = (node: Node): void => {
     if (skip.includes(node)) return;
     if (isScopeOwner(node)) owners.push(node);
@@ -241,48 +208,15 @@ function keptPermanents(current: Iterable<Node>, incoming: Iterable<Node>): Set<
   return new Set(permanents(current).filter((element) => ids.has(element.id)));
 }
 
-function componentRun(target: ComponentTarget): Node[] {
-  const run: Node[] = [];
-  for (let node = target.opener.nextSibling; node && node !== target.closer; node = node.nextSibling) run.push(node);
-  return run;
-}
-
 export function createPatcher(options: PatcherOptions): Patcher {
   const { kernel, scopes, refresh } = options;
   const { document } = kernel;
 
-  /**
-   * Morphs `parent`'s children so that the run `first`…`last` becomes `replacement`. The children
-   * outside the run go in as copies so Idiomorph keeps their places, and are never morphed from
-   * them: a copy carries a field's markup, not what the user set (#32).
-   */
-  const morphRange = (parent: Node, first: Node, last: Node, replacement: readonly Node[], callbacks: IdiomorphCallbacks): void => {
-    const copy: Node[] = [];
-    const outside = new Set<Node>();
-    let inside = false;
-    for (const child of Array.from(parent.childNodes)) {
-      if (child === first) {
-        inside = true;
-        copy.push(...replacement);
-      }
-      if (!inside) {
-        outside.add(child);
-        copy.push(child.cloneNode(true));
-      }
-      if (child === last) inside = false;
-    }
-    const beforeNodeMorphed: IdiomorphCallbacks["beforeNodeMorphed"] = (oldNode, newNode) =>
-      outside.has(oldNode) ? false : callbacks.beforeNodeMorphed?.(oldNode, newNode);
-    Idiomorph.morph(parent, copy, { morphStyle: "innerHTML", restoreFocus: true, callbacks: { ...callbacks, beforeNodeMorphed } });
-  };
-
   const apply = (
-    target: string,
     resolved: Target,
     nodes: Node[],
     mode: PatchMode,
     transaction: RenderTransaction,
-    root: Node,
     kept: ReadonlySet<Element> = new Set(),
   ): void => {
     const keep = (node: Node): boolean => ignored(node) || (node.nodeType === 1 && kept.has(node as Element));
@@ -293,30 +227,22 @@ export function createPatcher(options: PatcherOptions): Patcher {
     };
 
     if (mode === "remove") {
-      if (resolved.kind === "region") {
-        removeNode(resolved.element);
-        return;
-      }
-      const run: Node[] = [];
-      for (let node: Node | null = resolved.opener; node; node = node.nextSibling) {
-        run.push(node);
-        if (node === resolved.closer) break;
-      }
-      for (const node of run) removeNode(node);
+      removeNode(resolved.element);
       return;
     }
-    if (mode === "append" || mode === "prepend") {
-      if (resolved.kind === "region") {
-        if (mode === "append") resolved.element.append(...nodes);
-        else resolved.element.prepend(...nodes);
-      } else if (mode === "append") resolved.closer.before(...nodes);
-      else resolved.opener.after(...nodes);
+    if (mode === "append") {
+      resolved.element.append(...nodes);
+      return;
+    }
+    if (mode === "prepend") {
+      resolved.element.prepend(...nodes);
       return;
     }
 
     // morph and inner: Idiomorph, with removals of scope owners held back until the scopes
     // they own have been handed to their replacements.
-    const before = new Map<string, Element | Comment>();
+    const root = resolved.element;
+    const before = new Map<string, Element>();
     if (scopes) for (const owner of ownersWithin(root, [])) if (!before.has(scopes.pathOf(owner))) before.set(scopes.pathOf(owner), owner);
     const held: Node[] = [];
     const morphed: Element[] = [];
@@ -342,25 +268,17 @@ export function createPatcher(options: PatcherOptions): Patcher {
       },
     };
 
-    if (resolved.kind === "region") {
-      const [element] = significant(nodes);
-      if (mode === "morph" && element) {
-        Idiomorph.morph(resolved.element, element, { morphStyle: "outerHTML", restoreFocus: true, callbacks });
-      } else {
-        Idiomorph.morph(resolved.element, nodes, { morphStyle: "innerHTML", restoreFocus: true, callbacks });
-      }
+    const [element] = significant(nodes);
+    if (mode === "morph" && element) {
+      Idiomorph.morph(resolved.element, element, { morphStyle: "outerHTML", restoreFocus: true, callbacks });
     } else {
-      const parent = resolved.opener.parentNode;
-      if (!parent) throw new PatchError(target, "the component's markers have no parent.");
-      const replacement =
-        mode === "morph" ? significant(nodes) : [resolved.opener.cloneNode(), ...nodes, resolved.closer.cloneNode()];
-      morphRange(parent, resolved.opener, resolved.closer, replacement, callbacks);
+      Idiomorph.morph(resolved.element, nodes, { morphStyle: "innerHTML", restoreFocus: true, callbacks });
     }
 
     if (scopes) {
-      const after = new Map<string, Element | Comment>();
+      const after = new Map<string, Element>();
       for (const owner of ownersWithin(root, held)) if (!after.has(scopes.pathOf(owner))) after.set(scopes.pathOf(owner), owner);
-      const moves: [Element | Comment, Element | Comment][] = [];
+      const moves: [Element, Element][] = [];
       for (const [path, owner] of before) {
         const replacement = after.get(path);
         if (replacement && replacement !== owner) moves.push([owner, replacement]);
@@ -379,13 +297,9 @@ export function createPatcher(options: PatcherOptions): Patcher {
       const nodes = mode === "remove" ? [] : parse(document, markup);
       if (mode === "morph") checkMorph(target, resolved, nodes);
 
-      const root = resolved.kind === "region" ? resolved.element : resolved.opener.parentElement;
-      if (!root) throw new PatchError(target, "the component's markers are not inside an element.");
+      const root = resolved.element;
       // A permanent element the fragment brings again stays the same live node, unmorphed.
-      const kept =
-        mode === "morph" || mode === "inner"
-          ? keptPermanents(resolved.kind === "region" ? [resolved.element] : componentRun(resolved), nodes)
-          : new Set<Element>();
+      const kept = mode === "morph" || mode === "inner" ? keptPermanents([root], nodes) : new Set<Element>();
       const preserveRoots = [
         ...(root.matches("[data-ignore-morph]") ? [root] : []),
         ...Array.from(root.querySelectorAll("[data-ignore-morph]")),
@@ -393,7 +307,7 @@ export function createPatcher(options: PatcherOptions): Patcher {
       ];
       const transaction = kernel.beginRender(root, { preserveRoots });
       try {
-        apply(target, resolved, nodes, mode, transaction, root, kept);
+        apply(resolved, nodes, mode, transaction, kept);
       } catch (error) {
         transaction.fail(error);
       }
@@ -411,7 +325,7 @@ export function createPatcher(options: PatcherOptions): Patcher {
       const preserveRoots = [...kept, ...Array.from(body.querySelectorAll("[data-ignore-morph]"))];
       const transaction = kernel.beginRender(body, { preserveRoots });
       try {
-        apply("page", { kind: "region", element: body }, [incoming], "morph", transaction, body, kept);
+        apply({ kind: "region", element: body }, [incoming], "morph", transaction, kept);
       } catch (error) {
         transaction.fail(error);
       }
@@ -422,10 +336,7 @@ export function createPatcher(options: PatcherOptions): Patcher {
       if (!scopes) throw new PatchError(target, "signal patches need the attributes' scopes.");
       let scope: Record<string, unknown>;
       if (target === "page") scope = scopes.document;
-      else {
-        const resolved = findTarget(document, target);
-        scope = scopes.scopeOf(resolved.kind === "region" ? resolved.element : resolved.opener);
-      }
+      else scope = scopes.scopeOf(findTarget(document, target).element);
       mergeSignalPatch(scope, patch, patchOptions.onlyIfMissing ?? false);
     },
   };

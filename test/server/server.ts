@@ -12,7 +12,7 @@ import { CHANNEL, Controller } from "./controller.ts";
 import { answer, documentResponse, redirect, versionRefusal } from "./answer.ts";
 import { escapeHtml, renderPage } from "./html.ts";
 import type { Vars } from "./html.ts";
-import { header, isTessera, json, send, text } from "./http.ts";
+import { header, isTessera, json, PROTOCOL, send, text } from "./http.ts";
 import type { FixtureRequest, FixtureResponse, Secrets, ServerState } from "./http.ts";
 import { serveNavigation } from "./navigation.ts";
 import { serveStream } from "./stream.ts";
@@ -158,14 +158,14 @@ async function respond(request: FixtureRequest, secrets: ServerState): Promise<F
   if (path === "/away") {
     // A page Tessera cannot update in place: a Tessera request is told to load it in full.
     return isTessera(request)
-      ? { status: 200, headers: { "Tessera-Full-Visit": "/about", "Tessera-Protocol": "0" }, body: "" }
+      ? { status: 200, headers: { "Tessera-Full-Visit": "/about", "Tessera-Protocol": PROTOCOL }, body: "" }
       : { status: 302, headers: { Location: "/about" }, body: "" };
   }
   if (path === "/stray" && isTessera(request)) {
     // A fragment for a region no page has: Tessera falls back to a full load.
     return {
       status: 200,
-      headers: { "Content-Type": "text/vnd.tessera+html; charset=utf-8", "Tessera-Protocol": "0" },
+      headers: { "Content-Type": "text/vnd.tessera+html; charset=utf-8", "Tessera-Protocol": PROTOCOL },
       body: '<template data-target="nowhere"><div data-region="nowhere"></div></template>\n',
     };
   }

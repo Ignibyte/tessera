@@ -38,7 +38,7 @@ test("a component patch leaves the fields beside it as the user set them (#32)",
   await page.locator("h1").click();
 
   await page.evaluate(() => {
-    (window as unknown as HarnessWindow).tesseraHarness.patch("form-area/list", `<!--t:c list--><p id="list">new list</p><!--/t:c-->`);
+    (window as unknown as HarnessWindow).tesseraHarness.patch("form-area/list", `<div data-t-c="list"><p id="list">new list</p></div>`);
   });
 
   await expect(page.locator("#list")).toHaveText("new list");
