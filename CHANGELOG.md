@@ -2,8 +2,11 @@
 
 ## Unreleased
 
+## 0.2.0 (2026-10-28)
+
 Protocol version 1: a server must move its component markup and its version check before it
-takes this release (`docs/protocol.md`, section 1; `docs/consumers.md`, "What AIC changes").
+takes this release (`docs/protocol.md`, section 1; `docs/consumers.md`, "What AIC changes"). No
+known issues.
 
 - Components are marked by attributes on their one root element, `data-t-c="KEY"` and
   `data-t-props="TOKEN"`, in place of `<!--t:c KEY PROPS-->` … `<!--/t:c-->`. Paths, keys and
