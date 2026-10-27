@@ -1,2 +1,2 @@
 /** The Tessera release this build comes from. */
-export const version = "0.1.0";
+export const version = "0.1.1";
