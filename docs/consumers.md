@@ -43,13 +43,13 @@ and a new protocol version is called out there.
 ## The server checklist
 
 `docs/protocol.md` is what a server must do; its section 11 is the checklist, repeated here as it
-stands for protocol 0 at release 0.1.0. When the two differ, the protocol wins.
+stands for protocol 1 (Tessera 0.2). When the two differ, the protocol wins.
 
-A server layer speaks version 0 when it:
+A server layer speaks version 1 when it:
 
-1. Renders regions with `data-region`, components with `<!--t:c KEY PROPS-->` … `<!--/t:c-->`,
-   and every conditional and loop between `<!--t:b-->` … `<!--/t:b-->`, empty ones included, all
-   to the grammars of section 2.
+1. Renders regions with `data-region` and each component as one element carrying `data-t-c`,
+   `data-t-props` when it has props and `data-t-anchor` when links name it, to the grammars of
+   section 2, and gives a stable `id` to every field and other state-bearing element.
 2. Signs props tokens, verifies them on every request that sends one, and keeps them small.
 3. Renders the `tessera-layout` and `tessera-csrf-token` metas, and `data-track` on every script
    and stylesheet in `<head>`.
@@ -57,7 +57,7 @@ A server layer speaks version 0 when it:
    speak with `400`, before any side effect.
 5. Answers a visit with fragments for the requested targets when the layout matches and every
    target exists, and with the full document otherwise.
-6. Renders fragment responses as `text/vnd.tessera+html` with `Tessera-Protocol: 0`, one
+6. Renders fragment responses as `text/vnd.tessera+html` with `Tessera-Protocol: 1`, one
    `<template>` per target, the `<title>`, the tracked-asset copies and any signal patches.
 7. Authorizes every target it renders, and treats `Tessera-Targets` and `Tessera-Signals` as
    untrusted input.
@@ -83,17 +83,19 @@ AIC's server layer already renders regions and components; what it renders and d
 the protocol instead of its own spellings. This list comes from the protocol and the design; the
 AIC side owns the details.
 
-- **Component markers.** `<!--aic:c KEY-->` … `<!--/aic:c-->` becomes `<!--t:c KEY-->` …
-  `<!--/t:c-->`, with the signed props token after the key when the component needs its inputs
-  back (protocol 2.2 and 2.5). The opening marker holds nothing else, not even a trailing space.
-  Its template compiler also emits `<!--t:b-->` … `<!--/t:b-->` around every conditional and loop,
-  empty ones included (2.3).
+- **Components.** `<!--aic:c KEY-->` … `<!--/aic:c-->` becomes one root element carrying
+  `data-t-c="KEY"`, with the signed props token in `data-t-props` when the component needs its
+  inputs back (protocol 2.2 and 2.5). A component that renders siblings gets a wrapper (`<tbody>`
+  for rows, `<div>` elsewhere), and one inside `<h2>` or `<p>` is a `<span>`. A component a link
+  should name without its path carries `data-t-anchor` (2.7). The template compiler emits no
+  markers around conditionals and loops; fields and other state-bearing elements get a stable
+  `id` instead (2.3).
 - **Detecting an enhanced request.** A Tessera request is one with `Tessera-Request` (`visit`,
   `submit`, `action`, `refresh` or `stream`); its `Tessera-Protocol` is checked first, and a
-  version AIC does not speak gets `400` with `Tessera-Protocol: 0` before any side effect (4.2,
+  version AIC does not speak gets `400` with `Tessera-Protocol: 1` before any side effect (4.2,
   section 1). `Tessera-Targets` names what to render, `Tessera-Layout` the layout the page has.
 - **Fragment responses.** For a visit or a refresh whose targets all exist under the same layout:
-  `200`, `text/vnd.tessera+html; charset=utf-8`, `Tessera-Protocol: 0`, one `<template
+  `200`, `text/vnd.tessera+html; charset=utf-8`, `Tessera-Protocol: 1`, one `<template
   data-target="…">` per target, the `<title>`, the tracked assets' copies, and signal patches when
   there are any (5.3). Otherwise the full document. A redirect to a Tessera request travels as
   `Tessera-Location` (5.4), and one middleware at the edge can do it for every route.

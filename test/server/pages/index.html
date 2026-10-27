@@ -2,14 +2,13 @@
 <!--slot content-->
     <h1>Home</h1>
     <p>The reference server's fixture site.</p>
-    <!--t:c greeting {"name":"world"}-->
-    <p>Hello, world. Seen <!--t:c count {"n":3}--><span>3</span><!--/t:c--> times.</p>
-    <!--t:b--><!--/t:b-->
-    <!--/t:c-->
+    <div data-t-c="greeting" data-t-props='{"name":"world"}' data-t-anchor="hello">
+      <p>Hello, world. Seen <span data-t-c="count" data-t-props='{"n":3}'>3</span> times.</p>
+    </div>
     <section data-region="notes">
       <h2>Notes</h2>
       <ul>
-        <!--t:c note-1 {"id":1}--><li>First note</li><!--/t:c-->
-        <!--t:c note-2 {"id":2}--><li>Second note</li><!--/t:c-->
+        <li data-t-c="note-1" data-t-props='{"id":1}'>First note</li>
+        <li data-t-c="note-2" data-t-props='{"id":2}'>Second note</li>
       </ul>
     </section>

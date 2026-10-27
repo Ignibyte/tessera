@@ -18,7 +18,8 @@ default so work could go on; Chad confirms or changes it, and until then the cod
 - **Releases are built files on GitHub releases**, pinned by version (2026-10-20). No npm
   package, no composer package.
 - **Regions are elements, components and control-flow blocks are comment pairs** (AIC #37,
-  2026-10-20).
+  2026-10-20). **Superseded** by "Protocol 1: components are elements" below (ticket #33): regions
+  and components are both elements, and blocks are gone.
 - **The repo is private**, `Ignibyte/tessera` (2026-10-20, the default recommended to Chad; he can
   make it public later).
 - **Tessera keeps tests** (2026-10-20): a browser runtime's correctness is behaviour across
@@ -45,12 +46,15 @@ default so work could go on; Chad confirms or changes it, and until then the cod
   `Tessera-Request` (the kind: `visit`, `submit`, `action`, `refresh`, `stream`),
   `Tessera-Protocol: 0`, `Tessera-Targets` (each component entry carries its props token),
   `Tessera-Layout` and, on actions only, `Tessera-Signals`. A server that does not speak the
-  version answers `400` with the versions it speaks, before any side effect.
+  version answers `400` with the versions it speaks, before any side effect. The version is `1`
+  since ticket #33; the headers are unchanged.
 - **Identity spelling** (Chad, 2026-10-20; ticket #2): components are
   `<!--t:c KEY-->` or `<!--t:c KEY PROPS-->` ... `<!--/t:c-->`, blocks `<!--t:b-->` ...
   `<!--/t:b-->`. Blocks have no key, are always rendered (empty ones included) and pair by
   position, so a conditional that appears does not shift its siblings. `page` is a reserved target
   name for the whole document, and the root of paths for components outside any region.
+  **Superseded** for components and blocks by "Protocol 1: components are elements" below (ticket
+  #33); `page` stays as it was.
 - **Fragment responses are `text/vnd.tessera+html`** (**Provisional**, ticket #2, 2026-10-20): a
   body of top-level `<template data-target data-mode>` elements, JSON signal patches in
   `<script type="application/json" data-scope>`, an optional `<title>`, CSRF meta and copies of
@@ -451,6 +455,40 @@ default so work could go on; Chad confirms or changes it, and until then the cod
   within 100 bytes). By the source map the transport is 18% of the minified default build,
   Idiomorph 9.5%, the kernel 8.6% and the built-in directives 8.2%; long string literals, mostly
   error messages, are about 2.7 KB gzipped. A later ticket can lower both.
+
+- **Protocol 1: components are elements** (Chad, 2026-10-28: "not in comments ... data attributes
+  or something would make more sense"; the driver's decisions on ticket #33; AIC #189 and #188
+  follow). `Tessera-Protocol: 1`, released as Tessera 0.2.0.
+  - A component is exactly one element carrying `data-t-c="KEY"`, and `data-t-props="TOKEN"` when
+    it has props. The key grammar, the path spelling (the region's name or `page`, then the keys of
+    the enclosing components, outside in) and the 512-character cap are as in protocol 0. A
+    component that renders siblings is wrapped by its server (`<tbody>` for rows, `<div>`
+    elsewhere); a component inside `<h2>` or `<p>` is a `<span>`.
+  - Blocks are dropped. Tessera 0.1.x never treated `t:b` specially: `patch.ts` had no block logic
+    and `scopes.ts` only skipped them, so they were passive comments Idiomorph aligned. A
+    conditional that appears may shift its siblings in a morph, and a server keeps state-bearing
+    elements (fields) id'd, which Idiomorph matches by `id`.
+  - Anchors: `data-t-anchor="NAME"` on a component (a key-shaped name, unique on the page). Where
+    Tessera reads a target from the page (`data-target`, an action's `target`, a form, the API),
+    `@NAME` names that component, resolved to its path before `Tessera-Targets` is sent. An
+    unknown or doubled anchor, or one on an element without `data-t-c`, is reported as a bad
+    target and the request is not sent. The server never sees `@`. `data-poll` and `data-lazy`
+    take no target attribute, so they have nothing to resolve.
+  - A component morph is Idiomorph on the component element itself (`outerHTML`, as a region's
+    is), so #32's `morphRange` and the copies outside the range are gone. `inner`, `append` and
+    `prepend` act on the element's children; `remove` removes the element.
+  - A server speaking only 0 meets the refusal a mismatched version already got: `400` without `1`
+    in its `Tessera-Protocol` is a full load.
+- **A component morph brings the same tag as the live component element** (**Provisional**,
+  ticket #33, 2026-10-27; the agent's choice, beside the driver's decisions). The rule regions
+  already follow: a morph whose element has another tag is refused (`the component is a <div>, the
+  markup a <section>`). Idiomorph replaces rather than morphs an element whose tag changed, and the
+  component element is the render transaction's root, which must survive the morph. A server that
+  changes a component's tag sends the enclosing target instead.
+- **An element is not both a region and a component** (**Provisional**, ticket #33, 2026-10-27):
+  `findTarget` refuses a component element that also carries `data-region`, and the reference
+  server's scanner refuses one in a fixture. Both attributes would give one element two scopes
+  and two spellings.
 
 ## Open
 

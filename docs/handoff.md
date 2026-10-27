@@ -9,7 +9,8 @@ Read `CLAUDE.md` for the workflow, then `docs/design.md`, `docs/decisions.md` an
 A browser runtime that AIC and Rustal share. The server sends HTML; Tessera morphs it into the
 page one region or component at a time, over responses and Server-Sent Events, and keeps local
 state in Datastar-style attributes with explicit scopes. The browser side has no framework names
-in it. Servers speak the protocol in `docs/protocol.md` (version 0). The repo is private
+in it. Servers speak the protocol in `docs/protocol.md` (version 1 since #33; Tessera 0.1.x speaks
+version 0). The repo is private
 (`Ignibyte/tessera`) and nothing from it goes into a public one.
 
 ## Released state

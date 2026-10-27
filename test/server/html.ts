@@ -2,8 +2,8 @@
 // finds regions and components in the rendered HTML (docs/protocol.md, section 2), and the
 // pieces of a fragment response (section 5.3).
 //
-// The scanner reads the server's own fixtures, which are well-formed: every region element has
-// its end tag and no attribute value holds `>`. It is not a general HTML parser.
+// The scanner reads the server's own fixtures, which are well-formed: every region and component
+// element has its end tag and no attribute value holds `>`. It is not a general HTML parser.
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
@@ -84,21 +84,18 @@ export function renderPage(name: string, vars: Vars, key: string): Rendered {
   }
   const layoutSource = `layouts/${page.layout}.html`;
   const layout = readFileSync(resolve(root, layoutSource), "utf8");
-  const html = signMarkers(fill(layout, all, layoutSource), key);
+  const html = signProps(fill(layout, all, layoutSource), key);
   return { html, layout: page.layout, identities: scan(html) };
 }
 
 // --- Props tokens --------------------------------------------------------------------------
 
 /**
- * In fixture files a component marker may carry JSON props, `<!--t:c line-7 {"id":7}-->`; the
- * server replaces the JSON with a signed token before it sends the page.
+ * In fixture files a component may carry JSON props, `data-t-props='{"id":7}'`; the server
+ * replaces the JSON with a signed token before it sends the page.
  */
-function signMarkers(html: string, key: string): string {
-  return html.replace(
-    /<!--t:c ([^ >]+) (\{.*?\})-->/g,
-    (_match, componentKey: string, json: string) => `<!--t:c ${componentKey} ${sign(json, key)}-->`,
-  );
+function signProps(html: string, key: string): string {
+  return html.replace(/ data-t-props='(\{.*?\})'/g, (_match, json: string) => ` data-t-props="${sign(json, key)}"`);
 }
 
 function mac(payload: string, key: string): Buffer {
@@ -142,11 +139,39 @@ interface Span {
   end: number;
 }
 
-function regionSpans(html: string): Span[] {
+const VOID = new Set(["area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "source", "track", "wbr"]);
+
+function attribute(attributes: string, name: string): string | undefined {
+  return new RegExp(`\\s${name}="([^"]*)"`).exec(attributes)?.[1];
+}
+
+/** The elements carrying `data-region` or `data-t-c`, each with the span to its end tag. */
+function elementSpans(html: string): Span[] {
   const spans: Span[] = [];
-  const opening = /<([a-zA-Z][a-zA-Z0-9-]*)\b[^>]*?\sdata-region="([^"]*)"[^>]*>/g;
-  for (const match of html.matchAll(opening)) {
-    const [text, tag = "", name = ""] = match;
+  const anchors = new Set<string>();
+  for (const match of html.matchAll(/<([a-zA-Z][a-zA-Z0-9-]*)\b([^>]*)>/g)) {
+    const [text, tag = "", attributes = ""] = match;
+    const region = attribute(attributes, "data-region");
+    const key = attribute(attributes, "data-t-c");
+    const props = attribute(attributes, "data-t-props");
+    const anchor = attribute(attributes, "data-t-anchor");
+    if (key === undefined && (props !== undefined || anchor !== undefined)) throw new Error(`<${tag}> carries component attributes without data-t-c`);
+    if (region === undefined && key === undefined) continue;
+    if (region !== undefined && key !== undefined) throw new Error(`<${tag}> is both region ${region} and component ${key}`);
+    if (key !== undefined) {
+      if (!COMPONENT_KEY.test(key) || key.length > 64) throw new Error(`bad component key ${key}`);
+      if (props !== undefined && !PROPS_TOKEN.test(props)) throw new Error(`bad props on ${key}`);
+      if (anchor !== undefined) {
+        if (!COMPONENT_KEY.test(anchor) || anchor.length > 64 || anchors.has(anchor)) throw new Error(`bad or doubled anchor ${anchor}`);
+        anchors.add(anchor);
+      }
+    }
+    const name = region ?? key ?? "";
+    const kind = region === undefined ? "component" : "region";
+    if (VOID.has(tag.toLowerCase())) {
+      spans.push({ kind, name, start: match.index, end: match.index + text.length });
+      continue;
+    }
     const tags = new RegExp(`<!--[\\s\\S]*?-->|<(/?)${tag}\\b[^>]*>`, "gi");
     tags.lastIndex = match.index + text.length;
     let depth = 1;
@@ -159,34 +184,15 @@ function regionSpans(html: string): Span[] {
         break;
       }
     }
-    if (end < 0) throw new Error(`region ${name}: no end tag for <${tag}>`);
-    spans.push({ kind: "region", name, start: match.index, end });
+    if (end < 0) throw new Error(`${kind} ${name}: no end tag for <${tag}>`);
+    spans.push({ kind, name, start: match.index, end });
   }
-  return spans;
-}
-
-function componentSpans(html: string): Span[] {
-  const spans: Span[] = [];
-  const open: { key: string; start: number }[] = [];
-  for (const match of html.matchAll(/<!--t:c ([^ >]+)(?: ([^ >]+))?-->|<!--\/t:c-->/g)) {
-    const [text, key, props] = match;
-    if (key === undefined) {
-      const opener = open.pop();
-      if (!opener) throw new Error(`a closing component marker at ${match.index} has no opener`);
-      spans.push({ kind: "component", name: opener.key, start: opener.start, end: match.index + text.length });
-      continue;
-    }
-    if (!COMPONENT_KEY.test(key) || key.length > 64) throw new Error(`bad component key ${key}`);
-    if (props !== undefined && !PROPS_TOKEN.test(props)) throw new Error(`bad props on ${key}`);
-    open.push({ key, start: match.index });
-  }
-  if (open.length > 0) throw new Error(`component ${open[0]?.key ?? ""} is never closed`);
   return spans;
 }
 
 /** Finds every region and component and computes their targets (sections 2.1 to 2.4). */
 export function scan(html: string): Identities {
-  const spans = [...regionSpans(html), ...componentSpans(html)];
+  const spans = elementSpans(html);
   const byTarget = new Map<string, Identity>();
   for (const span of spans) {
     let target: string;

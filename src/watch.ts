@@ -54,5 +54,5 @@ export function watchProtocolAttribute(kernel: Kernel, name: string, sync: (elem
 /** The target of a refresh from `element`: its innermost component or region, else the page (none). */
 export function refreshTargets(element: Element): string[] {
   const [nearest] = scopeOwners(element);
-  return nearest === undefined || nearest.nodeType === 9 ? [] : [ownerPath(nearest as Element | Comment)];
+  return nearest === undefined || nearest.nodeType === 9 ? [] : [ownerPath(nearest as Element)];
 }

@@ -92,7 +92,7 @@ describe("redirects", () => {
 
   it("follows Tessera-Location with a fresh GET visit carrying the targets, never the body", async () => {
     const { transport, calls, respond, find, pushed } = setup(content);
-    respond(() => empty(200, { "Tessera-Location": "/done", "Tessera-Protocol": "0" }), () => fragments(contentFragment("done")));
+    respond(() => empty(200, { "Tessera-Location": "/done", "Tessera-Protocol": "1" }), () => fragments(contentFragment("done")));
     const outcome = await transport.request({ kind: "submit", method: "POST", url: "/save", targets: ["content"], body: "secret=1" });
     expect(outcome).toMatchObject({ status: "committed", redirectedTo: `${ORIGIN}/done` });
     expect(calls[1]).toMatchObject({ url: `${ORIGIN}/done`, method: "GET", body: undefined });
@@ -105,7 +105,7 @@ describe("redirects", () => {
     const { transport, calls, respond, find, form, pushed } = setup(
       `<main data-region="content"><form id="f" method="post" action="/save" data-push="off"><button id="go">Go</button></form><p id="text">old</p></main>`,
     );
-    respond(() => empty(200, { "Tessera-Location": "/done", "Tessera-Protocol": "0" }), () => fragments(contentFragment("done")));
+    respond(() => empty(200, { "Tessera-Location": "/done", "Tessera-Protocol": "1" }), () => fragments(contentFragment("done")));
     const outcome = await transport.submit(form("#f"), find("#go"));
     expect(outcome).toMatchObject({ status: "committed", redirectedTo: `${ORIGIN}/done` });
     expect(calls[1]?.headers).toMatchObject({ "tessera-request": "visit", "tessera-targets": "content" });
@@ -275,13 +275,13 @@ describe("supersession by target", () => {
 });
 
 describe("headers", () => {
-  it("sends the protocol's headers, with props tokens from the markers", async () => {
-    const { transport, calls } = setup(`<main data-region="content"><!--t:c cart eyJpZCI6MX0.c2ln--><p></p><!--/t:c--></main>`);
+  it("sends the protocol's headers, with props tokens from the components", async () => {
+    const { transport, calls } = setup(`<main data-region="content"><div data-t-c="cart" data-t-props="eyJpZCI6MX0.c2ln"><p></p></div></main>`);
     await transport.request({ kind: "refresh", url: "/cart", targets: ["content/cart"] });
     expect(calls[0]?.headers).toEqual({
       accept: ACCEPT,
       "tessera-request": "refresh",
-      "tessera-protocol": "0",
+      "tessera-protocol": "1",
       "tessera-targets": "content/cart eyJpZCI6MX0.c2ln",
       "tessera-layout": "app",
     });
@@ -310,7 +310,7 @@ describe("headers", () => {
 
   it("sends the signals of the element's chain on actions only", async () => {
     const { transport, calls, find } = setup(
-      `<main data-region="content" data-signals="{qty: 2, _local: 1}"><!--t:c line--><button id="b" data-signals="{open: true}"></button><!--/t:c--></main>`,
+      `<main data-region="content" data-signals="{qty: 2, _local: 1}"><div data-t-c="line"><button id="b" data-signals="{open: true}"></button></div></main>`,
     );
     await transport.actions({ method: "post", url: "/qty", options: undefined, element: find("#b"), event: undefined });
     expect(calls[0]?.headers).toMatchObject({ "tessera-request": "action", "tessera-targets": "content/line", "tessera-signals": '{"qty":2,"open":true}' });
@@ -338,7 +338,7 @@ describe("the write id", () => {
 
   it("is never on a GET, nor on the visit a Tessera-Location leads to", async () => {
     const { transport, calls, respond } = setup(content);
-    respond(() => empty(204), () => empty(200, { "Tessera-Location": "/done", "Tessera-Protocol": "0" }), () => fragments(contentFragment("done")));
+    respond(() => empty(204), () => empty(200, { "Tessera-Location": "/done", "Tessera-Protocol": "1" }), () => fragments(contentFragment("done")));
     await transport.request({ kind: "refresh", url: "/x" });
     await transport.request({ kind: "submit", method: "POST", url: "/save", targets: ["content"], body: "" });
     expect(calls.map(({ method, headers }) => [method, headers["tessera-write-id"] !== undefined])).toEqual([
@@ -495,15 +495,24 @@ describe("the protocol's answers", () => {
     expect((await transport.request({ kind: "refresh", url: "/x" })).status).toBe("failed");
   });
 
-  it("loads in full on a 400 for another protocol version, and on a fragment response without version 0", async () => {
+  it("loads in full on a 400 from a server speaking only version 0, and on a fragment response without version 1", async () => {
     const { transport, respond, navigated } = setup(content);
     respond(
-      () => empty(400, { "Tessera-Protocol": "1, 2" }),
+      () => empty(400, { "Tessera-Protocol": "0" }),
       () => new Response("", { headers: { "Content-Type": "text/vnd.tessera+html" } }),
+      () => new Response("", { headers: { "Content-Type": "text/vnd.tessera+html", "Tessera-Protocol": "0" } }),
     );
     await transport.request({ kind: "visit", url: "/a" });
     await transport.request({ kind: "visit", url: "/b" });
-    expect(navigated).toEqual([`${ORIGIN}/a`, `${ORIGIN}/b`]);
+    await transport.request({ kind: "visit", url: "/c" });
+    expect(navigated).toEqual([`${ORIGIN}/a`, `${ORIGIN}/b`, `${ORIGIN}/c`]);
+  });
+
+  it("treats a 400 listing version 1 among others as an ordinary client error", async () => {
+    const { transport, respond, navigated } = setup(content);
+    respond(() => empty(400, { "Tessera-Protocol": "0, 1" }));
+    expect((await transport.request({ kind: "refresh", url: "/a" })).status).toBe("failed");
+    expect(navigated).toEqual([]);
   });
 
   it("hands a whole document to commitDocument, or loads in full without it", async () => {
@@ -577,9 +586,45 @@ describe("the protocol's answers", () => {
   });
 });
 
+describe("anchors", () => {
+  const page = `<main data-region="content"><div data-t-c="cart" data-t-props="eyJpZCI6MX0.c2ln" data-t-anchor="basket"><button id="b"></button></div></main>
+    <p data-t-c="x" data-t-anchor="twice"></p><p data-t-c="y" data-t-anchor="twice"></p>`;
+
+  it("resolves @NAME to the component's path, with its props, before Tessera-Targets is sent", async () => {
+    const { transport, calls, find } = setup(page);
+    const outcome = await transport.request({ kind: "refresh", url: "/cart", targets: ["@basket", "sidebar"] });
+    await transport.actions({ method: "post", url: "/qty", options: { target: "@basket" }, element: find("#b"), event: undefined });
+    expect(calls.map(({ headers }) => headers["tessera-targets"])).toEqual(["content/cart eyJpZCI6MX0.c2ln, sidebar", "content/cart eyJpZCI6MX0.c2ln"]);
+    expect(outcome.status).not.toBe("failed");
+  });
+
+  it.each([
+    ["an unknown anchor", "@nowhere", "the page has no anchor nowhere."],
+    ["a doubled anchor", "@twice", "two elements carry the anchor twice."],
+  ])("reports %s and sends nothing", async (_case, target, message) => {
+    const { transport, calls, reported } = setup(page);
+    const outcome = await transport.request({ kind: "visit", url: "/x", targets: [target] });
+    expect(outcome.status).toBe("failed");
+    expect(calls).toEqual([]);
+    expect(String(reported[0])).toContain(message);
+  });
+
+  it("sends a form's anchored data-target as a path", async () => {
+    const { transport, calls, find } = setup(`${page}<form id="f" method="post" action="/save" data-target="@basket"></form>`);
+    await transport.submit(find("#f") as HTMLFormElement);
+    expect(calls[0]?.headers["tessera-targets"]).toBe("content/cart eyJpZCI6MX0.c2ln");
+  });
+
+  it("prefetches nothing for an anchor that does not resolve", () => {
+    const { transport, calls } = setup(page);
+    transport.prefetch({ url: "/x", targets: ["@nowhere"], press: true });
+    expect(calls).toEqual([]);
+  });
+});
+
 describe("the action seam", () => {
   it("targets the innermost component or region by default, or the target option", async () => {
-    const { transport, calls, find } = setup(`<main data-region="content"><!--t:c card--><button id="in"></button><!--/t:c--><button id="out"></button></main><p id="loose"></p>`);
+    const { transport, calls, find } = setup(`<main data-region="content"><div data-t-c="card"><button id="in"></button></div><button id="out"></button></main><p id="loose"></p>`);
     const call = (element: Element, options?: Record<string, unknown>) =>
       transport.actions({ method: "get", url: "/x", options, element, event: undefined }) as Promise<RequestOutcome>;
     await call(find("#in"));

@@ -1,4 +1,4 @@
-# Tessera protocol, version 0
+# Tessera protocol, version 1
 
 This is what a server must do to speak Tessera. It is written for the server layers of AIC (PHP)
 and Rustal (Rust), and for anyone writing another: each can be built from this document alone,
@@ -12,7 +12,7 @@ Tessera layer; the application behind it never sees most of this.
 ## Contents
 
 1. Versions
-2. Identities: regions, components, blocks, keys, props
+2. Identities: regions, components, keys, props, anchors
 3. Attributes a server renders
 4. Requests
 5. Responses
@@ -26,8 +26,14 @@ Tessera layer; the application behind it never sees most of this.
 
 ## 1. Versions
 
-Every request Tessera makes carries `Tessera-Protocol: 0`. This document is version 0. A change
+Every request Tessera makes carries `Tessera-Protocol: 1`. This document is version 1. A change
 that an existing server or page would notice gets a new number.
+
+Version 0 (Tessera 0.1.x) marked components with comment pairs (`<!--t:c KEY PROPS-->` …
+`<!--/t:c-->`) and conditionals and loops with `<!--t:b-->` … `<!--/t:b-->`. Version 1 marks a
+component with attributes on its one root element (section 2.2), has no block markers (section
+2.3) and adds anchors (section 2.7). Everything else is as in version 0. A server moving to
+version 1 changes its component markup and its version check; nothing else on the wire changes.
 
 A server that does not speak the version a request names must not act on the request: no write,
 no side effect. It answers `400` with a `Tessera-Protocol` header listing the versions it does
@@ -35,8 +41,10 @@ speak, comma-separated (`Tessera-Protocol: 1, 2`); Tessera ignores the body. Tes
 `400` that carries a `Tessera-Protocol` header without its own version, does a full load (section
 5.6). A `400` without the header is an ordinary client error (section 6).
 
-A fragment response or a stream must carry `Tessera-Protocol: 0`. One without it, or with another
-value, is treated the same way: Tessera commits nothing from it and does a full load.
+A fragment response or a stream must carry `Tessera-Protocol: 1`. One without it, or with another
+value, is treated the same way: Tessera commits nothing from it and does a full load. So a server
+that speaks only version 0 meets Tessera 0.2 with a full load on every enhanced request: it
+answers `400` with `Tessera-Protocol: 0`, and the page still works as plain HTML.
 
 ## 2. Identities
 
@@ -62,51 +70,52 @@ A region is an element carrying `data-region`:
 
 ### 2.2 Components
 
-A component is the run of nodes between two comments, since a wrapper element is invalid in many
-places (inside `<h2>`, `<p>`, `<tr>`):
+A component is exactly one element carrying `data-t-c`, its key:
 
 ```html
-<!--t:c cart eyJpZCI6NDJ9.Kq3v-->
-  <h2>Cart <!--t:c count-->3<!--/t:c--></h2>
+<section data-t-c="cart" data-t-props="eyJpZCI6NDJ9.Kq3v">
+  <h2>Cart <span data-t-c="count">3</span></h2>
   …
-<!--/t:c-->
+</section>
 ```
 
-- The opening marker is exactly `<!--t:c KEY-->` or `<!--t:c KEY PROPS-->`: the text `t:c`, one
-  space, the key, and optionally one space and the props token (section 2.5). Nothing else is
-  allowed inside the comment, not even a trailing space.
-- The closing marker is exactly `<!--/t:c-->`. It closes the innermost open component.
-- Markers nest properly, and a component's opening and closing markers have the same parent node.
-  A component that opens inside an element and closes outside it is a server error.
+- `data-t-c="KEY"` makes the element a component; the key follows section 2.4.
+- `data-t-props="TOKEN"` carries the component's props token when it has props (section 2.5), and
+  is absent when it has none.
+- `data-t-anchor="NAME"` is optional and names the component for links and forms (section 2.7).
+- The element is the whole component: what a template renders for it is the element and its
+  children. A component that renders several siblings is wrapped by its server in an element
+  that is valid there: a `<tbody>` for table rows, a `<div>` elsewhere. A component inside
+  `<h2>`, `<p>` or another element that holds only phrasing content is a `<span>`.
+- An element must not carry both `data-t-c` and `data-region`, and `data-t-props` and
+  `data-t-anchor` only appear beside `data-t-c`. Tessera refuses to patch an element that is both
+  a region and a component.
+- The component element itself survives an update, as a region element does (section 5.3).
 
-AIC renders `<!--aic:c KEY-->` … `<!--/aic:c-->` today and will move to this spelling. Tessera
-reads only the spelling above.
+### 2.3 Conditionals and loops
 
-### 2.3 Blocks
-
-A block is a conditional or a loop in a template, marked so that it morphs as one unit:
+Version 1 has no block markers. A conditional or a loop renders its content, or nothing, with no
+trace when it is false or empty. Idiomorph aligns the old and new children of an element by `id`
+and then by tag, so a conditional that appears may shift the siblings after it in a morph: the
+morph may reuse `<p>Your order</p>` for a notice that appears before it, and then add a new
+`<p>`. For plain markup that is harmless. For an element that holds state the user sees (a field,
+a `<details>`, anything focusable), the server must render a stable `id`: Idiomorph keeps an
+element whose `id` the new markup also has as the same node, so a field keeps its value and focus
+whatever appears around it.
 
 ```html
-<!--t:b--><p class="notice">Saved.</p><!--/t:b-->
+<p class="notice">Saved.</p>   <!-- rendered only after a save -->
 <p>Your order</p>
+<input id="qty" name="qty" value="1">
 ```
-
-- The markers are exactly `<!--t:b-->` and `<!--/t:b-->`, with the same nesting rules as
-  components.
-- A block's markers are always rendered, even when the condition is false or the loop is empty
-  (`<!--t:b--><!--/t:b-->`). Tessera pairs the old and new blocks among a parent's children by
-  position: the first block with the first block, and so on. Because an empty block still has its
-  markers, a conditional that appears does not shift the nodes after it, and the morph never
-  reuses `<p>Your order</p>` for the notice.
-- Blocks have no key and are never a target. They shape the morph inside a target; nothing more.
 
 ### 2.4 Keys and paths
 
 - A key matches `^[A-Za-z0-9_.:]+(-[A-Za-z0-9_.:]+)*$` and is at most 64 characters: letters,
   digits, `_`, `.`, `:` and single hyphens, not first or last (`cart`, `line-7`, `post:42`).
 - A key is unique among its siblings: the components whose nearest enclosing component, or region
-  when there is none, is the same. Blocks do not count. Two siblings with one key are a server
-  error.
+  when there is none, is the same. Plain elements between them do not count. Two siblings with one
+  key are a server error.
 - A component's full identity is its **path**: the name of its nearest enclosing region, or `page`
   when no region encloses it, then the keys of every enclosing component from the outside in, then
   its own key, joined by `/`.
@@ -115,26 +124,28 @@ In this page:
 
 ```html
 <body>
-  <header><!--t:c cart-count-->3<!--/t:c--></header>
+  <header><span data-t-c="cart-count">3</span></header>
   <main data-region="content">
-    <!--t:c cart-->
-      <!--t:c line-7-->…<!--/t:c-->
-      <!--t:c line-9-->…<!--/t:c-->
-    <!--/t:c-->
+    <section data-t-c="cart">
+      <ul>
+        <li data-t-c="line-7">…</li>
+        <li data-t-c="line-9">…</li>
+      </ul>
+    </section>
   </main>
 </body>
 ```
 
 the paths are `page/cart-count`, `content/cart`, `content/cart/line-7` and `content/cart/line-9`.
-A region nested in a component starts paths of its own: components inside it are addressed from
-that region's name.
+The `<ul>` between the cart and its lines is not part of any path. A region nested in a component
+starts paths of their own: components inside it are addressed from that region's name.
 
 A path is at most 512 characters.
 
 ### 2.5 Props
 
-A component rendered alone needs its inputs back. The server puts them, signed, in the opening
-marker as an opaque **props token**:
+A component rendered alone needs its inputs back. The server puts them, signed, in the
+component's `data-t-props` attribute as an opaque **props token**:
 
 - The token is 1 or more characters from `A-Z a-z 0-9 - _ . ~ + / =`, which covers base64,
   base64url, JWT-style tokens and hex.
@@ -159,7 +170,32 @@ A **target** is what an update replaces: the page, a region or a component.
 
 A target containing `/` is a component; `page` is the document; anything else is a region. The
 same spelling is used in request headers, in fragment responses, in stream events and in
-attributes.
+attributes. Where the page names a target, an anchor (section 2.7) may stand in for a component's
+path; it never reaches the server.
+
+### 2.7 Anchors
+
+A component's path depends on where it sits, so a link that targets it would have to be rendered
+with the page's structure in mind. An anchor names a component by itself instead:
+
+```html
+<main data-region="content">
+  <section data-t-c="cart" data-t-anchor="cart">…</section>
+</main>
+<a href="/cart?coupon=1" data-target="@cart">Apply coupon</a>
+```
+
+- `data-t-anchor="NAME"` sits on a component element. NAME follows the key grammar (section 2.4)
+  and is unique on the page.
+- Wherever Tessera reads targets from the page (`data-target` on a link, a form or a submitter,
+  an action's `target` option, a visit through the API), `@NAME` names the component carrying
+  that anchor. Tessera resolves it to the component's path from the page before it sends the
+  request, so `Tessera-Targets` above holds `content/cart` with its props token, never `@cart`.
+- An anchor that is badly spelled, that no element carries, that two elements carry, or that sits
+  on an element without `data-t-c`, is an error: Tessera reports it as it reports a bad target and
+  sends nothing.
+- The server never sees `@`. A fragment, a signal patch or a stream event names its target by
+  path; `@` there is not a region name and fails as section 5.3 says.
 
 ## 3. Attributes a server renders
 
@@ -169,7 +205,10 @@ column builds the browser behaviour; the name and the meaning are fixed here.
 | Attribute | On | Meaning | Ticket |
 |---|---|---|---|
 | `data-region="NAME"` | any element | The element is region `NAME` (section 2.1). | #9 |
-| `data-target="TARGETS"` | `<a>`, `<form>`, a submit `<button>` or `<input>` | The targets a visit or submission updates, space-separated (`content`, `content sidebar`, `page`). On a submitter it overrides the form's. Without it: the innermost region containing the element, or `page` when there is none. | #13 |
+| `data-t-c="KEY"` | any element inside `<body>` | The element is a component with key `KEY` (section 2.2). | #33 |
+| `data-t-props="TOKEN"` | a component element | The component's props token, sent back with its path (sections 2.5 and 4.3). | #33 |
+| `data-t-anchor="NAME"` | a component element | Names the component as `@NAME` for `data-target` and the other places the page names targets (section 2.7). | #33 |
+| `data-target="TARGETS"` | `<a>`, `<form>`, a submit `<button>` or `<input>` | The targets a visit or submission updates, space-separated (`content`, `content sidebar`, `page`, `@cart`). On a submitter it overrides the form's. Without it: the innermost region containing the element, or `page` when there is none. | #13 |
 | `data-push="off"` | `<a>`, `<form>`, a submit `<button>` or `<input>` | The visit, or the visit a submission's `Tessera-Location` leads to, commits as usual and leaves history as it was: no entry, the URL unchanged. For tab-like swaps. On a submitter, `data-push` with any value overrides the form's, so `data-push="on"` there pushes. Any value but `off` pushes, which is the default. | #28 |
 | `data-enhance="off"` | any element | Links and forms inside it, and the element itself, are left to the browser. `data-enhance="on"` inside an `off` element turns enhancement back on; the nearest one wins. | #13 |
 | `data-track` | `<script src>`, `<link href>` in `<head>` | A tracked asset. Any change to the set of tracked assets forces a full load (section 9). The value is optional and is compared too, so `data-track="v42"` can carry a build id. | #13 |
@@ -217,8 +256,8 @@ link opened in a new tab) carries none of the headers below.
 |---|---|---|---|
 | `visit` | GET | an enhanced link, a GET form, Back and Forward, following a redirect, a prefetch | the link's or form's `data-target`, else its innermost region, else `page` |
 | `submit` | POST | a form with `method="post"` | the submitter's or form's `data-target`, else the form's innermost region, else `page` |
-| `action` | GET, POST, PUT, PATCH or DELETE | `@get(…)`, `@post(…)`, `@put(…)`, `@patch(…)`, `@delete(…)` in an expression | the action's own option, else the innermost component or region containing the element (a region contains itself), else `page` |
-| `refresh` | GET | `data-lazy`, `data-poll`, a refresh through the API | the innermost component or region containing the element (a region contains itself), else `page` |
+| `action` | GET, POST, PUT, PATCH or DELETE | `@get(…)`, `@post(…)`, `@put(…)`, `@patch(…)`, `@delete(…)` in an expression | the action's own option, else the innermost component or region containing the element (a component or region contains itself), else `page` |
+| `refresh` | GET | `data-lazy`, `data-poll`, a refresh through the API | the innermost component or region containing the element (a component or region contains itself), else `page` |
 | `stream` | GET | `data-stream`, a stream through the API | none: the URL names the stream |
 
 A **write** is any request whose method is not GET. Tessera sends a write once and never again
@@ -234,7 +273,7 @@ it. File inputs go as `multipart/form-data`.
 | Header | Sent on | Value |
 |---|---|---|
 | `Tessera-Request` | every request | the kind: `visit`, `submit`, `action`, `refresh` or `stream` |
-| `Tessera-Protocol` | every request | `0` |
+| `Tessera-Protocol` | every request | `1` |
 | `Tessera-Targets` | every request except streams, when the target is not `page` | the targets, with props (section 4.3) |
 | `Tessera-Layout` | every request, when the page has a `tessera-layout` meta | its content |
 | `Tessera-Signals` | actions only | the signals (section 4.4) |
@@ -258,7 +297,7 @@ target          = region / path            ; sections 2.1 and 2.4
 props           = 1*( ALPHA / DIGIT / "-" / "_" / "." / "~" / "+" / "/" / "=" )
 ```
 
-For example, a click on a button inside `content/cart/line-7`, whose marker carries a token:
+For example, a click on a button inside `content/cart/line-7`, whose element carries a token:
 
 ```
 Tessera-Targets: content/cart/line-7 eyJpZCI6N30.a9Zx
@@ -270,7 +309,8 @@ and a link updating two regions:
 Tessera-Targets: content, sidebar
 ```
 
-The header is absent when the target is the page.
+The header is absent when the target is the page. It never holds an anchor: Tessera has resolved
+each `@NAME` to its path (section 2.7).
 
 The list says what the page wants. The server should render at least those targets when it can,
 and may send others too: a write that changes the cart count in the header sends `page/cart-count`
@@ -335,7 +375,7 @@ form's data in the form's encoding. A GET or DELETE action has no body.
 ### 4.6 Overlapping requests
 
 Two requests overlap when one's target is the other's, lies inside it or contains it: a region by
-its element, a component by the run between its markers, and `page` contains everything. A
+its element, a component by its element, and `page` contains everything. A
 request with several targets overlaps another if any pair does. Requests whose targets are apart
 run side by side.
 
@@ -364,8 +404,8 @@ around a newer commit stays valid, since it replaces that commit's target anyway
 for `events` after a commit to `content` is dropped. This holds for targets a response brings
 without the request naming them.
 
-While a request is queued or in flight, its region targets carry `aria-busy="true"` (for a
-component, the elements directly between its markers; for `page`, `<body>`), and the element
+While a request is queued or in flight, its targets carry `aria-busy="true"` (a region or a
+component on its element; for `page`, `<body>`), and the element
 that started it carries `data-loading`. Both go when the last request holding them settles. A
 server need do nothing for any of this, beyond rendering targets fresh on every request.
 
@@ -400,7 +440,7 @@ browser. Tessera commits it as a whole-document visit: the head policy of sectio
 
 ```
 Content-Type: text/vnd.tessera+html; charset=utf-8
-Tessera-Protocol: 0
+Tessera-Protocol: 1
 ```
 
 The body is HTML whose top level holds only these elements, in any order, with whitespace and
@@ -423,11 +463,11 @@ A fragment response cannot target `page`: to update the whole document, send a f
 
 | Mode | Template content | Effect on a region | Effect on a component |
 |---|---|---|---|
-| `morph` | the whole target as the page would render it | Exactly one element, carrying `data-region` with the target's name and the same tag as the live region element. Its attributes and children are morphed into the live region element. | Exactly one opening marker with the target's key, its content and its closing marker. The markers' props and the content between them are morphed in. |
-| `inner` | the target's new children | The children are morphed; the element's own attributes stay. | The nodes between the markers are morphed; the markers and their props stay. |
-| `append` | nodes to add | Added after the last child. | Added before the closing marker. |
-| `prepend` | nodes to add | Added before the first child. | Added after the opening marker. |
-| `remove` | nothing (whitespace only) | The region element is removed. | Both markers and everything between are removed. |
+| `morph` | the whole target as the page would render it | Exactly one element, carrying `data-region` with the target's name and the same tag as the live region element. Its attributes and children are morphed into the live region element. | Exactly one element, carrying `data-t-c` with the target's key and the same tag as the live component element. Its attributes (`data-t-props` included) and children are morphed into the live component element. |
+| `inner` | the target's new children | The children are morphed; the element's own attributes stay. | The children are morphed; the element's own attributes, its props among them, stay. |
+| `append` | nodes to add | Added after the last child. | Added after the last child. |
+| `prepend` | nodes to add | Added before the first child. | Added before the first child. |
+| `remove` | nothing (whitespace only) | The region element is removed. | The component element is removed. |
 
 Every mode except `remove` morphs or inserts through one render transaction: nested components
 and regions that leave the page are torn down first, the deepest first, and new ones start once.
@@ -461,7 +501,7 @@ Tessera request the server sends a redirect as a header instead:
 ```
 HTTP/1.1 200 OK
 Tessera-Location: /orders/42
-Tessera-Protocol: 0
+Tessera-Protocol: 1
 Vary: Tessera-Request, Tessera-Protocol, Tessera-Targets, Tessera-Layout
 ```
 
@@ -502,7 +542,7 @@ the current page's URL for anything else. A full load is always a GET; it never 
 | Header | On | Value |
 |---|---|---|
 | `Content-Type` | every response with a body | `text/html` (a document), `text/vnd.tessera+html` (fragments) or `text/event-stream` (a stream), with `charset=utf-8` |
-| `Tessera-Protocol` | fragment responses, streams and the `400` of section 1; allowed on any response to a Tessera request | `0`; on a `400`, the versions the server speaks |
+| `Tessera-Protocol` | fragment responses, streams and the `400` of section 1; allowed on any response to a Tessera request | `1`; on a `400`, the versions the server speaks |
 | `Tessera-Location` | in place of a `301`, `302` or `303` | a URL |
 | `Tessera-Full-Visit` | any status | a URL |
 | `Tessera-Stream-Pause` | a stream | `hidden` |
@@ -534,7 +574,7 @@ A request without the header (a plain form post, an older Tessera) is applied as
 | `204` | Nothing changes. | Nothing: no commit, no history entry. A visit stays on the current page, as a browser does. A stream stops. |
 | `301`, `302`, `303` | Look elsewhere. | Never seen from a server speaking the protocol (section 5.4). From a proxy: a read follows it; a write is reported as indeterminate. |
 | `307`, `308` | Resend the request elsewhere. | A read follows it. A write is reported as indeterminate and never resent. |
-| `400` with a `Tessera-Protocol` header not listing `0` | This server does not speak your version. | Full load (section 1). |
+| `400` with a `Tessera-Protocol` header not listing `1` | This server does not speak your version. | Full load (section 1). |
 | `409`, `422` | The write was refused; here is why. | Commits the fragments in place: the form's region with its errors. No history entry; the URL stays. Focus goes to `data-error-summary`, else the first `aria-invalid="true"` field. |
 | `419` | The page expired (the session or the CSRF token is stale). | Raises a "page expired" event (`tessera:expired`, cancelable, on the document). Its default prompt offers a reload of the current page. Nothing is resent. |
 | other `4xx` with a recognized body | The request failed; here is the page or region to show (a `404` page, a `403` notice). | Commits it as for `200`. A visit pushes its URL, as the browser would show the error page at that URL, unless it opted out (section 3). |
@@ -557,7 +597,7 @@ is open on a page, shared by every element that names it.
 GET /orders/stream HTTP/1.1
 Accept: text/event-stream
 Tessera-Request: stream
-Tessera-Protocol: 0
+Tessera-Protocol: 1
 Tessera-Layout: app
 Last-Event-ID: 1187
 ```
@@ -566,7 +606,7 @@ Last-Event-ID: 1187
 HTTP/1.1 200 OK
 Content-Type: text/event-stream; charset=utf-8
 Cache-Control: no-store
-Tessera-Protocol: 0
+Tessera-Protocol: 1
 ```
 
 Behind nginx, also send `X-Accel-Buffering: no`, or events wait in nginx's buffer.
@@ -606,9 +646,9 @@ commits it as a whole-document visit.
 event: tessera-patch-elements
 id: 1188
 data: target content/orders/order-42
-data: elements <!--t:c order-42 eyJpZCI6NDJ9.Pq1-->
-data: elements <li>Order 42: <strong>shipped</strong></li>
-data: elements <!--/t:c-->
+data: elements <li data-t-c="order-42" data-t-props="eyJpZCI6NDJ9.Pq1">
+data: elements Order 42: <strong>shipped</strong>
+data: elements </li>
 
 ```
 
@@ -656,7 +696,7 @@ or for a target inside it, and keeps its fragment for a target around it.
 - Tessera stops for good on `tessera-close`, on a `204`, when the last element naming the stream
   leaves the page, on a `401`, `403`, `404` or `410` (reported), on any other status that is not
   `200` (reported), and on a `200` that is not `text/event-stream` (reported). A `419` raises the
-  "page expired" event and stops. A stream without `Tessera-Protocol: 0`, or a `400` naming other
+  "page expired" event and stops. A stream without `Tessera-Protocol: 1`, or a `400` naming other
   versions, does a full load of the current page (section 1). A `429`, a `5xx` or a network
   failure is retried with the backoff above.
 - The last element leaving stops the stream one task later, so a render that replaces an element
@@ -749,7 +789,7 @@ Vary: Tessera-Request, Tessera-Protocol, Tessera-Targets, Tessera-Layout
   <script type="module" src="/assets/tessera.min.js" data-track></script>
 </head>
 <body>
-  <header><a href="/cart">Cart (<!--t:c cart-count-->3<!--/t:c-->)</a></header>
+  <header><a href="/cart">Cart (<span data-t-c="cart-count">3</span>)</a></header>
   <nav data-region="sidebar"><a href="/products/7" data-target="content">Lamp</a></nav>
   <main data-region="content">…</main>
 </body>
@@ -767,7 +807,7 @@ The user clicks "Lamp" in the sidebar. The link names `content`.
 GET /products/7 HTTP/1.1
 Accept: text/vnd.tessera+html, text/html;q=0.9
 Tessera-Request: visit
-Tessera-Protocol: 0
+Tessera-Protocol: 1
 Tessera-Targets: content
 Tessera-Layout: app
 ```
@@ -778,7 +818,7 @@ fragment:
 ```
 HTTP/1.1 200 OK
 Content-Type: text/vnd.tessera+html; charset=utf-8
-Tessera-Protocol: 0
+Tessera-Protocol: 1
 Vary: Tessera-Request, Tessera-Protocol, Tessera-Targets, Tessera-Layout
 
 <title>Lamp · Shop</title>
@@ -808,7 +848,7 @@ POST /cart/lines HTTP/1.1
 Content-Type: application/x-www-form-urlencoded
 Accept: text/vnd.tessera+html, text/html;q=0.9
 Tessera-Request: submit
-Tessera-Protocol: 0
+Tessera-Protocol: 1
 Tessera-Targets: content
 Tessera-Layout: app
 X-CSRF-Token: 3f9c…
@@ -822,7 +862,7 @@ sees a Tessera request and sends the redirect as a header:
 ```
 HTTP/1.1 200 OK
 Tessera-Location: /cart
-Tessera-Protocol: 0
+Tessera-Protocol: 1
 Vary: Tessera-Request, Tessera-Protocol, Tessera-Targets, Tessera-Layout
 ```
 
@@ -832,7 +872,7 @@ Tessera follows it with a visit, without the body:
 GET /cart HTTP/1.1
 Accept: text/vnd.tessera+html, text/html;q=0.9
 Tessera-Request: visit
-Tessera-Protocol: 0
+Tessera-Protocol: 1
 Tessera-Targets: content
 Tessera-Layout: app
 ```
@@ -842,19 +882,19 @@ The server answers with `content` and, since the count changed, the header's com
 ```
 HTTP/1.1 200 OK
 Content-Type: text/vnd.tessera+html; charset=utf-8
-Tessera-Protocol: 0
+Tessera-Protocol: 1
 Vary: Tessera-Request, Tessera-Protocol, Tessera-Targets, Tessera-Layout
 
 <title>Cart · Shop</title>
 <template data-target="content">
   <main data-region="content">
-    <!--t:c cart eyJjYXJ0IjoxOH0.c2ln-->
-      <!--t:c line-7 eyJsaW5lIjo3fQ.c2ln--><p>Lamp × 1</p><!--/t:c-->
-    <!--/t:c-->
+    <section data-t-c="cart" data-t-props="eyJjYXJ0IjoxOH0.c2ln">
+      <p data-t-c="line-7" data-t-props="eyJsaW5lIjo3fQ.c2ln">Lamp × 1</p>
+    </section>
   </main>
 </template>
 <template data-target="page/cart-count">
-  <!--t:c cart-count-->4<!--/t:c-->
+  <span data-t-c="cart-count">4</span>
 </template>
 ```
 
@@ -875,7 +915,7 @@ Tessera-Targets: content
 ```
 HTTP/1.1 422 Unprocessable Content
 Content-Type: text/vnd.tessera+html; charset=utf-8
-Tessera-Protocol: 0
+Tessera-Protocol: 1
 Vary: Tessera-Request, Tessera-Protocol, Tessera-Targets, Tessera-Layout
 
 <template data-target="content">
@@ -903,7 +943,7 @@ line's scope holds `$qty`, set to 2 by a local stepper.
 POST /cart/lines/7/qty HTTP/1.1
 Accept: text/vnd.tessera+html, text/html;q=0.9
 Tessera-Request: action
-Tessera-Protocol: 0
+Tessera-Protocol: 1
 Tessera-Targets: content/cart/line-7 eyJsaW5lIjo3fQ.c2ln
 Tessera-Layout: app
 Tessera-Signals: {"qty":2}
@@ -916,14 +956,14 @@ and the count. It also resets a local "editing" flag:
 ```
 HTTP/1.1 200 OK
 Content-Type: text/vnd.tessera+html; charset=utf-8
-Tessera-Protocol: 0
+Tessera-Protocol: 1
 Vary: Tessera-Request, Tessera-Protocol, Tessera-Targets, Tessera-Layout, Tessera-Signals
 
 <template data-target="content/cart/line-7">
-  <!--t:c line-7 eyJsaW5lIjo3fQ.c2ln--><p>Lamp × 2</p><!--/t:c-->
+  <p data-t-c="line-7" data-t-props="eyJsaW5lIjo3fQ.c2ln">Lamp × 2</p>
 </template>
 <template data-target="page/cart-count">
-  <!--t:c cart-count-->5<!--/t:c-->
+  <span data-t-c="cart-count">5</span>
 </template>
 <script type="application/json" data-scope="content/cart/line-7">{"editing":false}</script>
 ```
@@ -939,7 +979,7 @@ In `content`, `<div data-poll="/cart">` sits inside `content/cart`. Every 2 seco
 GET /cart HTTP/1.1
 Accept: text/vnd.tessera+html, text/html;q=0.9
 Tessera-Request: refresh
-Tessera-Protocol: 0
+Tessera-Protocol: 1
 Tessera-Targets: content/cart eyJjYXJ0IjoxOH0.c2ln
 Tessera-Layout: app
 ```
@@ -950,11 +990,11 @@ sends the component:
 ```
 HTTP/1.1 200 OK
 Content-Type: text/vnd.tessera+html; charset=utf-8
-Tessera-Protocol: 0
+Tessera-Protocol: 1
 Vary: Tessera-Request, Tessera-Protocol, Tessera-Targets, Tessera-Layout
 
 <template data-target="content/cart">
-  <!--t:c cart eyJjYXJ0IjoxOH0.c2ln-->…<!--/t:c-->
+  <section data-t-c="cart" data-t-props="eyJjYXJ0IjoxOH0.c2ln">…</section>
 </template>
 ```
 
@@ -1011,15 +1051,17 @@ the user reloads; the form is not resent.
 A tab kept open across a deploy runs an older Tessera than the server speaks. Its next request
 carries `Tessera-Protocol: 0`; a server speaking only version 1 does nothing and answers
 `400` with `Tessera-Protocol: 1`. Tessera does a full load, and the reloaded page brings the new
-Tessera.
+Tessera. The other way round, a page loading Tessera 0.2 from a server that still speaks only
+version 0 gets `400` with `Tessera-Protocol: 0` on every enhanced request, and each one ends in a
+full load.
 
 ## 11. Server checklist
 
-A server layer speaks version 0 when it:
+A server layer speaks version 1 when it:
 
-1. Renders regions with `data-region`, components with `<!--t:c KEY PROPS-->` … `<!--/t:c-->`,
-   and every conditional and loop between `<!--t:b-->` … `<!--/t:b-->`, empty ones included, all
-   to the grammars of section 2.
+1. Renders regions with `data-region` and each component as one element carrying `data-t-c`,
+   `data-t-props` when it has props and `data-t-anchor` when links name it, to the grammars of
+   section 2, and gives a stable `id` to every field and other state-bearing element.
 2. Signs props tokens, verifies them on every request that sends one, and keeps them small.
 3. Renders the `tessera-layout` and `tessera-csrf-token` metas, and `data-track` on every script
    and stylesheet in `<head>`.
@@ -1027,7 +1069,7 @@ A server layer speaks version 0 when it:
    speak with `400`, before any side effect.
 5. Answers a visit with fragments for the requested targets when the layout matches and every
    target exists, and with the full document otherwise.
-6. Renders fragment responses as `text/vnd.tessera+html` with `Tessera-Protocol: 0`, one
+6. Renders fragment responses as `text/vnd.tessera+html` with `Tessera-Protocol: 1`, one
    `<template>` per target, the `<title>`, the tracked-asset copies and any signal patches.
 7. Authorizes every target it renders, and treats `Tessera-Targets` and `Tessera-Signals` as
    untrusted input.

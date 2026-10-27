@@ -10,7 +10,7 @@
 import type { ServerResponse } from "node:http";
 import { setTimeout as sleep } from "node:timers/promises";
 import { renderPage } from "./html.ts";
-import { header, send, text, VARY } from "./http.ts";
+import { header, PROTOCOL, send, text, VARY } from "./http.ts";
 import type { FixtureRequest, Secrets, ServerState, StreamConnection } from "./http.ts";
 
 interface StreamOptions {
@@ -64,7 +64,7 @@ function item(k: number): string {
 /** The component and the signal after step `k`; they carry no id. */
 function latest(k: number): string {
   return (
-    sseEvent("tessera-patch-elements", undefined, ["target content/latest", `elements <!--t:c latest--><p id="latest">Latest: ${k}</p><!--/t:c-->`]) +
+    sseEvent("tessera-patch-elements", undefined, ["target content/latest", `elements <div data-t-c="latest"><p id="latest">Latest: ${k}</p></div>`]) +
     sseEvent("tessera-patch-signals", undefined, ["scope page", `signals {"received":${k}}`])
   );
 }
@@ -113,7 +113,7 @@ export async function serveStream(
   res.writeHead(200, {
     "Content-Type": "text/event-stream; charset=utf-8",
     "Cache-Control": "no-store",
-    "Tessera-Protocol": "0",
+    "Tessera-Protocol": PROTOCOL,
     "X-Accel-Buffering": "no",
     Vary: VARY,
     ...(pause ? { "Tessera-Stream-Pause": "hidden" } : {}),

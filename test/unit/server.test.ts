@@ -26,7 +26,7 @@ function request(path: string, init: RequestInit = {}): Promise<Response> {
 function tessera(kind: string, targets?: string, layout = "app"): Headers {
   return {
     "Tessera-Request": kind,
-    "Tessera-Protocol": "0",
+    "Tessera-Protocol": "1",
     "Tessera-Layout": layout,
     ...(targets === undefined ? {} : { "Tessera-Targets": targets }),
   };
@@ -41,7 +41,7 @@ async function csrf(): Promise<string> {
 
 async function propsOf(key: string): Promise<string> {
   const html = await (await request("/")).text();
-  const token = new RegExp(`<!--t:c ${key} ([^ >]+)-->`).exec(html)?.[1];
+  const token = new RegExp(`data-t-c="${key}" data-t-props="([^"]+)"`).exec(html)?.[1];
   if (token === undefined) throw new Error(`no props on component ${key}`);
   return token;
 }
@@ -83,7 +83,7 @@ describe("documents and fragments", () => {
     const response = await request("/about", { headers: tessera("visit", "content") });
     expect(response.status).toBe(200);
     expect(response.headers.get("content-type")).toBe("text/vnd.tessera+html; charset=utf-8");
-    expect(response.headers.get("tessera-protocol")).toBe("0");
+    expect(response.headers.get("tessera-protocol")).toBe("1");
     expect(response.headers.get("vary")).toBe(VARY);
     const body = await response.text();
     expect(body).not.toContain("<html");
@@ -96,7 +96,7 @@ describe("documents and fragments", () => {
 
   it.each([
     ["from another layout", "/bare", tessera("visit", "content")],
-    ["without Tessera-Layout", "/about", { "Tessera-Request": "visit", "Tessera-Protocol": "0", "Tessera-Targets": "content" }],
+    ["without Tessera-Layout", "/about", { "Tessera-Request": "visit", "Tessera-Protocol": "1", "Tessera-Targets": "content" }],
     ["for a target the page lacks", "/about", tessera("visit", "notes")],
     ["for the page target", "/about", tessera("visit", "page")],
     ["without Tessera-Targets", "/about", tessera("visit")],
@@ -113,14 +113,14 @@ describe("documents and fragments", () => {
     expect(response.status).toBe(200);
     const body = await response.text();
     expect(templates(body)).toEqual(["content/greeting"]);
-    expect(body).toContain(`<template data-target="content/greeting">\n<!--t:c greeting ${token}-->`);
-    expect(body).toContain("<!--/t:c-->\n</template>");
+    expect(body).toContain(`<template data-target="content/greeting">\n<div data-t-c="greeting" data-t-props="${token}" data-t-anchor="hello">`);
+    expect(body).toContain("</p>\n    </div>\n</template>");
   });
 
   it("addresses a component in a nested region from that region's name", async () => {
     const token = await propsOf("note-2");
     const response = await request("/", { headers: tessera("refresh", `notes/note-2 ${token}`) });
-    expect(await response.text()).toContain(`<!--t:c note-2 ${token}--><li>Second note</li><!--/t:c-->`);
+    expect(await response.text()).toContain(`<template data-target="notes/note-2">\n<li data-t-c="note-2" data-t-props="${token}">Second note</li>\n</template>`);
   });
 
   it("refuses a props token that does not verify", async () => {
@@ -191,14 +191,14 @@ describe("documents and fragments", () => {
     expect(((await (await request("/counter/log?key=drop")).json()) as { count: number }).count).toBe(1);
   });
 
-  it("refuses a protocol version it does not speak, before any side effect", async () => {
+  it("refuses protocol 0 and any other version it does not speak, before any side effect", async () => {
     const response = await post(
       "/form",
       { name: "Ada", _token: await csrf() },
-      { ...tessera("submit", "content"), "Tessera-Protocol": "1" },
+      { ...tessera("submit", "content"), "Tessera-Protocol": "0" },
     );
     expect(response.status).toBe(400);
-    expect(response.headers.get("tessera-protocol")).toBe("0");
+    expect(response.headers.get("tessera-protocol")).toBe("1");
     expect(response.headers.get("tessera-location")).toBeNull();
   });
 
@@ -293,7 +293,7 @@ describe("the stream", () => {
     const response = await request("/events/stream?end=close", { headers: { ...tessera("stream"), Accept: "text/event-stream" } });
     expect(response.headers.get("content-type")).toBe("text/event-stream; charset=utf-8");
     expect(response.headers.get("cache-control")).toBe("no-store");
-    expect(response.headers.get("tessera-protocol")).toBe("0");
+    expect(response.headers.get("tessera-protocol")).toBe("1");
     expect(response.headers.get("tessera-stream-pause")).toBeNull();
     const text = await readStream(response);
     expect(text.startsWith("retry: 1000\n\n")).toBe(true);
@@ -334,7 +334,7 @@ describe("the stream", () => {
   it("morphs content/latest and patches received after each list event", async () => {
     const text = await readStream(await request("/events/stream?count=1&end=close"));
     expect(text).toContain(
-      'event: tessera-patch-elements\ndata: target content/latest\ndata: elements <!--t:c latest--><p id="latest">Latest: 1</p><!--/t:c-->\n\n' +
+      'event: tessera-patch-elements\ndata: target content/latest\ndata: elements <div data-t-c="latest"><p id="latest">Latest: 1</p></div>\n\n' +
         'event: tessera-patch-signals\ndata: scope page\ndata: signals {"received":1}\n\n',
     );
   });

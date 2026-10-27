@@ -12,7 +12,7 @@ type HarnessWindow = Window & {
   };
 };
 
-const FRAGMENTS = { "Content-Type": "text/vnd.tessera+html; charset=utf-8", "Tessera-Protocol": "0" };
+const FRAGMENTS = { "Content-Type": "text/vnd.tessera+html; charset=utf-8", "Tessera-Protocol": "1" };
 
 test.beforeEach(async ({ page }) => {
   await page.goto("/coordination");
@@ -34,7 +34,7 @@ async function release(request: APIRequestContext, name: string, path: string, b
   expect(response.ok()).toBe(true);
 }
 
-const cart = (text: string) => `<template data-target="content/cart"><!--t:c cart--><p id="cart">${text}</p><!--/t:c--></template>`;
+const cart = (text: string) => `<template data-target="content/cart"><div data-t-c="cart"><p id="cart">${text}</p></div></template>`;
 
 test("a late response never overwrites what a newer one committed", async ({ page, request }) => {
   const name = testName("late");

@@ -2,6 +2,9 @@
 import type { IncomingHttpHeaders, ServerResponse } from "node:http";
 import type { NavigationSession } from "./navigation.ts";
 
+/** The protocol version the reference server speaks (docs/protocol.md, section 1). */
+export const PROTOCOL = "1";
+
 /** Section 8: every response from a URL that answers Tessera requests carries this. */
 export const VARY = "Tessera-Request, Tessera-Protocol, Tessera-Targets, Tessera-Layout";
 

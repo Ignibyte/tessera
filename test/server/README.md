@@ -34,14 +34,14 @@ repeat within five minutes gets the first answer and reaches no route; a bad id 
 A page file starts with `<!--page {"title":…,"layout":…}-->`, then one or more
 `<!--slot NAME-->` lines, each followed by that slot's markup; the layout places the slot with
 `{{{NAME}}}`. `{{name}}` inserts a value escaped and `{{{name}}}` inserts it as markup; a
-missing value is an error. A component marker in a fixture may carry JSON props,
-`<!--t:c note-1 {"id":1}-->`: the server signs them into a props token (HMAC-SHA256 under a key
+missing value is an error. A component in a fixture may carry JSON props,
+`data-t-props='{"id":1}'`: the server signs them into a props token (HMAC-SHA256 under a key
 made at startup) before it sends the page, and refuses a token that does not verify with `403`.
 
 ## Routes
 
 Every response carries `Vary: Tessera-Request, Tessera-Protocol, Tessera-Targets, Tessera-Layout`.
-A Tessera request naming a protocol other than `0` gets `400` with `Tessera-Protocol: 0` before
+A Tessera request naming a protocol other than `1` gets `400` with `Tessera-Protocol: 1` before
 anything else happens. A Tessera request gets fragments for its `Tessera-Targets` when they are
 all on the page (and, for a visit, the layout matches), and the full document otherwise.
 

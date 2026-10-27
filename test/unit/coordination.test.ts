@@ -48,9 +48,9 @@ describe("the table", () => {
 describe("relation", () => {
   const page = `
     <main data-region="content">
-      <!--t:c cart--><p id="in-cart"></p><!--t:c line--><i></i><!--/t:c--><!--/t:c-->
-      <!--t:c other--><b></b><!--/t:c-->
-      <section data-region="notes"><!--t:c note--><u></u><!--/t:c--></section>
+      <div data-t-c="cart"><p id="in-cart"></p><i data-t-c="line"></i></div>
+      <b data-t-c="other"></b>
+      <section data-region="notes"><u data-t-c="note"></u></section>
     </main>
     <nav data-region="sidebar"></nav>`;
 
@@ -92,7 +92,7 @@ describe("relation", () => {
 });
 
 describe("generations", () => {
-  const page = `<main data-region="content"><!--t:c cart--><p></p><!--/t:c--></main><nav data-region="sidebar"></nav>`;
+  const page = `<main data-region="content"><div data-t-c="cart"><p></p></div></main><nav data-region="sidebar"></nav>`;
   const at = (name: string): TargetNode => resolveTarget(document, name) ?? { kind: "page", document };
 
   it("makes a target stale when it or a target around it commits, never when a target inside it does", () => {
@@ -113,28 +113,28 @@ describe("generations", () => {
     expect(generations.stale(at("sidebar"), later)).toBe(false);
   });
 
-  it("touches the targets a commit brought, so a late response for the new marker is stale too", () => {
+  it("touches the targets a commit brought, so a late response for the new element is stale too", () => {
     document.body.innerHTML = page;
     const generations = new Generations();
     const since = generations.current;
     const main = document.querySelector("main");
     if (!main) throw new Error("no main");
-    main.innerHTML = "<!--t:c cart--><p>new</p><!--/t:c-->";
+    main.innerHTML = '<div data-t-c="cart"><p>new</p></div>';
     generations.touch(at("content"));
     expect(generations.stale(at("content/cart"), since)).toBe(true);
   });
 
   it("finds the elements that carry aria-busy", () => {
-    document.body.innerHTML = `<main data-region="content"><!--t:c cart--> <p></p><span></span><!--/t:c--></main>`;
+    document.body.innerHTML = `<main data-region="content"><div data-t-c="cart"> <p></p><span></span></div></main>`;
     expect(busyElements(at("content")).map((element) => element.localName)).toEqual(["main"]);
-    expect(busyElements(at("content/cart")).map((element) => element.localName)).toEqual(["p", "span"]);
+    expect(busyElements(at("content/cart")).map((element) => element.localName)).toEqual(["div"]);
     expect(busyElements(at("page")).map((element) => element.localName)).toEqual(["body"]);
   });
 });
 
 describe("the transport follows the table", () => {
-  const page = `<main data-region="content"><!--t:c cart--><p id="cart">old</p><!--/t:c--><p id="text">old</p></main><nav data-region="sidebar"><p id="side">old</p></nav>`;
-  const cartFragment = (text: string) => `<template data-target="content/cart"><!--t:c cart--><p id="cart">${text}</p><!--/t:c--></template>`;
+  const page = `<main data-region="content"><div data-t-c="cart"><p id="cart">old</p></div><p id="text">old</p></main><nav data-region="sidebar"><p id="side">old</p></nav>`;
+  const cartFragment = (text: string) => `<template data-target="content/cart"><div data-t-c="cart"><p id="cart">${text}</p></div></template>`;
 
   it("sends overlapping writes one at a time, in order", async () => {
     const { transport, calls, respond } = setup(page);
@@ -235,7 +235,7 @@ describe("the transport follows the table", () => {
     expect((await transport.request({ kind: "action", method: "POST", url: "/save", targets: ["sidebar"], body: "" })).status).toBe("committed");
     expect(find("#cart").textContent).toBe("from the write");
 
-    late(fragments(`<template data-target="content"><main data-region="content"><!--t:c cart--><p id="cart">from the read</p><!--/t:c--><p id="text">new</p></main></template>`));
+    late(fragments(`<template data-target="content"><main data-region="content"><div data-t-c="cart"><p id="cart">from the read</p></div><p id="text">new</p></main></template>`));
     expect((await read).status).toBe("committed");
     expect(find("#cart").textContent).toBe("from the read");
     expect(find("#text").textContent).toBe("new");
@@ -270,18 +270,18 @@ describe("the transport follows the table", () => {
       expect(calls).toHaveLength(1);
     });
     expect(find("main").getAttribute("aria-busy")).toBe("true");
-    expect(find("#cart").getAttribute("aria-busy")).toBe("true");
+    expect(find("[data-t-c=cart]").getAttribute("aria-busy")).toBe("true");
     expect(button.hasAttribute("data-loading")).toBe(true);
     expect(find("nav").hasAttribute("aria-busy")).toBe(false);
     answer(empty(204));
     await pending;
-    expect([find("main").hasAttribute("aria-busy"), find("#cart").hasAttribute("aria-busy"), button.hasAttribute("data-loading")]).toEqual([false, false, false]);
+    expect([find("main").hasAttribute("aria-busy"), find("[data-t-c=cart]").hasAttribute("aria-busy"), button.hasAttribute("data-loading")]).toEqual([false, false, false]);
   });
 
   it("follows a Tessera-Location while another write waits on the same target, without a deadlock", async () => {
     const { transport, calls, respond } = setup(page);
     respond(
-      () => empty(200, { "Tessera-Location": "/done", "Tessera-Protocol": "0" }),
+      () => empty(200, { "Tessera-Location": "/done", "Tessera-Protocol": "1" }),
       () => empty(204),
       () => fragments(`<template data-target="content"><main data-region="content"><p id="text">done</p></main></template>`),
     );

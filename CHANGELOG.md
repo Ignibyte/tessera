@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+Protocol version 1: a server must move its component markup and its version check before it
+takes this release (`docs/protocol.md`, section 1; `docs/consumers.md`, "What AIC changes").
+
+- Components are marked by attributes on their one root element, `data-t-c="KEY"` and
+  `data-t-props="TOKEN"`, in place of `<!--t:c KEY PROPS-->` … `<!--/t:c-->`. Paths, keys and
+  props tokens are spelled as before. A component morph is Idiomorph on that element, as a
+  region's is; `inner`, `append` and `prepend` act on its children and `remove` removes it.
+  Block markers (`<!--t:b-->`) are gone: a server keeps fields id'd instead (#33).
+- Anchors: a component may carry `data-t-anchor="NAME"`, and `data-target`, an action's `target`
+  and `visit` may name it as `@NAME`; Tessera sends the component's path. An unknown or doubled
+  anchor is reported and nothing is sent (#33).
+- Requests carry `Tessera-Protocol: 1`, and Tessera requires it on fragment responses and streams.
+  A server speaking only version 0 answers `400` with `Tessera-Protocol: 0`, and Tessera does a
+  full load (#33).
+
 ## 0.1.1 (2026-10-27)
 
 A component morph keeps the fields beside it, and the browser suite passes in WebKit on macOS. No
