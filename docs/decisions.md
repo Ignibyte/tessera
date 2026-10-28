@@ -479,6 +479,30 @@ default so work could go on; Chad confirms or changes it, and until then the cod
     `prepend` act on the element's children; `remove` removes the element.
   - A server speaking only 0 meets the refusal a mismatched version already got: `400` without `1`
     in its `Tessera-Protocol` is a full load.
+- **Protocol 2: a target entry carries its component's anchor** (Chad, 2026-10-27, for AIC #194:
+  "Tessera sends the anchor"; ticket #34). `Tessera-Protocol: 2`, to be released as Tessera
+  0.3.0.
+  - `entry = target [ SP props ] [ SP "@" anchor ]`. Tessera adds `@NAME` to an entry whenever
+    the target component's element carries `data-t-anchor="NAME"`, however it was targeted: a
+    `@NAME` link or form, a poll, lazy load or refresh inside the component, an action, a visit
+    through the API. Regions, `page` and unanchored components send none; an anchored component
+    without props sends `target @NAME`. `@` cannot occur in a props token, so the token is
+    unambiguous.
+  - Why: a server reads a component's props by the target it names. A keyed component nested in
+    another's template sits at a positional path that moves when a wrapper or an order changes;
+    with the anchor beside the path, the server finds the props by anchor and app code never
+    spells the path.
+  - A new version, because a protocol 1 server reads `@NAME` as a props token (AIC refuses it as
+    altered). Requests carry 2; fragments and streams must carry 2. Everything else as in 1.
+  - The server's answers still name targets by path; "the server never sees `@`" from protocol 1
+    no longer holds for requests.
+- **A malformed or doubled anchor is left out of the entry** (**Provisional**, ticket #34,
+  2026-10-27; the agent's choice). Tessera sends `@NAME` only when the anchor follows the key
+  grammar (at most 64 characters) and no other element carries it. Such an anchor is the server's
+  own rendering error: sent, it would break the header's grammar or name two components, and
+  failing every refresh of the component over it would turn a markup slip into a dead page. The
+  entry goes with its path and props, as for an unanchored component. Targeting such an anchor
+  by `@NAME` is still reported and sends nothing, as protocol 1 decided.
 - **A component morph brings the same tag as the live component element** (**Provisional**,
   ticket #33, 2026-10-27; the agent's choice, beside the driver's decisions). The rule regions
   already follow: a morph whose element has another tag is refused (`the component is a <div>, the

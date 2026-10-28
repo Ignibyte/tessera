@@ -281,7 +281,7 @@ describe("the transport follows the table", () => {
   it("follows a Tessera-Location while another write waits on the same target, without a deadlock", async () => {
     const { transport, calls, respond } = setup(page);
     respond(
-      () => empty(200, { "Tessera-Location": "/done", "Tessera-Protocol": "1" }),
+      () => empty(200, { "Tessera-Location": "/done", "Tessera-Protocol": "2" }),
       () => empty(204),
       () => fragments(`<template data-target="content"><main data-region="content"><p id="text">done</p></main></template>`),
     );

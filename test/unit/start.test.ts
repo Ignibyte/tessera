@@ -25,7 +25,7 @@ function stubFetch(): ReturnType<typeof vi.fn<(input: RequestInfo | URL, init?: 
   const fetch = vi.fn((_input: RequestInfo | URL, _init?: RequestInit) =>
     Promise.resolve(
       new Response(`<template data-target="content"><main data-region="content"><p id="text">fetched</p></main></template>`, {
-        headers: { "Content-Type": "text/vnd.tessera+html; charset=utf-8", "Tessera-Protocol": "1" },
+        headers: { "Content-Type": "text/vnd.tessera+html; charset=utf-8", "Tessera-Protocol": "2" },
       }),
     ),
   );

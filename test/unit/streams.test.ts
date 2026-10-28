@@ -33,7 +33,7 @@ function eventStream(headers: Record<string, string> = {}) {
   });
   const encoder = new TextEncoder();
   return {
-    response: new Response(body, { status: 200, headers: { "Content-Type": "text/event-stream", "Tessera-Protocol": "1", ...headers } }),
+    response: new Response(body, { status: 200, headers: { "Content-Type": "text/event-stream", "Tessera-Protocol": "2", ...headers } }),
     push(text: string): void {
       controller.enqueue(encoder.encode(text));
     },
@@ -85,7 +85,7 @@ describe("opening a stream", () => {
     expect(call?.headers).toMatchObject({
       accept: "text/event-stream",
       "tessera-request": "stream",
-      "tessera-protocol": "1",
+      "tessera-protocol": "2",
       "tessera-layout": "app",
     });
     expect(call?.headers).not.toHaveProperty("last-event-id");
@@ -402,11 +402,11 @@ describe("stopping for good", () => {
     }
   });
 
-  it("loading in full on a stream without Tessera-Protocol 1, or a 400 for another version", async () => {
+  it("loading in full on a stream without Tessera-Protocol 2, or a 400 for another version", async () => {
     const { navigated } = await stopsAfter(() => new Response("", { headers: { "Content-Type": "text/event-stream" } }));
     expect(navigated).toEqual([window.location.href]);
     disposeTransport();
-    const second = await stopsAfter(() => empty(400, { "Tessera-Protocol": "0" }));
+    const second = await stopsAfter(() => empty(400, { "Tessera-Protocol": "1" }));
     expect(second.navigated).toEqual([window.location.href]);
   });
 

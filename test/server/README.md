@@ -41,9 +41,10 @@ made at startup) before it sends the page, and refuses a token that does not ver
 ## Routes
 
 Every response carries `Vary: Tessera-Request, Tessera-Protocol, Tessera-Targets, Tessera-Layout`.
-A Tessera request naming a protocol other than `1` gets `400` with `Tessera-Protocol: 1` before
+A Tessera request naming a protocol other than `2` gets `400` with `Tessera-Protocol: 2` before
 anything else happens. A Tessera request gets fragments for its `Tessera-Targets` when they are
-all on the page (and, for a visit, the layout matches), and the full document otherwise.
+all on the page (and, for a visit, the layout matches), and the full document otherwise. An
+entry's `@NAME` must be the anchor its target's component carries, or the answer is `400`.
 
 | Route | Answer |
 |---|---|

@@ -42,6 +42,9 @@ export function answer(
   for (const entry of entries) {
     const identity = rendered.identities.byTarget.get(entry.target);
     if (!identity) return documentResponse(rendered, status);
+    if (entry.anchor !== undefined && entry.anchor !== identity.anchor) {
+      return text(400, `${entry.target} does not carry the anchor ${entry.anchor}.`);
+    }
     if (entry.props !== undefined && verify(entry.props, secrets.key) === undefined) {
       return text(403, `The props token for ${entry.target} does not verify.`);
     }

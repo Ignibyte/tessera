@@ -1,7 +1,7 @@
 // The transport against a fake fetch: one block per bullet of ticket #11, then the request
 // headers and the protocol's answers. In jsdom's own document, as the patcher needs.
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { ACCEPT, EXPIRED_EVENT } from "../../src/transport.ts";
+import { ACCEPT, EXPIRED_EVENT, targetsHeader } from "../../src/transport.ts";
 import type { RequestOutcome } from "../../src/transport.ts";
 import { bodyText, disposeTransport, empty, fragments, hang, networkFailure, ORIGIN, setup } from "./transport-fixture.ts";
 
@@ -92,7 +92,7 @@ describe("redirects", () => {
 
   it("follows Tessera-Location with a fresh GET visit carrying the targets, never the body", async () => {
     const { transport, calls, respond, find, pushed } = setup(content);
-    respond(() => empty(200, { "Tessera-Location": "/done", "Tessera-Protocol": "1" }), () => fragments(contentFragment("done")));
+    respond(() => empty(200, { "Tessera-Location": "/done", "Tessera-Protocol": "2" }), () => fragments(contentFragment("done")));
     const outcome = await transport.request({ kind: "submit", method: "POST", url: "/save", targets: ["content"], body: "secret=1" });
     expect(outcome).toMatchObject({ status: "committed", redirectedTo: `${ORIGIN}/done` });
     expect(calls[1]).toMatchObject({ url: `${ORIGIN}/done`, method: "GET", body: undefined });
@@ -105,7 +105,7 @@ describe("redirects", () => {
     const { transport, calls, respond, find, form, pushed } = setup(
       `<main data-region="content"><form id="f" method="post" action="/save" data-push="off"><button id="go">Go</button></form><p id="text">old</p></main>`,
     );
-    respond(() => empty(200, { "Tessera-Location": "/done", "Tessera-Protocol": "1" }), () => fragments(contentFragment("done")));
+    respond(() => empty(200, { "Tessera-Location": "/done", "Tessera-Protocol": "2" }), () => fragments(contentFragment("done")));
     const outcome = await transport.submit(form("#f"), find("#go"));
     expect(outcome).toMatchObject({ status: "committed", redirectedTo: `${ORIGIN}/done` });
     expect(calls[1]?.headers).toMatchObject({ "tessera-request": "visit", "tessera-targets": "content" });
@@ -281,7 +281,7 @@ describe("headers", () => {
     expect(calls[0]?.headers).toEqual({
       accept: ACCEPT,
       "tessera-request": "refresh",
-      "tessera-protocol": "1",
+      "tessera-protocol": "2",
       "tessera-targets": "content/cart eyJpZCI6MX0.c2ln",
       "tessera-layout": "app",
     });
@@ -338,7 +338,7 @@ describe("the write id", () => {
 
   it("is never on a GET, nor on the visit a Tessera-Location leads to", async () => {
     const { transport, calls, respond } = setup(content);
-    respond(() => empty(204), () => empty(200, { "Tessera-Location": "/done", "Tessera-Protocol": "1" }), () => fragments(contentFragment("done")));
+    respond(() => empty(204), () => empty(200, { "Tessera-Location": "/done", "Tessera-Protocol": "2" }), () => fragments(contentFragment("done")));
     await transport.request({ kind: "refresh", url: "/x" });
     await transport.request({ kind: "submit", method: "POST", url: "/save", targets: ["content"], body: "" });
     expect(calls.map(({ method, headers }) => [method, headers["tessera-write-id"] !== undefined])).toEqual([
@@ -495,12 +495,12 @@ describe("the protocol's answers", () => {
     expect((await transport.request({ kind: "refresh", url: "/x" })).status).toBe("failed");
   });
 
-  it("loads in full on a 400 from a server speaking only version 0, and on a fragment response without version 1", async () => {
+  it("loads in full on a 400 from a server speaking only version 1, and on a fragment response without version 2", async () => {
     const { transport, respond, navigated } = setup(content);
     respond(
-      () => empty(400, { "Tessera-Protocol": "0" }),
+      () => empty(400, { "Tessera-Protocol": "1" }),
       () => new Response("", { headers: { "Content-Type": "text/vnd.tessera+html" } }),
-      () => new Response("", { headers: { "Content-Type": "text/vnd.tessera+html", "Tessera-Protocol": "0" } }),
+      () => new Response("", { headers: { "Content-Type": "text/vnd.tessera+html", "Tessera-Protocol": "1" } }),
     );
     await transport.request({ kind: "visit", url: "/a" });
     await transport.request({ kind: "visit", url: "/b" });
@@ -508,9 +508,9 @@ describe("the protocol's answers", () => {
     expect(navigated).toEqual([`${ORIGIN}/a`, `${ORIGIN}/b`, `${ORIGIN}/c`]);
   });
 
-  it("treats a 400 listing version 1 among others as an ordinary client error", async () => {
+  it("treats a 400 listing version 2 among others as an ordinary client error", async () => {
     const { transport, respond, navigated } = setup(content);
-    respond(() => empty(400, { "Tessera-Protocol": "0, 1" }));
+    respond(() => empty(400, { "Tessera-Protocol": "1, 2" }));
     expect((await transport.request({ kind: "refresh", url: "/a" })).status).toBe("failed");
     expect(navigated).toEqual([]);
   });
@@ -590,12 +590,35 @@ describe("anchors", () => {
   const page = `<main data-region="content"><div data-t-c="cart" data-t-props="eyJpZCI6MX0.c2ln" data-t-anchor="basket"><button id="b"></button></div></main>
     <p data-t-c="x" data-t-anchor="twice"></p><p data-t-c="y" data-t-anchor="twice"></p>`;
 
-  it("resolves @NAME to the component's path, with its props, before Tessera-Targets is sent", async () => {
+  it("resolves @NAME to the component's path, with its props and its anchor, before Tessera-Targets is sent", async () => {
     const { transport, calls, find } = setup(page);
     const outcome = await transport.request({ kind: "refresh", url: "/cart", targets: ["@basket", "sidebar"] });
     await transport.actions({ method: "post", url: "/qty", options: { target: "@basket" }, element: find("#b"), event: undefined });
-    expect(calls.map(({ headers }) => headers["tessera-targets"])).toEqual(["content/cart eyJpZCI6MX0.c2ln, sidebar", "content/cart eyJpZCI6MX0.c2ln"]);
+    expect(calls.map(({ headers }) => headers["tessera-targets"])).toEqual([
+      "content/cart eyJpZCI6MX0.c2ln @basket, sidebar",
+      "content/cart eyJpZCI6MX0.c2ln @basket",
+    ]);
     expect(outcome.status).not.toBe("failed");
+  });
+
+  it("sends the anchor of a component targeted by its path: a refresh, an action inside it", async () => {
+    const { transport, calls, find } = setup(page);
+    await transport.request({ kind: "refresh", url: "/cart", targets: ["content/cart"] });
+    await transport.actions({ method: "get", url: "/cart", options: undefined, element: find("#b"), event: undefined });
+    expect(calls.map(({ headers }) => headers["tessera-targets"])).toEqual(["content/cart eyJpZCI6MX0.c2ln @basket", "content/cart eyJpZCI6MX0.c2ln @basket"]);
+  });
+
+  it("spells an anchored component without props as target @NAME, and leaves regions and unanchored components alone", () => {
+    setup(`<main data-region="content"><div data-t-c="list" data-t-anchor="stock"><p data-t-c="row" data-t-props="cm93"></p></div><p data-t-c="plain"></p></main>`);
+    expect(targetsHeader(document, ["content/list", "content/list/row", "content/plain", "content"])).toBe("content/list @stock, content/list/row cm93, content/plain, content");
+  });
+
+  it.each([
+    ["badly spelled", `<p data-t-c="x" data-t-props="cHJvcHM" data-t-anchor="no good"></p>`, "page/x cHJvcHM"],
+    ["carried by two elements", `<p data-t-c="x" data-t-anchor="twice"></p><p data-t-c="y" data-t-anchor="twice"></p>`, "page/x"],
+  ])("leaves out an anchor %s", (_case, markup, entry) => {
+    setup(markup);
+    expect(targetsHeader(document, ["page/x"])).toBe(entry);
   });
 
   it.each([
@@ -612,7 +635,7 @@ describe("anchors", () => {
   it("sends a form's anchored data-target as a path", async () => {
     const { transport, calls, find } = setup(`${page}<form id="f" method="post" action="/save" data-target="@basket"></form>`);
     await transport.submit(find("#f") as HTMLFormElement);
-    expect(calls[0]?.headers["tessera-targets"]).toBe("content/cart eyJpZCI6MX0.c2ln");
+    expect(calls[0]?.headers["tessera-targets"]).toBe("content/cart eyJpZCI6MX0.c2ln @basket");
   });
 
   it("prefetches nothing for an anchor that does not resolve", () => {

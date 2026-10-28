@@ -43,9 +43,9 @@ and a new protocol version is called out there.
 ## The server checklist
 
 `docs/protocol.md` is what a server must do; its section 11 is the checklist, repeated here as it
-stands for protocol 1 (Tessera 0.2). When the two differ, the protocol wins.
+stands for protocol 2 (Tessera 0.3). When the two differ, the protocol wins.
 
-A server layer speaks version 1 when it:
+A server layer speaks version 2 when it:
 
 1. Renders regions with `data-region` and each component as one element carrying `data-t-c`,
    `data-t-props` when it has props and `data-t-anchor` when links name it, to the grammars of
@@ -57,24 +57,26 @@ A server layer speaks version 1 when it:
    speak with `400`, before any side effect.
 5. Answers a visit with fragments for the requested targets when the layout matches and every
    target exists, and with the full document otherwise.
-6. Renders fragment responses as `text/vnd.tessera+html` with `Tessera-Protocol: 1`, one
+6. Renders fragment responses as `text/vnd.tessera+html` with `Tessera-Protocol: 2`, one
    `<template>` per target, the `<title>`, the tracked-asset copies and any signal patches.
 7. Authorizes every target it renders, and treats `Tessera-Targets` and `Tessera-Signals` as
    untrusted input.
-8. Turns every `301`, `302` and `303` for a Tessera request into `200` with `Tessera-Location`,
+8. Parses `Tessera-Targets` entries with an optional `@NAME` after the props token, and when it
+   finds props by anchor, checks that the anchor is the one the target's component carries.
+9. Turns every `301`, `302` and `303` for a Tessera request into `200` with `Tessera-Location`,
    and never sends `307` or `308` to a Tessera write.
-9. Answers a refused write with `422` or `409` and the form's region with its errors,
-   `data-error-summary` and `aria-invalid`.
-10. Answers a stale session or CSRF token with `419`, and anything Tessera cannot update in place
+10. Answers a refused write with `422` or `409` and the form's region with its errors,
+    `data-error-summary` and `aria-invalid`.
+11. Answers a stale session or CSRF token with `419`, and anything Tessera cannot update in place
     with `Tessera-Full-Visit`.
-11. Sends `Vary: Tessera-Request, Tessera-Protocol, Tessera-Targets, Tessera-Layout` on every
+12. Sends `Vary: Tessera-Request, Tessera-Protocol, Tessera-Targets, Tessera-Layout` on every
     response from a URL that answers Tessera requests, plus `Tessera-Signals` when it reads them.
-12. Serves streams as `text/event-stream` with `Cache-Control: no-store`, the three event names
+13. Serves streams as `text/event-stream` with `Cache-Control: no-store`, the three event names
     of section 7, ids on replayable events, resumption from `Last-Event-ID`, and `tessera-close`
     when finished.
-13. Does the same work for a plain request, so a page with JavaScript off reaches the same results
+14. Does the same work for a plain request, so a page with JavaScript off reaches the same results
     by full loads.
-14. Applies a write carrying a `Tessera-Write-Id` it has seen within five minutes no more than
+15. Applies a write carrying a `Tessera-Write-Id` it has seen within five minutes no more than
     once, answering the repeat with the first answer or `409` (section 5.8).
 
 ## What AIC changes
@@ -92,10 +94,18 @@ AIC side owns the details.
   `id` instead (2.3).
 - **Detecting an enhanced request.** A Tessera request is one with `Tessera-Request` (`visit`,
   `submit`, `action`, `refresh` or `stream`); its `Tessera-Protocol` is checked first, and a
-  version AIC does not speak gets `400` with `Tessera-Protocol: 1` before any side effect (4.2,
+  version AIC does not speak gets `400` with `Tessera-Protocol: 2` before any side effect (4.2,
   section 1). `Tessera-Targets` names what to render, `Tessera-Layout` the layout the page has.
+- **Anchors in entries (protocol 2).** Each `Tessera-Targets` entry is `target [props] [@anchor]`
+  (4.3). An entry for a component carrying `data-t-anchor` ends with `@NAME`, whatever targeted it:
+  a `data-target="@NAME"` link or form, a poll, lazy load or refresh inside the component, or an
+  action. AIC's parser takes the third token (or the second, when it starts with `@`), and
+  `TesseraProps::forTarget` can find a component's props by its anchor, so app code names
+  `@stock-list` and never a positional path such as `content/c0/Panel.1:live`. The anchor is
+  untrusted like the rest of the header: AIC checks that the target's component carries it.
+  Before this, AIC refused `@NAME` as an altered props token, which is why the version moved.
 - **Fragment responses.** For a visit or a refresh whose targets all exist under the same layout:
-  `200`, `text/vnd.tessera+html; charset=utf-8`, `Tessera-Protocol: 1`, one `<template
+  `200`, `text/vnd.tessera+html; charset=utf-8`, `Tessera-Protocol: 2`, one `<template
   data-target="…">` per target, the `<title>`, the tracked assets' copies, and signal patches when
   there are any (5.3). Otherwise the full document. A redirect to a Tessera request travels as
   `Tessera-Location` (5.4), and one middleware at the edge can do it for every route.
