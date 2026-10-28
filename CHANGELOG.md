@@ -2,9 +2,11 @@
 
 ## Unreleased
 
+## 0.3.0 (2026-10-28)
+
 Protocol version 2: a server must accept an anchor in `Tessera-Targets` entries and move its
 version check before it takes this release (`docs/protocol.md`, section 1; `docs/consumers.md`,
-"What AIC changes").
+"What AIC changes"). No known issues.
 
 - A `Tessera-Targets` entry for a component carrying `data-t-anchor="NAME"` ends with `@NAME`,
   after its props token when it has one: `content/stock-list TOKEN @stock-list`. It is sent
