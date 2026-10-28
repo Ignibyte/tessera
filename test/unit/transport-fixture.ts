@@ -39,7 +39,7 @@ export const ORIGIN = window.location.origin;
 export function fragments(body: string, init: { status?: number; headers?: Record<string, string> } = {}): Response {
   return new Response(body, {
     status: init.status ?? 200,
-    headers: { "Content-Type": "text/vnd.tessera+html; charset=utf-8", "Tessera-Protocol": "1", ...init.headers },
+    headers: { "Content-Type": "text/vnd.tessera+html; charset=utf-8", "Tessera-Protocol": "2", ...init.headers },
   });
 }
 

@@ -26,7 +26,7 @@ function request(path: string, init: RequestInit = {}): Promise<Response> {
 function tessera(kind: string, targets?: string, layout = "app"): Headers {
   return {
     "Tessera-Request": kind,
-    "Tessera-Protocol": "1",
+    "Tessera-Protocol": "2",
     "Tessera-Layout": layout,
     ...(targets === undefined ? {} : { "Tessera-Targets": targets }),
   };
@@ -83,7 +83,7 @@ describe("documents and fragments", () => {
     const response = await request("/about", { headers: tessera("visit", "content") });
     expect(response.status).toBe(200);
     expect(response.headers.get("content-type")).toBe("text/vnd.tessera+html; charset=utf-8");
-    expect(response.headers.get("tessera-protocol")).toBe("1");
+    expect(response.headers.get("tessera-protocol")).toBe("2");
     expect(response.headers.get("vary")).toBe(VARY);
     const body = await response.text();
     expect(body).not.toContain("<html");
@@ -96,7 +96,7 @@ describe("documents and fragments", () => {
 
   it.each([
     ["from another layout", "/bare", tessera("visit", "content")],
-    ["without Tessera-Layout", "/about", { "Tessera-Request": "visit", "Tessera-Protocol": "1", "Tessera-Targets": "content" }],
+    ["without Tessera-Layout", "/about", { "Tessera-Request": "visit", "Tessera-Protocol": "2", "Tessera-Targets": "content" }],
     ["for a target the page lacks", "/about", tessera("visit", "notes")],
     ["for the page target", "/about", tessera("visit", "page")],
     ["without Tessera-Targets", "/about", tessera("visit")],
@@ -115,6 +115,16 @@ describe("documents and fragments", () => {
     expect(templates(body)).toEqual(["content/greeting"]);
     expect(body).toContain(`<template data-target="content/greeting">\n<div data-t-c="greeting" data-t-props="${token}" data-t-anchor="hello">`);
     expect(body).toContain("</p>\n    </div>\n</template>");
+  });
+
+  it("reads an entry's anchor, and refuses one the target's component does not carry", async () => {
+    const token = await propsOf("greeting");
+    const anchored = await request("/", { headers: tessera("refresh", `content/greeting ${token} @hello`) });
+    expect(templates(await anchored.text())).toEqual(["content/greeting"]);
+    const wrong = await request("/", { headers: tessera("refresh", `content/greeting ${token} @other`) });
+    expect(wrong.status).toBe(400);
+    const unanchored = await request("/", { headers: tessera("refresh", `content/greeting/count @hello`) });
+    expect(unanchored.status).toBe(400);
   });
 
   it("addresses a component in a nested region from that region's name", async () => {
@@ -191,14 +201,14 @@ describe("documents and fragments", () => {
     expect(((await (await request("/counter/log?key=drop")).json()) as { count: number }).count).toBe(1);
   });
 
-  it("refuses protocol 0 and any other version it does not speak, before any side effect", async () => {
+  it.each(["0", "1"])("refuses protocol %s and any other version it does not speak, before any side effect", async (version) => {
     const response = await post(
       "/form",
       { name: "Ada", _token: await csrf() },
-      { ...tessera("submit", "content"), "Tessera-Protocol": "0" },
+      { ...tessera("submit", "content"), "Tessera-Protocol": version },
     );
     expect(response.status).toBe(400);
-    expect(response.headers.get("tessera-protocol")).toBe("1");
+    expect(response.headers.get("tessera-protocol")).toBe("2");
     expect(response.headers.get("tessera-location")).toBeNull();
   });
 
@@ -293,7 +303,7 @@ describe("the stream", () => {
     const response = await request("/events/stream?end=close", { headers: { ...tessera("stream"), Accept: "text/event-stream" } });
     expect(response.headers.get("content-type")).toBe("text/event-stream; charset=utf-8");
     expect(response.headers.get("cache-control")).toBe("no-store");
-    expect(response.headers.get("tessera-protocol")).toBe("1");
+    expect(response.headers.get("tessera-protocol")).toBe("2");
     expect(response.headers.get("tessera-stream-pause")).toBeNull();
     const text = await readStream(response);
     expect(text.startsWith("retry: 1000\n\n")).toBe(true);

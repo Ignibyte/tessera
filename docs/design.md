@@ -22,8 +22,9 @@ the markup:
   props in `data-t-props`. A component that renders siblings is wrapped by its server, and one
   inside `<h2>` or `<p>` is a `<span>`. Keys are unique among siblings; the full identity is the
   path from the region. A component may carry `data-t-anchor="NAME"` so a link can name it as
-  `@NAME` without spelling its path. Protocol 0 marked components with comment pairs; protocol 1
-  (ticket #33) moved them onto elements.
+  `@NAME` without spelling its path, and every request entry for it carries `@NAME` so the server
+  can find its props without the path either. Protocol 0 marked components with comment pairs;
+  protocol 1 (ticket #33) moved them onto elements, and protocol 2 (ticket #34) sends the anchor.
 - **Control-flow blocks** have no markers. A conditional that appears may shift its siblings in a
   morph, so a server gives fields and other state-bearing elements a stable `id`, which Idiomorph
   matches.

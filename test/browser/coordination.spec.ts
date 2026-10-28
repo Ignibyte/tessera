@@ -12,7 +12,7 @@ type HarnessWindow = Window & {
   };
 };
 
-const FRAGMENTS = { "Content-Type": "text/vnd.tessera+html; charset=utf-8", "Tessera-Protocol": "1" };
+const FRAGMENTS = { "Content-Type": "text/vnd.tessera+html; charset=utf-8", "Tessera-Protocol": "2" };
 
 test.beforeEach(async ({ page }) => {
   await page.goto("/coordination");

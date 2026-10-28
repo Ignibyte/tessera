@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+Protocol version 2: a server must accept an anchor in `Tessera-Targets` entries and move its
+version check before it takes this release (`docs/protocol.md`, section 1; `docs/consumers.md`,
+"What AIC changes").
+
+- A `Tessera-Targets` entry for a component carrying `data-t-anchor="NAME"` ends with `@NAME`,
+  after its props token when it has one: `content/stock-list TOKEN @stock-list`. It is sent
+  however the component was targeted (a `@NAME` link or form, a poll, lazy load or refresh inside
+  it, an action), so a server can find props by anchor instead of a positional path. An anchor that
+  is badly spelled or carried by two elements is left out (#34).
+- Requests carry `Tessera-Protocol: 2`, and Tessera requires it on fragment responses and streams.
+  A server speaking only version 1 answers `400` with `Tessera-Protocol: 1`, and Tessera does a
+  full load (#34).
+
 ## 0.2.0 (2026-10-28)
 
 Protocol version 1: a server must move its component markup and its version check before it

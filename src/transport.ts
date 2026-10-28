@@ -11,7 +11,7 @@ import { trackedSet } from "./head.ts";
 import { busyElements, decideAll, Generations, resolveTarget } from "./coordination.ts";
 import type { RequestClass, TargetNode } from "./coordination.ts";
 import type { Kernel } from "./kernel.ts";
-import { findTarget, PATCH_MODES, resolveAnchors } from "./patch.ts";
+import { anchorOf, findTarget, PATCH_MODES, resolveAnchors } from "./patch.ts";
 import type { Patcher, PatchMode } from "./patch.ts";
 import { encodeSignals } from "./scopes.ts";
 import type { Scopes } from "./scopes.ts";
@@ -191,7 +191,7 @@ export const ACCEPT = "text/vnd.tessera+html, text/html;q=0.9";
 export const STREAM_ACCEPT = "text/event-stream";
 
 /** The protocol version Tessera speaks (docs/protocol.md, section 1). */
-const PROTOCOL = "1";
+const PROTOCOL = "2";
 
 const PROTOCOL_HEADERS = [
   "accept",
@@ -246,6 +246,30 @@ class TransportError extends Error {
 
 function isWrite(method: Method): boolean {
   return method !== "GET";
+}
+
+/**
+ * Targets as `Tessera-Targets` carries them (protocol 4.3): each component's path with its props
+ * token and its anchor, when its element has them, and regions as they are.
+ */
+export function targetsHeader(document: Document, targets: readonly string[]): string {
+  return targets
+    .map((target) => {
+      if (!target.includes("/")) return target;
+      let element: Element;
+      try {
+        element = findTarget(document, target).element;
+      } catch {
+        return target;
+      }
+      const props = element.getAttribute("data-t-props");
+      const anchor = anchorOf(document, element);
+      let entry = target;
+      if (props !== null) entry += ` ${props}`;
+      if (anchor !== undefined) entry += ` @${anchor}`;
+      return entry;
+    })
+    .join(", ");
 }
 
 function meta(document: Document, name: string): string | undefined {
@@ -409,28 +433,13 @@ export function createTransport(options: TransportOptions): Transport {
     return { status: "full-load", url };
   };
 
-  /** Targets with each component's props token, as `Tessera-Targets` carries them (4.3). */
-  const targetsHeader = (targets: readonly string[]): string =>
-    targets
-      .map((target) => {
-        if (!target.includes("/")) return target;
-        try {
-          const found = findTarget(document, target);
-          const props = found.kind === "component" ? found.element.getAttribute("data-t-props") : null;
-          return props === null ? target : `${target} ${props}`;
-        } catch {
-          return target;
-        }
-      })
-      .join(", ");
-
   const protocolHeaders = (request: TesseraRequest): [string, string][] => {
     const headers: [string, string][] = [
       ["Accept", request.kind === "stream" ? STREAM_ACCEPT : ACCEPT],
       ["Tessera-Request", request.kind],
       ["Tessera-Protocol", PROTOCOL],
     ];
-    if (request.targets.length > 0) headers.push(["Tessera-Targets", targetsHeader(request.targets)]);
+    if (request.targets.length > 0) headers.push(["Tessera-Targets", targetsHeader(document, request.targets)]);
     const layout = meta(document, "tessera-layout");
     if (layout !== undefined) headers.push(["Tessera-Layout", layout]);
     if (request.signals !== undefined) headers.push(["Tessera-Signals", request.signals]);

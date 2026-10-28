@@ -92,7 +92,7 @@ export function resolveAnchors(document: Document, targets: readonly string[]): 
   return targets.map((target) => {
     if (!target.startsWith("@")) return target;
     const name = target.slice(1);
-    if (!COMPONENT_KEY.test(name) || name.length > 64) throw new PatchError(target, `"${name}" is not an anchor name.`);
+    if (!isAnchorName(name)) throw new PatchError(target, `"${name}" is not an anchor name.`);
     const anchored = document.querySelectorAll(`[data-t-anchor="${name}"]`);
     if (anchored.length === 0) throw new PatchError(target, `the page has no anchor ${name}.`);
     if (anchored.length > 1) throw new PatchError(target, `two elements carry the anchor ${name}.`);
@@ -100,6 +100,21 @@ export function resolveAnchors(document: Document, targets: readonly string[]): 
     if (!element.hasAttribute("data-t-c")) throw new PatchError(target, `the anchor ${name} is not on a component.`);
     return ownerPath(element);
   });
+}
+
+/** Whether a string is an anchor name: the key grammar, at most 64 characters (protocol 2.7). */
+function isAnchorName(name: string): boolean {
+  return COMPONENT_KEY.test(name) && name.length <= 64;
+}
+
+/**
+ * The anchor a component element carries, as `Tessera-Targets` sends it (protocol 4.3): its
+ * `data-t-anchor` when that is well-formed and no other element carries it, else undefined.
+ */
+export function anchorOf(document: Document, element: Element): string | undefined {
+  const name = element.getAttribute("data-t-anchor");
+  if (name === null || !isAnchorName(name)) return undefined;
+  return document.querySelectorAll(`[data-t-anchor="${name}"]`).length === 1 ? name : undefined;
 }
 
 /** Parses markup inertly: scripts in it never run. */

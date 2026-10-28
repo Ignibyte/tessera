@@ -126,6 +126,8 @@ export interface Identity {
   readonly target: string;
   readonly start: number;
   readonly end: number;
+  /** A component's `data-t-anchor`, when it carries one (section 2.7). */
+  readonly anchor?: string;
 }
 
 export interface Identities {
@@ -137,6 +139,7 @@ interface Span {
   name: string;
   start: number;
   end: number;
+  anchor: string | undefined;
 }
 
 const VOID = new Set(["area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "source", "track", "wbr"]);
@@ -162,14 +165,14 @@ function elementSpans(html: string): Span[] {
       if (!COMPONENT_KEY.test(key) || key.length > 64) throw new Error(`bad component key ${key}`);
       if (props !== undefined && !PROPS_TOKEN.test(props)) throw new Error(`bad props on ${key}`);
       if (anchor !== undefined) {
-        if (!COMPONENT_KEY.test(anchor) || anchor.length > 64 || anchors.has(anchor)) throw new Error(`bad or doubled anchor ${anchor}`);
+        if (!isAnchor(anchor) || anchors.has(anchor)) throw new Error(`bad or doubled anchor ${anchor}`);
         anchors.add(anchor);
       }
     }
     const name = region ?? key ?? "";
     const kind = region === undefined ? "component" : "region";
     if (VOID.has(tag.toLowerCase())) {
-      spans.push({ kind, name, start: match.index, end: match.index + text.length });
+      spans.push({ kind, name, start: match.index, end: match.index + text.length, anchor });
       continue;
     }
     const tags = new RegExp(`<!--[\\s\\S]*?-->|<(/?)${tag}\\b[^>]*>`, "gi");
@@ -185,7 +188,7 @@ function elementSpans(html: string): Span[] {
       }
     }
     if (end < 0) throw new Error(`${kind} ${name}: no end tag for <${tag}>`);
-    spans.push({ kind, name, start: match.index, end });
+    spans.push({ kind, name, start: match.index, end, anchor });
   }
   return spans;
 }
@@ -219,7 +222,8 @@ export function scan(html: string): Identities {
       if (target.length > 512) throw new Error(`path too long: ${target}`);
     }
     if (byTarget.has(target)) throw new Error(`two elements share the target ${target}`);
-    byTarget.set(target, { kind: span.kind, target, start: span.start, end: span.end });
+    const identity = { kind: span.kind, target, start: span.start, end: span.end };
+    byTarget.set(target, span.anchor === undefined ? identity : { ...identity, anchor: span.anchor });
   }
   return { byTarget };
 }
@@ -234,6 +238,8 @@ export function contains(outer: Identity, inner: Identity): boolean {
 export interface TargetEntry {
   readonly target: string;
   readonly props?: string;
+  /** The anchor named after `@`, without it (protocol 2). */
+  readonly anchor?: string;
 }
 
 /** Whether a string is a target (section 2.6): `page`, a region name or a component path. */
@@ -248,16 +254,26 @@ export function isTarget(value: string): boolean {
   );
 }
 
-/** Parses a `Tessera-Targets` value (section 4.3); undefined when it breaks the grammar. */
+/** Whether a string is an anchor name (section 2.7): the key grammar, at most 64 characters. */
+function isAnchor(value: string): boolean {
+  return COMPONENT_KEY.test(value) && value.length <= 64;
+}
+
+/**
+ * Parses a `Tessera-Targets` value (section 4.3): `target [ SP props ] [ SP "@" anchor ]` per
+ * entry. Undefined when it breaks the grammar.
+ */
 export function parseTargets(value: string): TargetEntry[] | undefined {
   const entries: TargetEntry[] = [];
   for (const item of value.split(",")) {
-    const entry = item.replace(/^[ \t]+|[ \t]+$/g, "");
-    const [target = "", props, extra] = entry.split(" ");
-    if (!isTarget(target) || extra !== undefined) return undefined;
-    if (props === undefined) entries.push({ target });
-    else if (PROPS_TOKEN.test(props)) entries.push({ target, props });
-    else return undefined;
+    const [target = "", ...rest] = item.replace(/^[ \t]+|[ \t]+$/g, "").split(" ");
+    if (!isTarget(target)) return undefined;
+    const last = rest.at(-1);
+    const anchor = last?.startsWith("@") ? last.slice(1) : undefined;
+    const tokens = anchor === undefined ? rest : rest.slice(0, -1);
+    if (anchor !== undefined && !isAnchor(anchor)) return undefined;
+    if (tokens.length > 1 || (tokens[0] !== undefined && !PROPS_TOKEN.test(tokens[0]))) return undefined;
+    entries.push({ target, ...(tokens[0] === undefined ? {} : { props: tokens[0] }), ...(anchor === undefined ? {} : { anchor }) });
   }
   return entries;
 }
