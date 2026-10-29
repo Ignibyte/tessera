@@ -496,6 +496,22 @@ default so work could go on; Chad confirms or changes it, and until then the cod
     altered). Requests carry 2; fragments and streams must carry 2. Everything else as in 1.
   - The server's answers still name targets by path; "the server never sees `@`" from protocol 1
     no longer holds for requests.
+- **A stream event may target an anchor, within protocol 2** (**Provisional**, ticket #35,
+  2026-10-29; the driver's request for AIC's aic-demo run 19, a live bell in the page header; the
+  version question is the agent's choice). A `tessera-patch-elements` event's `target` and a
+  `tessera-patch-signals` event's `scope` may be `@NAME`. `commitStream` resolves it with
+  `resolveAnchors` against the live page when the event commits, then patches and touches the
+  generations as for the path; a signal scope resolves when its event arrives. A name that is
+  badly spelled, missing, doubled or not on a component is reported and the event dropped, as
+  for a missing path. Fragment responses stay path-only.
+  - Why: a keyed component inside another component's template sits at a positional path
+    (`header/bell/Bell.2:count`) that moves when a wrapper or an order changes, and AIC's gate
+    refuses spelling such paths in app code. Links, forms, polls and actions already take
+    `@NAME`.
+  - No new version: a server pins the Tessera release it serves, and this widens only what an
+    event may name. A 0.3.0 page given `@NAME` reports the event and drops it, as it would an
+    unknown region; it never applies it to the wrong element. The rule from protocol 2, "the
+    server's answers still name targets by path", now holds for fragment responses only.
 - **A malformed or doubled anchor is left out of the entry** (**Provisional**, ticket #34,
   2026-10-27; the agent's choice). Tessera sends `@NAME` only when the anchor follows the key
   grammar (at most 64 characters) and no other element carries it. Such an anchor is the server's

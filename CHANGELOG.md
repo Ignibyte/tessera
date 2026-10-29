@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- A stream event may name a component by its anchor: `data: target @bell` in a
+  `tessera-patch-elements` event, `data: scope @bell` in a `tessera-patch-signals` event. Tessera
+  resolves it against the live page when the event arrives; an anchor that is missing, doubled,
+  badly spelled or not on a component is reported and the event dropped. Still protocol 2; a
+  server sends `@NAME` in events only to pages on this release or later (#35).
+
 ## 0.3.0 (2026-10-28)
 
 Protocol version 2: a server must accept an anchor in `Tessera-Targets` entries and move its

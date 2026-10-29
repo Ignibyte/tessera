@@ -2,6 +2,7 @@
 <!--slot content-->
     <h1>Events</h1>
     <div data-t-c="latest"><p id="latest">Latest: {{latest}}</p></div>
+    <div data-t-c="panel"><p>Bell: <span data-t-c="Bell.2:count" data-t-anchor="bell"><b id="bell">{{latest}}</b></span></p></div>
     <p>Received: <span id="received" data-signals__document="{received: 0}" data-text="$received"></span></p>
     <ul data-region="events" data-stream="{{stream}}">{{{items}}}</ul>
     <div id="also" data-stream="{{stream}}" hidden></div>

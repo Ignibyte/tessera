@@ -40,6 +40,10 @@ anchor and never has to spell its path. A version 1 server would read `@NAME` as
 hence the new number. Everything else is as in version 1. A server moving to version 2 accepts
 the anchor in the entry grammar and changes its version check; nothing else on the wire changes.
 
+Tessera 0.3.1 lets a stream event name a component by its anchor (section 7.2) without a new
+number. A server pins the Tessera release it serves (`docs/consumers.md`), so it sends `@NAME` in
+an event only to a page that resolves it; Tessera 0.3.0 reports such an event and drops it.
+
 A server that does not speak the version a request names must not act on the request: no write,
 no side effect. It answers `400` with a `Tessera-Protocol` header listing the versions it does
 speak, comma-separated (`Tessera-Protocol: 1, 2`); Tessera ignores the body. Tessera, seeing a
@@ -177,6 +181,7 @@ A target containing `/` is a component; `page` is the document; anything else is
 same spelling is used in request headers, in fragment responses, in stream events and in
 attributes. Where the page names a target, an anchor (section 2.7) may stand in for a component's
 path; the server gets the path, with the anchor beside it (section 4.3), never the anchor alone.
+A stream event may name a component by its anchor as well (section 7.2).
 
 ### 2.7 Anchors
 
@@ -193,8 +198,8 @@ with the page's structure in mind. An anchor names a component by itself instead
 - `data-t-anchor="NAME"` sits on a component element. NAME follows the key grammar (section 2.4)
   and is unique on the page.
 - Wherever Tessera reads targets from the page (`data-target` on a link, a form or a submitter,
-  an action's `target` option, a visit through the API), `@NAME` names the component carrying
-  that anchor. Tessera resolves it to the component's path from the page before it sends the
+  an action's `target` option, a visit through the API), and in a stream event's `target` or
+  `scope` (section 7.2), `@NAME` names the component carrying that anchor. Tessera resolves it to the component's path from the page before it sends the
   request, so `Tessera-Targets` above holds `content/cart`, then its props token, then `@cart`.
 - An anchor that is badly spelled, that no element carries, that two elements carry, or that sits
   on an element without `data-t-c`, is an error: Tessera reports it as it reports a bad target and
@@ -206,8 +211,10 @@ with the page's structure in mind. An anchor names a component by itself instead
   `content/cart TOKEN @cart`. So a server can find a component's props by anchor, without
   spelling a path that moves when a wrapper or an order changes. An anchor that is badly spelled
   or that two elements carry is left out of the entry.
-- The server's own answers never use `@`. A fragment, a signal patch or a stream event names its
-  target by path; `@` there is not a region name and fails as section 5.3 says.
+- A stream event may name a component by `@NAME`: Tessera resolves it against the page when the
+  event arrives (section 7.2). A fragment response never uses `@`: its templates and signal
+  patches name their targets by path, and `@` there is not a region name and fails as section 5.3
+  says.
 
 ## 3. Attributes a server renders
 
@@ -668,7 +675,7 @@ may end with LF, CRLF or CR, and a leading byte order mark is ignored.
 
 | Data key | Required | Value |
 |---|---|---|
-| `target` | yes | the target (section 2.6), `page` included |
+| `target` | yes | the target (section 2.6), `page` included, or `@NAME` for an anchored component (section 2.7) |
 | `mode` | no | `morph` (default), `inner`, `append`, `prepend` or `remove` |
 | `elements` | for every mode but `remove` | one line of the markup; repeat the key for each line, and Tessera joins the values with a line feed |
 
@@ -690,7 +697,7 @@ data: elements </li>
 
 | Data key | Required | Value |
 |---|---|---|
-| `scope` | yes | the target whose scope receives the patch; `page` is the document scope |
+| `scope` | yes | the target whose scope receives the patch, or `@NAME`; `page` is the document scope |
 | `onlyIfMissing` | no | `true` to set only signals that do not exist yet |
 | `signals` | yes | strict JSON, an object; repeat the key for a multi-line object, joined with a line feed |
 
@@ -698,6 +705,21 @@ data: elements </li>
 event: tessera-patch-signals
 data: scope page
 data: signals {"unread":4}
+
+```
+
+A `target` or `scope` of `@NAME` names the component carrying `data-t-anchor="NAME"`. Tessera
+resolves it when the event arrives, against the page as it is then, and the event commits as one
+naming that component's path. A name that is badly spelled, that no element carries, that two
+elements carry, or that sits on an element without `data-t-c` is reported, and the event is
+dropped as one for a missing target is. So a stream can update a keyed component nested in
+another component's template, whose path moves when a wrapper or an order changes, without
+spelling the path:
+
+```
+event: tessera-patch-elements
+data: target @bell
+data: elements <span data-t-c="Bell.2:count" data-t-anchor="bell"><b>3</b></span>
 
 ```
 
@@ -1124,7 +1146,8 @@ A server layer speaks version 2 when it:
     response from a URL that answers Tessera requests, plus `Tessera-Signals` when it reads them.
 13. Serves streams as `text/event-stream` with `Cache-Control: no-store`, the three event names
     of section 7, ids on replayable events, resumption from `Last-Event-ID`, and `tessera-close`
-    when finished.
+    when finished. An event names a component by its path, or by `@NAME` when it carries an
+    anchor.
 14. Does the same work for a plain request, so a page with JavaScript off reaches the same results
     by full loads.
 15. Applies a write carrying a `Tessera-Write-Id` it has seen within five minutes no more than

@@ -173,7 +173,8 @@ export interface Transport {
   /**
    * Commits one `tessera-patch-elements` event (protocol 7.2). It is never stale, since it arrived
    * last, and it touches the generations, so an older answer in flight for that target is dropped.
-   * A target the page lacks is reported and dropped; `page` commits as a whole document.
+   * A target the page lacks is reported and dropped; `page` commits as a whole document. An
+   * `@NAME` target resolves to the anchored component's path when the event commits.
    */
   commitStream(target: string, mode: PatchMode, markup: string): Promise<StreamCommit>;
   /** Submits a form as the browser would, with its submitter. */
@@ -1083,6 +1084,16 @@ export function createTransport(options: TransportOptions): Transport {
       return "committed";
     }
     if (!PATCH_MODES.includes(mode)) throw new TransportError(`"${mode}" is not a fragment mode.`);
+    // An anchor resolves against the page as it is now; one that does not is dropped like a
+    // missing path, its PatchError saying why.
+    if (target.startsWith("@")) {
+      try {
+        [target = target] = resolveAnchors(document, [target]);
+      } catch (error) {
+        report(error, undefined);
+        return "dropped";
+      }
+    }
     if (resolveTarget(document, target) === undefined) {
       report(new TransportError(`A stream event targets ${target}, which is not on the page; it is dropped.`), undefined);
       return "dropped";

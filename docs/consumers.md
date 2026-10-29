@@ -73,7 +73,8 @@ A server layer speaks version 2 when it:
     response from a URL that answers Tessera requests, plus `Tessera-Signals` when it reads them.
 13. Serves streams as `text/event-stream` with `Cache-Control: no-store`, the three event names
     of section 7, ids on replayable events, resumption from `Last-Event-ID`, and `tessera-close`
-    when finished.
+    when finished. An event names a component by its path, or by `@NAME` when it carries an
+    anchor.
 14. Does the same work for a plain request, so a page with JavaScript off reaches the same results
     by full loads.
 15. Applies a write carrying a `Tessera-Write-Id` it has seen within five minutes no more than
@@ -104,6 +105,13 @@ AIC side owns the details.
   `@stock-list` and never a positional path such as `content/c0/Panel.1:live`. The anchor is
   untrusted like the rest of the header: AIC checks that the target's component carries it.
   Before this, AIC refused `@NAME` as an altered props token, which is why the version moved.
+- **Streams by anchor (Tessera 0.3.1).** A `tessera-patch-elements` event's `target` and a
+  `tessera-patch-signals` event's `scope` may be `@NAME` (protocol 7.2); Tessera resolves it
+  against the live page when the event arrives. A live bell in a layout's header, a keyed
+  component inside another component's template, is then pushed as `target @bell`, never as
+  `header/bell/Bell.2:count`. An anchor that does not resolve is reported and the event dropped.
+  The protocol stays 2: AIC sends `@NAME` in an event only once it pins 0.3.1 or later, since
+  0.3.0 drops such an event.
 - **Fragment responses.** For a visit or a refresh whose targets all exist under the same layout:
   `200`, `text/vnd.tessera+html; charset=utf-8`, `Tessera-Protocol: 2`, one `<template
   data-target="…">` per target, the `<title>`, the tracked assets' copies, and signal patches when

@@ -77,7 +77,7 @@ entry's `@NAME` must be the anchor its target's component carries, or the answer
 | `GET /form` | A form posting `name` and `_token` to `/form` |
 | `POST /form` | `419` on a CSRF token matching neither `X-CSRF-Token` nor `_token`; `422` with the errors for an empty name; `409` for the name `taken`; else `303` to `/form/done?name=…`, or `200` with `Tessera-Location` for a Tessera request |
 | `GET /form/done?name=` | The page after a successful post |
-| `GET /events` | Region `events` and `#also`, both with `data-stream="/events/stream"` plus this URL's query; component `content/latest`; `$received` in the document scope |
+| `GET /events` | Region `events` and `#also`, both with `data-stream="/events/stream"` plus this URL's query; component `content/latest`; component `content/panel/Bell.2:count`, anchored `bell`; `$received` in the document scope |
 | `GET /events/stream` | The stream, below |
 | `GET /events/log?key=K` | `{connections: [{key, lastEventId, closed}]}`: each connection to the stream that named `key`, in arrival order |
 | `GET /slow?ms=N` | The Slow page, after N ms (default 1000, at most 10000) |
@@ -90,10 +90,11 @@ entry's `@NAME` must be the anchor its target's component carries, or the answer
 
 `/events/stream` sends `retry` first, then step `k` for `k` from 1 to `count`: a
 `tessera-patch-elements` with id `k` prepending `<li>Event k</li>` to `events`, then, without
-ids, a morph of `content/latest` to `Latest: k` and a `tessera-patch-signals` setting `received`
-to `k` in the document scope. With a numeric `Last-Event-ID` it resumes after that id; with any
+ids, a morph of `content/latest` to `Latest: k`, a morph of the bell named `target @bell` (the
+component at `content/panel/Bell.2:count`) to `k`, and a `tessera-patch-signals` setting
+`received` to `k` in the document scope. With a numeric `Last-Event-ID` it resumes after that id; with any
 other id it cannot resume and sends the whole region as one `morph`, id `count`, then the
-component and the signal for `count`. Query parameters:
+components and the signal for `count`. Query parameters:
 
 | Parameter | Default | Meaning |
 |---|---|---|

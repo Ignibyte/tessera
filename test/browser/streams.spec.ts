@@ -51,6 +51,18 @@ test("events morph a region and a component, and patch signals", async ({ page, 
   expect(await page.evaluate(() => (window as unknown as HarnessWindow).tesseraHarness.requestErrors)).toEqual([]);
 });
 
+test("an event naming @bell morphs the anchored component nested in another component", async ({ page }) => {
+  // The bell is component content/panel/Bell.2:count; the stream names it only as @bell.
+  await open(page, `count=3&interval=200&key=${testName("anchor")}`);
+  await page.evaluate(() => {
+    (document.querySelector('[data-t-anchor="bell"]') as HTMLElement & { marked?: boolean }).marked = true;
+  });
+  await expect(page.locator("#received")).toHaveText("3");
+  await expect(page.locator('[data-t-c="panel"] [data-t-c="Bell.2:count"] #bell')).toHaveText("3");
+  expect(await page.evaluate(() => (document.querySelector('[data-t-anchor="bell"]') as HTMLElement & { marked?: boolean }).marked)).toBe(true);
+  expect(await page.evaluate(() => (window as unknown as HarnessWindow).tesseraHarness.requestErrors)).toEqual([]);
+});
+
 test("a dropped connection reconnects with the last id and resumes without duplicates", async ({ page, request }) => {
   const key = testName("drop");
   await open(page, `count=4&drop=2&retry=50&key=${key}`);
