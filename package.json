@@ -1,6 +1,6 @@
 {
   "name": "tessera",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "private": true,
   "description": "Browser runtime for server-rendered sites: server HTML morphed in by region and component, over responses and SSE.",
   "type": "module",

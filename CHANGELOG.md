@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+## 0.3.1 (2026-10-29)
+
+Protocol version 2, as in 0.3.0; nothing a server must change. A server that sends `@NAME` in
+stream events pins this release or later. No known issues.
+
 - A stream event may name a component by its anchor: `data: target @bell` in a
   `tessera-patch-elements` event, `data: scope @bell` in a `tessera-patch-signals` event. Tessera
   resolves it against the live page when the event arrives; an anchor that is missing, doubled,
