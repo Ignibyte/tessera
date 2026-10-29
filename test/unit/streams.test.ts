@@ -221,6 +221,69 @@ describe("events", () => {
     expect(navigated).toEqual([]);
   });
 
+  describe("naming an anchor", () => {
+    // The bell sits at content/header/Bell.2:count, inside another component; `twice` is on two
+    // components and `plain` on an element that is not one.
+    const anchored = `
+      <main data-region="content">
+        <header data-t-c="header" data-signals="{rung: 0}">
+          <span data-t-c="Bell.2:count" data-t-anchor="bell" data-signals="{count: 0}"><b id="bell">0</b></span>
+        </header>
+        <div data-t-c="a" data-t-anchor="twice"></div>
+        <div data-t-c="b" data-t-anchor="twice"></div>
+        <p data-t-anchor="plain"></p>
+        <ul data-region="events" data-stream="/stream"></ul>
+      </main>`;
+    const bell = (target: string, count: number): string =>
+      `event: tessera-patch-elements\ndata: target ${target}\ndata: elements <span data-t-c="Bell.2:count" data-t-anchor="bell"><b id="bell">${count}</b></span>\n\n`;
+
+    it("morphs the anchored component nested in another, resolved when the event arrives", async () => {
+      const stream = eventStream();
+      const { find, reported, items } = start([() => stream.response], anchored);
+      const element = find('[data-t-anchor="bell"]');
+      stream.push(bell("@bell", 1) + item(1));
+      await vi.waitFor(() => {
+        expect(items()).toEqual(["Event 1"]);
+      });
+      expect(find("#bell").textContent).toBe("1");
+      expect(find('[data-t-anchor="bell"]')).toBe(element);
+      expect(reported).toEqual([]);
+    });
+
+    it("drops and reports an anchor the page lacks, one on two elements, or one off a component", async () => {
+      const stream = eventStream();
+      const { find, reported, navigated, items } = start([() => stream.response], anchored);
+      stream.push(bell("@nowhere", 1) + bell("@twice", 2) + bell("@plain", 3) + bell("@bad!name", 4) + item(1));
+      await vi.waitFor(() => {
+        expect(items()).toEqual(["Event 1"]);
+      });
+      expect(find("#bell").textContent).toBe("0");
+      expect(reported.map(String)).toEqual([
+        "PatchError: Cannot patch @nowhere: the page has no anchor nowhere.",
+        "PatchError: Cannot patch @twice: two elements carry the anchor twice.",
+        "PatchError: Cannot patch @plain: the anchor plain is not on a component.",
+        'PatchError: Cannot patch @bad!name: "bad!name" is not an anchor name.',
+      ]);
+      expect(navigated).toEqual([]);
+    });
+
+    it("patches the scope of an anchored component, and reports one that does not resolve", async () => {
+      const stream = eventStream();
+      const { find, mount, streamReports, items } = start([() => stream.response], anchored);
+      stream.push(
+        "event: tessera-patch-signals\ndata: scope @bell\ndata: signals {\"count\":3}\n\n" +
+          "event: tessera-patch-signals\ndata: scope @nowhere\ndata: signals {\"count\":4}\n\n" +
+          item(1),
+      );
+      await vi.waitFor(() => {
+        expect(items()).toEqual(["Event 1"]);
+      });
+      expect(streamReports.map(String)).toEqual(["PatchError: Cannot patch @nowhere: the page has no anchor nowhere."]);
+      expect(mount.scopes.scopeOf(find('[data-t-anchor="bell"]')).count).toBe(3);
+      expect(mount.scopes.scopeOf(find('[data-t-c="header"]')).count).toBeUndefined();
+    });
+  });
+
   it("reports a malformed event and goes on", async () => {
     const stream = eventStream();
     const { streamReports, items } = start([() => stream.response]);

@@ -341,10 +341,11 @@ describe("the stream", () => {
     expect(text.startsWith("retry: 2000\n\n")).toBe(true);
   });
 
-  it("morphs content/latest and patches received after each list event", async () => {
+  it("morphs content/latest and the bell by its anchor, and patches received after each list event", async () => {
     const text = await readStream(await request("/events/stream?count=1&end=close"));
     expect(text).toContain(
       'event: tessera-patch-elements\ndata: target content/latest\ndata: elements <div data-t-c="latest"><p id="latest">Latest: 1</p></div>\n\n' +
+        'event: tessera-patch-elements\ndata: target @bell\ndata: elements <span data-t-c="Bell.2:count" data-t-anchor="bell"><b id="bell">1</b></span>\n\n' +
         'event: tessera-patch-signals\ndata: scope page\ndata: signals {"received":1}\n\n',
     );
   });

@@ -7,6 +7,7 @@
 import { ERROR_EVENT } from "./attributes.ts";
 import { leaseBody } from "./body.ts";
 import type { Kernel } from "./kernel.ts";
+import { resolveAnchors } from "./patch.ts";
 import type { Patcher, PatchMode } from "./patch.ts";
 import { dataFields, EventStreamParser } from "./sse.ts";
 import type { StreamEvent } from "./sse.ts";
@@ -271,7 +272,10 @@ class Channel {
     if (signals === undefined) throw new StreamError(`The tessera-patch-signals event for ${scope} has no signals.`);
     const patch: unknown = JSON.parse(signals.join("\n"));
     if (!isPlainRecord(patch)) throw new StreamError("A signal patch must be a JSON object.");
-    this.#options.patcher.patchSignals(scope, patch, { onlyIfMissing: fields.get("onlyIfMissing")?.[0] === "true" });
+    // An `@NAME` scope resolves when the event arrives; one that does not throws, and the event
+    // is reported and changes nothing.
+    const [resolved = scope] = resolveAnchors(this.#options.kernel.document, [scope]);
+    this.#options.patcher.patchSignals(resolved, patch, { onlyIfMissing: fields.get("onlyIfMissing")?.[0] === "true" });
   }
 }
 

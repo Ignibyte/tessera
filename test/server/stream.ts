@@ -1,6 +1,7 @@
 // The reference server's stream, `/events/stream` (docs/protocol.md, section 7): step `k`
 // prepends `<li>Event k</li>` to region `events` with id `k`, then morphs component
-// `content/latest` and patches the document's `received` signal. Query parameters shape it for
+// `content/latest`, morphs the bell by its anchor (`@bell`, the component at
+// `content/panel/Bell.2:count`) and patches the document's `received` signal. Query parameters shape it for
 // tests: `count` (steps, default 3), `interval` (ms between steps, default 0), `retry` (the
 // reconnect delay sent first, default 1000), `end` (`open` keeps the connection, `drop` ends the
 // body without `tessera-close`, `close` sends it), `pause=hidden`, `drop=K` (destroy a first
@@ -61,15 +62,16 @@ function item(k: number): string {
   return `<li>Event ${k}</li>`;
 }
 
-/** The component and the signal after step `k`; they carry no id. */
+/** The components and the signal after step `k`; they carry no id. */
 function latest(k: number): string {
   return (
     sseEvent("tessera-patch-elements", undefined, ["target content/latest", `elements <div data-t-c="latest"><p id="latest">Latest: ${k}</p></div>`]) +
+    sseEvent("tessera-patch-elements", undefined, ["target @bell", `elements <span data-t-c="Bell.2:count" data-t-anchor="bell"><b id="bell">${k}</b></span>`]) +
     sseEvent("tessera-patch-signals", undefined, ["scope page", `signals {"received":${k}}`])
   );
 }
 
-/** Step `k`: the list item with id `k`, then the component and the signal. */
+/** Step `k`: the list item with id `k`, then the components and the signal. */
 function step(k: number): string {
   return sseEvent("tessera-patch-elements", String(k), ["target events", "mode prepend", `elements ${item(k)}`]) + latest(k);
 }
