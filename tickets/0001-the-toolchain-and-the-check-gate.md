@@ -14,7 +14,7 @@ closed: 2026-10-20T22:00:53Z
 Set up the TypeScript project every later ticket builds on.
 
 - `package.json` at the root (private, `"type": "module"`), every dev dependency pinned exactly,
-  `package-lock.json` committed. Start from jqstar's versions (`/srv/stacks/jqstar/package.json`):
+  `package-lock.json` committed. Start from jqstar's versions (`../jqstar/package.json`):
   TypeScript, Vite, Vitest, fast-check, `@playwright/test`, ESLint (typescript-eslint, strict
   type-checked config). Idiomorph is the one runtime dependency.
 - `tsconfig.json` strict: `strict`, `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`,

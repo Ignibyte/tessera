@@ -6,7 +6,7 @@ Events. Local reactive state lives in HTML attributes, in Datastar's vocabulary.
 use it: AIC (PHP) and Rustal (Rust). Each speaks the protocol in `docs/protocol.md` through its
 own thin server layer, so the browser side has no framework names in it.
 
-Tessera is built from parts of jqstar (`/srv/stacks/jqstar`, `Ignibyte/jqstar` at `f17952b`,
+Tessera is built from parts of jqstar (`Ignibyte/jqstar` at `f17952b`,
 MIT). jqstar itself is not used and does not change. A digest of jqstar, with `file:line`
 citations, is `docs/research/jqstar-digest.md`; the Livewire digest beside it is the source of
 the "copy from Livewire" items.
@@ -66,7 +66,7 @@ scripts never run.
 - supersession is per URL instead of per region.
 
 **Build** (specified in jqstar's declined tickets, never implemented; the tickets are in
-`/srv/stacks/jqstar/docs/tickets/`):
+jqstar's `docs/tickets/`):
 - visit interception (0024);
 - forms without replay (0027);
 - region targeting, commit and the reject/queue/supersede table for overlapping targets (0028

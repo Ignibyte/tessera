@@ -12,7 +12,7 @@ closed: 2026-10-21T00:21:35Z
 ---
 
 Visit interception (jqstar 0024) and the head and asset policy (jqstar 0025). Read both tickets
-in `/srv/stacks/jqstar/docs/tickets/`.
+in `../jqstar/docs/tickets/`.
 
 - Same-origin link clicks (no modifier keys, no `target`, no `download`, not opted out) become
   enhanced visits: an enhanced GET naming the regions to update; the response's fragments commit

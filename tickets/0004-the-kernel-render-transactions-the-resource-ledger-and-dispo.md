@@ -29,7 +29,7 @@ Port jqstar's render transaction and ownership model (`src/kernel.ts`, 1,055 lin
 Acceptance: unit tests (happy-dom or jsdom under Vitest) for exact-once cleanup, deepest-first
 teardown, preserved roots surviving a render, cleanup on element removal, refusing acquisition in
 a removal boundary, and idempotent disposal. Port jqstar's kernel tests where they exist
-(`/srv/stacks/jqstar/test/`).
+(`../jqstar/test/`).
 
 ## Comments
 

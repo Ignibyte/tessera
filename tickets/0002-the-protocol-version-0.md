@@ -14,7 +14,7 @@ closed: 2026-10-20T22:15:04Z
 Write `docs/protocol.md`: everything a server must do to speak Tessera, precise enough that AIC
 (PHP) and Rustal (Rust) can each implement it without reading Tessera's source. Sources:
 `docs/design.md` ("Requests and responses"), jqstar 0024 to 0028 in
-`/srv/stacks/jqstar/docs/tickets/`, `src/protocol-datastar.ts` and `src/sse.ts` in jqstar, and the
+`../jqstar/docs/tickets/`, `src/protocol-datastar.ts` and `src/sse.ts` in jqstar, and the
 Livewire digest.
 
 Cover:
