@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+## 0.4.0 (2026-11-02)
+
+Protocol version 2, as in 0.3.0; nothing a server must change. A server may add its own header
+to an answer for a page's devtools to read. No known issues.
+
 - Devtools hooks, for a profiler or a debug toolbar; nothing on the wire changes and the
   protocol stays 2 (#36). `tessera:exchange` is raised on the document when any exchange
   settles (a visit, submit, action, refresh, poll, lazy load or prefetch, a stream's connection
