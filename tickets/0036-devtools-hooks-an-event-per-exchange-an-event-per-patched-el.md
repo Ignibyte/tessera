@@ -3,11 +3,12 @@ number: 36
 uuid: 01cfd7e5-efd1-417f-836a-1a27cad2dac9
 title: "Devtools hooks: an event per exchange, an event per patched element, and a highlight mode"
 type: feature
-status: in-progress
+status: done
 tags: ["devtools","events"]
 created: 2026-11-02T18:01:08Z
-updated: 2026-11-02T18:27:39Z
+updated: 2026-11-02T18:33:10Z
 phase: "docs"
+closed: 2026-11-02T18:33:10Z
 ---
 
 AIC is building a web profiler (AIC #229 to #231) whose toolbar shows each Tessera exchange live
@@ -53,3 +54,7 @@ Files: src/devtools.ts (new), src/transport.ts, src/streams.ts, src/patch.ts, sr
 Criteria: units for each detail (request kinds, prefetch, stream connect and event, the patched detail, the highlight timer with fake timers); a browser test per kind (visit, submit, action, refresh, poll, lazy, prefetch, stream connect and events), one that reads a server header from `headers`, and one showing `data-tessera-patched` come and go, with none when the meta is absent. Size: measured against size-budget.json (31,717 / 39,573 today, budgets 35,514 / 44,209). Then release 0.4.0 per RELEASING.md, as the ticket asks.
 
 Decisions (Provisional, in docs/decisions.md): the kind list, null for absent values, timings measured from the send, prefetch raising its own exchange, mode names, no event for `remove`.
+
+### 2026-11-02T18:33:10Z
+
+Delivered via PR #43 (c251916). tessera:exchange, tessera:patched and the highlight meta; released as 0.4.0 via PR #44 (0f9d17d), tag v0.4.0, all twelve sums verified from a fresh download.
