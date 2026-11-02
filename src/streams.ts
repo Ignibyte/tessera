@@ -6,12 +6,14 @@
 // protocol's headers, interceptors and generations apply.
 import { ERROR_EVENT } from "./attributes.ts";
 import { leaseBody } from "./body.ts";
+import { raiseExchange, startTiming } from "./devtools.ts";
+import type { ExchangeOutcome } from "./devtools.ts";
 import type { Kernel } from "./kernel.ts";
 import { resolveAnchors } from "./patch.ts";
 import type { Patcher, PatchMode } from "./patch.ts";
 import { dataFields, EventStreamParser } from "./sse.ts";
 import type { StreamEvent } from "./sse.ts";
-import type { Transport } from "./transport.ts";
+import type { StreamCommit, Transport } from "./transport.ts";
 import { isPlainRecord } from "./values.ts";
 
 /**
@@ -218,7 +220,7 @@ class Channel {
           if (read.closed || this.#stopped) return;
           this.#lastEventId = event.lastEventId;
           this.#failures = 0;
-          read.closed = await this.#handle(event);
+          read.closed = await this.#handle(event, response);
           if (read.closed) connection.abort(new DOMException("closed", "AbortError"));
         }
         this.#lastEventId = parser.lastEventId;
@@ -235,14 +237,31 @@ class Channel {
     }
   }
 
-  /** Applies one event; true when the stream is finished. */
-  async #handle(event: StreamEvent): Promise<boolean> {
+  /**
+   * Applies one event, then raises its `tessera:exchange` with the connection's answer; true when
+   * the stream is finished.
+   */
+  async #handle(event: StreamEvent, response: Response): Promise<boolean> {
+    const { kernel } = this.#options;
+    const timing = startTiming(kernel);
+    timing.response = response;
+    timing.bytes = new TextEncoder().encode(event.data).byteLength;
+    const fields = dataFields(event.data);
+    const named = fields.get(event.type === "tessera-patch-signals" ? "scope" : "target")?.[0];
+    let outcome: ExchangeOutcome = "committed";
     let finished = false;
     try {
-      if (event.type === "tessera-patch-elements") finished = await this.#patchElements(dataFields(event.data));
-      else if (event.type === "tessera-patch-signals") this.#patchSignals(dataFields(event.data));
-      else if (event.type === "tessera-close") finished = true;
+      if (event.type === "tessera-patch-elements") {
+        const commit = await this.#patchElements(fields);
+        finished = commit === "full-load";
+        outcome = commit;
+      } else if (event.type === "tessera-patch-signals") this.#patchSignals(fields);
+      else if (event.type === "tessera-close") {
+        finished = true;
+        outcome = "closed";
+      } else outcome = "ignored";
     } catch (error) {
+      outcome = "failed";
       this.report(error);
     }
     for (const { onEvent } of [...this.holders]) {
@@ -252,17 +271,24 @@ class Channel {
         this.report(error);
       }
     }
+    raiseExchange(kernel, {
+      kind: "stream-event",
+      request: { url: this.url, method: "GET", targets: named === undefined || named === "" ? [] : [named] },
+      outcome,
+      timing,
+      event: event.type,
+    });
     return finished;
   }
 
-  /** Commits one fragment; true after a full load, since the page is going away. */
-  async #patchElements(fields: Map<string, string[]>): Promise<boolean> {
+  /** Commits one fragment; a full load means the page is going away. */
+  async #patchElements(fields: Map<string, string[]>): Promise<StreamCommit> {
     const target = fields.get("target")?.[0];
     if (target === undefined || target === "") throw new StreamError("A tessera-patch-elements event needs a target.");
     const mode = (fields.get("mode")?.[0] ?? "morph") as PatchMode;
     const elements = fields.get("elements");
     if (elements === undefined && mode !== "remove") throw new StreamError(`The tessera-patch-elements event for ${target} has no elements.`);
-    return (await this.#options.transport.commitStream(target, mode, (elements ?? []).join("\n"))) === "full-load";
+    return this.#options.transport.commitStream(target, mode, (elements ?? []).join("\n"));
   }
 
   #patchSignals(fields: Map<string, string[]>): void {

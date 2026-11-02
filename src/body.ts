@@ -6,6 +6,8 @@
 
 export interface BodyLease {
   readonly claimed: boolean;
+  /** The bytes read so far, as they arrived (after any content decoding the browser did). */
+  readonly bytes: number;
   /** Reads the whole body as UTF-8 text. */
   text(): Promise<string>;
   /** Hands each chunk to `consume` as it arrives. */
@@ -29,6 +31,7 @@ function promisedLength(response: Response): number | undefined {
 export function leaseBody(response: Response, signal: AbortSignal): BodyLease {
   let claimed = false;
   let complete = false;
+  let received = 0;
   let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
   let cancellation: Promise<void> | undefined;
 
@@ -61,7 +64,6 @@ export function leaseBody(response: Response, signal: AbortSignal): BodyLease {
     }
     reader = response.body.getReader();
     const promised = promisedLength(response);
-    let received = 0;
     try {
       for (;;) {
         const { done, value } = await reader.read();
@@ -83,6 +85,9 @@ export function leaseBody(response: Response, signal: AbortSignal): BodyLease {
   return {
     get claimed() {
       return claimed;
+    },
+    get bytes() {
+      return received;
     },
     async text() {
       claim();

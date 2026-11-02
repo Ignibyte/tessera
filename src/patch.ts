@@ -5,9 +5,10 @@
 //
 // A region and a component are both one element (`data-region`, `data-t-c`), so every mode acts
 // on that element the same way: a morph is Idiomorph on the element itself, the other modes act
-// on its children.
+// on its children. After each patch the changed element raises `tessera:patched` (src/devtools.ts).
 import { Idiomorph } from "idiomorph";
 import type { IdiomorphCallbacks } from "idiomorph";
+import { createPatchedSignal } from "./devtools.ts";
 import type { Kernel, RenderTransaction } from "./kernel.ts";
 import { isScopeOwner, ownerPath } from "./scopes.ts";
 import type { Scopes } from "./scopes.ts";
@@ -226,6 +227,7 @@ function keptPermanents(current: Iterable<Node>, incoming: Iterable<Node>): Set<
 export function createPatcher(options: PatcherOptions): Patcher {
   const { kernel, scopes, refresh } = options;
   const { document } = kernel;
+  const patched = createPatchedSignal(kernel);
 
   const apply = (
     resolved: Target,
@@ -327,6 +329,7 @@ export function createPatcher(options: PatcherOptions): Patcher {
         transaction.fail(error);
       }
       transaction.commit();
+      if (mode !== "remove" && root.isConnected) patched(root, { target, mode });
     },
 
     patchBody(incoming) {
@@ -345,6 +348,7 @@ export function createPatcher(options: PatcherOptions): Patcher {
         transaction.fail(error);
       }
       transaction.commit();
+      patched(body, { target: "page", mode: "morph" });
     },
 
     patchSignals(target, patch, patchOptions = {}) {

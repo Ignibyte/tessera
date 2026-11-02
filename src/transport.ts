@@ -7,6 +7,8 @@
 import type { ActionCall, ActionSeam } from "./actions.ts";
 import { ERROR_EVENT } from "./attributes.ts";
 import { leaseBody } from "./body.ts";
+import { raiseExchange, startTiming } from "./devtools.ts";
+import type { ExchangeKind, ExchangeOutcome, ExchangeTiming } from "./devtools.ts";
 import { trackedSet } from "./head.ts";
 import { busyElements, decideAll, Generations, resolveTarget } from "./coordination.ts";
 import type { RequestClass, TargetNode } from "./coordination.ts";
@@ -58,6 +60,8 @@ export interface RequestInput {
   readonly signals?: boolean;
   /** A refresh from `data-poll`: it yields to every overlapping request (protocol 4.6). */
   readonly poll?: boolean;
+  /** A refresh from `data-lazy`; only `tessera:exchange` tells it apart. */
+  readonly lazy?: boolean;
   /** For a visit: what it does to history; for a submit: what its redirect's visit does. Default `push`. */
   readonly history?: HistoryMode;
 }
@@ -236,6 +240,8 @@ interface Operation {
   done: boolean;
   /** Resolves `settled`: the requests queued behind this one may go. */
   readonly release: () => void;
+  /** What `tessera:exchange` reports; its start moves to the send. */
+  readonly timing: ExchangeTiming;
 }
 
 class TransportError extends Error {
@@ -527,8 +533,21 @@ export function createTransport(options: TransportOptions): Transport {
       return;
     }
     const controller = new AbortController();
+    const timing = startTiming(kernel);
     const response = fetcher(request.url, { method: "GET", headers, signal: controller.signal, credentials: "same-origin", redirect: "follow" });
-    response.catch(() => undefined);
+    const settle = (outcome: ExchangeOutcome): void => {
+      raiseExchange(kernel, { kind: "prefetch", request, outcome, timing });
+    };
+    response.then(
+      (answer) => {
+        timing.response = answer;
+        timing.firstByte = window.performance.now();
+        settle("prefetched");
+      },
+      () => {
+        settle(controller.signal.aborted ? "aborted" : "failed");
+      },
+    );
     const timer = setTimeout(() => {
       dropPrefetch(key);
     }, prefetchMs);
@@ -764,6 +783,7 @@ export function createTransport(options: TransportOptions): Transport {
       if (request.kind === "visit") return fullLoad(finalUrl);
       return { status: isWrite(request.method) ? "indeterminate" : "failed", httpStatus: response.status, error };
     } finally {
+      if (lease.claimed) operation.timing.bytes = lease.bytes;
       await lease.release();
     }
   };
@@ -807,6 +827,8 @@ export function createTransport(options: TransportOptions): Transport {
     // A prefetched answer was rendered when it was sent, so its fragments date from then.
     operation.dispatched = prefetched ? prefetched.generation : generations.current;
     let headers = prefetched ? undefined : requestHeaders(request);
+    const { timing } = operation;
+    timing.start = window.performance.now();
 
     const write = isWrite(request.method);
     const send = (): Promise<Response> =>
@@ -821,7 +843,11 @@ export function createTransport(options: TransportOptions): Transport {
     for (let attempt = 0; ; attempt++) {
       let response: Response;
       try {
-        response = (attempt === 0 && prefetched ? await fromPrefetch(prefetched, signal) : undefined) ?? (await send());
+        const early = attempt === 0 && prefetched ? await fromPrefetch(prefetched, signal) : undefined;
+        timing.prefetched = early !== undefined;
+        response = early ?? (await send());
+        timing.response = response;
+        timing.firstByte = window.performance.now();
       } catch (error) {
         if (write) {
           return { status: "indeterminate", error: new TransportError("The write was sent and no answer came back; it may have been saved, so it is not sent again.", { cause: error }) };
@@ -899,10 +925,15 @@ export function createTransport(options: TransportOptions): Transport {
     });
 
     const requestClass: RequestClass = isWrite(method) ? "write" : input.poll ? "poll" : "read";
+    const kind: ExchangeKind = input.poll ? "poll" : input.lazy ? "lazy" : request.kind;
+    const timing = startTiming(kernel);
     const targets = request.targets.flatMap((target) => resolveTarget(document, target) ?? []);
     const pending = { class: requestClass, targets };
     const decisions = operations.map((older) => [older, decideAll(pending, older, document)] as const);
-    if (decisions.some(([, decision]) => decision === "skip")) return { status: "skipped" };
+    if (decisions.some(([, decision]) => decision === "skip")) {
+      raiseExchange(kernel, { kind, request, outcome: "skipped", timing });
+      return { status: "skipped" };
+    }
     for (const [older, decision] of decisions) {
       if (decision === "supersede") older.controller.abort(new DOMException("superseded", "AbortError"));
     }
@@ -923,6 +954,7 @@ export function createTransport(options: TransportOptions): Transport {
       release: () => {
         settle();
       },
+      timing,
     };
     operations.push(operation);
     const releases = [
@@ -950,6 +982,7 @@ export function createTransport(options: TransportOptions): Transport {
         for (const interceptor of interceptors) interceptor.error?.({ request, error: outcome.error });
       }
       for (const interceptor of interceptors) interceptor.after?.({ request, outcome });
+      raiseExchange(kernel, { kind, request, outcome: outcome.status, timing });
       return outcome;
     })();
     kernel.task(`${owner}:${request.kind}`, settled, () => undefined);
@@ -1017,9 +1050,8 @@ export function createTransport(options: TransportOptions): Transport {
       writeId: undefined,
     });
 
-  const connect: Transport["connect"] = async (url, { lastEventId, signal }) => {
-    const href = new URL(url, document.baseURI);
-    const request = streamRequest(href.href);
+  const open = async (request: TesseraRequest, { lastEventId, signal }: { readonly lastEventId: string; readonly signal: AbortSignal }, timing: ExchangeTiming): Promise<StreamAnswer> => {
+    const href = new URL(request.url);
     if (href.origin !== window.location.origin) {
       const error = new TransportError(`Tessera does not open streams to another origin: ${href.href}`);
       report(error, request);
@@ -1037,6 +1069,8 @@ export function createTransport(options: TransportOptions): Transport {
     let response: Response;
     try {
       response = await fetcher(request.url, { method: "GET", headers, signal, credentials: "same-origin", redirect: "follow", cache: "no-store" });
+      timing.response = response;
+      timing.firstByte = window.performance.now();
     } catch (error) {
       if (signal.aborted) throw error;
       return { status: "retry", error };
@@ -1070,6 +1104,20 @@ export function createTransport(options: TransportOptions): Transport {
       return stop();
     }
     return { status: "open", response, pauseWhenHidden: response.headers.get("Tessera-Stream-Pause") === "hidden" };
+  };
+
+  /** Each connection raises `tessera:exchange`, `aborted` when its signal stopped it. */
+  const connect: Transport["connect"] = async (url, connection) => {
+    const request = streamRequest(new URL(url, document.baseURI).href);
+    const timing = startTiming(kernel);
+    let outcome: ExchangeOutcome = "aborted";
+    try {
+      const answer = await open(request, connection, timing);
+      outcome = answer.status;
+      return answer;
+    } finally {
+      raiseExchange(kernel, { kind: "stream", request, outcome, timing });
+    }
   };
 
   const commitStream: Transport["commitStream"] = async (target, mode, markup) => {

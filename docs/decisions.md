@@ -529,6 +529,34 @@ default so work could go on; Chad confirms or changes it, and until then the cod
   `findTarget` refuses a component element that also carries `data-region`, and the reference
   server's scanner refuses one in a fixture. Both attributes would give one element two scopes
   and two spellings.
+- **Devtools hooks: `tessera:exchange`, `tessera:patched` and the highlight meta**
+  (**Provisional**, ticket #36, 2026-11-02; the ticket names the three, the details below are the
+  agent's choices). For AIC's profiler (AIC #229 to #231); `src/devtools.ts`, no wire change.
+  - `tessera:exchange` is raised on the document, neither bubbling nor cancelable, after the
+    interceptors' `after`. Its `kind` adds `poll`, `lazy`, `prefetch` and `stream-event` to the
+    request kinds, since a toolbar needs them apart and the wire kind (`refresh`, `visit`) does not
+    say; a lazy load tells the transport so with `lazy: true` on its input, as a poll has `poll`.
+  - Absent values are `null`, not `undefined`, so a listener can post the detail as JSON.
+  - Timings start when the request is sent, after the 5 ms buffer and any queue, so `firstByteMs`
+    is close to the server's own time; a request stopped before it went (superseded, skipped)
+    measures from when it was made.
+  - A prefetch raises its own exchange (outcome `prefetched`, no bytes, since the visit reads the
+    body), and the visit that takes it raises one with `prefetched: true`: two events for one HTTP
+    request, each true to its own moment. A poll that yields raises one as `skipped`.
+  - A request refused before it is made (bad URL, another origin, a GET with a body, an anchor
+    that does not resolve) has no request to describe and raises none; `tessera:error` has it.
+  - A stream event's exchange carries its connection's status and headers, and `bytes` is its
+    data's UTF-8 length.
+  - `tessera:patched` uses the patch modes' own names; the ticket's `replace` is `inner`. A
+    `remove` raises none, since its element is gone. A whole-document morph raises it on `<body>`
+    with target `page`.
+  - The highlight's timer is in the kernel's ledger (disposal clears the attribute), and a patch
+    within 600 ms restarts it. The meta is read at each patch, so a page may add it at any time.
+  - Cost: the DOM cannot tell Tessera whether anyone listens, so each exchange is one event
+    dispatch built from values the transport already holds. The body lease counts bytes as it
+    reads; only a stream event encodes its data once to count it. Measured with the hooks: the
+    default build 32,533 bytes gzipped (31,717 before), the csp build 40,395 (39,573); the
+    budgets are unchanged.
 
 ## Open
 

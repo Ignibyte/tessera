@@ -38,7 +38,7 @@ export function loadLazyRegions(options: LazyOptions): void {
 
   const load = (element: Element, url: string): void => {
     if (!element.isConnected) return;
-    void transport.request({ kind: "refresh", url, targets: refreshTargets(element), element });
+    void transport.request({ kind: "refresh", url, targets: refreshTargets(element), element, lazy: true });
   };
 
   watchProtocolAttribute(kernel, "lazy", (element) => {

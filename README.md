@@ -58,7 +58,9 @@ Most of it is markup the server renders (`docs/protocol.md`, section 3):
 - `<meta name="tessera-layout" content="NAME">`, the layout the page was rendered with;
 - `<meta name="tessera-csrf-token" content="TOKEN">` and, when the header is not
   `X-CSRF-Token`, `<meta name="tessera-csrf-header" content="HEADER">`;
-- `<meta name="tessera-start" content="manual">`, which keeps an IIFE from starting itself.
+- `<meta name="tessera-start" content="manual">`, which keeps an IIFE from starting itself;
+- `<meta name="tessera-debug" content="highlight">`, which marks each patched element for a
+  moment (Devtools hooks, below).
 
 `start(options)` takes one option, `helpers`: names expressions may use, functions or objects
 (`data-text="money.format($total)"`). They are registered before the page is scanned.
@@ -71,7 +73,7 @@ Most of it is markup the server renders (`docs/protocol.md`, section 3):
 |---|---|
 | `signals` | The document's signal scope, reactive: writing `signals.count = 3` updates every directive that reads `$count` from it. |
 | `visit(url, { targets, history })` | Visits `url` as a click on a link would. `targets` names regions or components by path, or a component as `@NAME` by its `data-t-anchor` (none: the page); `history` is `push` (the default), `replace` or `none`. Resolves to the outcome (`committed`, `full-load`, `superseded`, …). |
-| `intercept({ before, after, error })` | Adds an interceptor to every request; returns the function that removes it. `before({ request, headers })` runs once before dispatch and may set headers (Tessera's own are restored after it); `after({ request, outcome })` and `error({ request, error })` run when the request settles. A stream's connection runs `before` only. |
+| `intercept({ before, after, error })` | Adds an interceptor to every request; returns the function that removes it. `before({ request, headers })` runs once before dispatch and may set headers (Tessera's own are restored after it); `after({ request, outcome })` and `error({ request, error })` run when the request settles. A stream's connection runs `before` only. To watch every exchange, with its timings and response headers, listen for `tessera:exchange` (Devtools hooks, below). |
 | `stop()` | Releases everything Tessera started on the document: listeners, streams, polls, history ownership. Links and forms go back to the browser. |
 
 ### Attributes
@@ -91,15 +93,59 @@ While a request is out, its targets carry `aria-busy="true"` and the element tha
 
 ### Events
 
-Each bubbles and is cancelable; cancelling it replaces what Tessera does by default.
+The first three are cancelable, and cancelling one replaces what Tessera does by default. The
+last two only report: nothing cancels them, and Tessera does nothing more when they are raised.
 
 | Event | Raised on | When | Default |
 |---|---|---|---|
-| `tessera:error` | the element (or the document) | a directive, a request, a stream, a lazy load or a poll failed; `detail.error` | `console.error` |
+| `tessera:error` | the element (or the document), bubbling | a directive, a request, a stream, a lazy load or a poll failed; `detail.error` | `console.error` |
 | `tessera:expired` | the document | an answer was `419` (protocol 6); `detail.request` | a prompt offering a reload |
-| `tessera:indeterminate` | the form | a write was sent and no answer came back, so it may have been saved; `detail.error` | a `role="alert"` message before the form |
+| `tessera:indeterminate` | the form, bubbling | a write was sent and no answer came back, so it may have been saved; `detail.error` | a `role="alert"` message before the form |
+| `tessera:exchange` | the document | an exchange settled: a request, a prefetch, a stream's connection, a stream event; `detail` below | none |
+| `tessera:patched` | each element a patch changed, bubbling | after a fragment, a stream event or a whole-document morph changed it; `detail.target`, `detail.mode` | none |
 
-The builds export the names as `ERROR_EVENT`, `EXPIRED_EVENT` and `INDETERMINATE_EVENT`.
+The builds export the names as `ERROR_EVENT`, `EXPIRED_EVENT`, `INDETERMINATE_EVENT`,
+`EXCHANGE_EVENT` and `PATCHED_EVENT`, and the ES modules the types `ExchangeDetail` and
+`PatchedDetail`.
+
+### Devtools hooks
+
+`tessera:exchange` is for a profiler or a debug toolbar: one event per exchange, after it settled
+and after the interceptors' `after`. Its `detail` holds:
+
+| Field | Value |
+|---|---|
+| `kind` | `visit`, `submit`, `action`, `refresh`, `poll`, `lazy`, `prefetch`, `stream` (a connection) or `stream-event` |
+| `url`, `method` | the absolute URL and the method |
+| `targets` | the targets sent in `Tessera-Targets`, anchors resolved; for an event, the target or scope it names |
+| `status` | the HTTP status, or `null` when no answer came |
+| `contentType` | the media type, lowercased, or `null` |
+| `bytes` | the body bytes Tessera read (for an event, its data), or `null` when it read none |
+| `headers` | the response headers the page may read, as `[name, value]` pairs: a server's own header, such as a profile id, is there |
+| `startTime` | `performance.now()` when the request was sent (an event: when it arrived) |
+| `firstByteMs`, `settledMs` | milliseconds from `startTime` to the answer's headers (`null` when none came) and to settling |
+| `outcome` | the request's outcome (`committed`, `unchanged`, `skipped`, `superseded`, `failed`, …); `prefetched` for a prefetch; `open`, `retry` or `stop` for a connection; `committed`, `dropped`, `full-load`, `failed`, `closed` or `ignored` for an event |
+| `prefetched` | a visit that took a prefetched answer instead of fetching |
+| `event` | an event's type (`tessera-patch-elements`, …), else `null` |
+
+A value Tessera does not have is `null`, so the detail goes through `JSON.stringify` whole. A
+request Tessera refuses before making it (a bad URL, another origin, an anchor that does not
+resolve) raises no exchange; `tessera:error` reports it. A prefetch raises its own exchange when
+its answer arrives, and the visit that takes it raises another with `prefetched: true`.
+
+`tessera:patched` is raised on each target element after its patch: `detail.target` as the fragment
+or event named it (`page` for a whole-document morph, raised on `<body>`) and `detail.mode`
+(`morph`, `inner`, `append` or `prepend`). A `remove` raises none.
+
+With `<meta name="tessera-debug" content="highlight">` in the head, each patched element also
+carries `data-tessera-patched` for 600 ms, so a page in development can show what an answer
+changed:
+
+```css
+[data-tessera-patched] { outline: 2px solid #f59e0b; outline-offset: 2px; }
+```
+
+Without the meta nothing is added.
 
 ## Working on Tessera
 
