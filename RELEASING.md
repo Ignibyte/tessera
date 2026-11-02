@@ -1,6 +1,6 @@
 # Releasing Tessera
 
-A release is a tag `v<version>` on `main` and a GitHub release on this private repo with the
+A release is a tag `v<version>` on `main` and a GitHub release on this repo with the
 twelve files of `README.md`'s "Using a release" and `SHA256SUMS`. Nothing is published to npm.
 
 ## On a branch

@@ -28,8 +28,8 @@ map (`.js.map`) beside each goes into the same directory.
 1. Pin the version and the SHA-256 of each file you copy, in the framework's own source: a
    manifest or a constant, reviewed like code. The sums come from the release's `SHA256SUMS`.
 2. At build time, download the pinned release's files (`gh release download v0.1.0 --repo
-   Ignibyte/tessera --pattern 'tessera.csp.*'`, or the same URLs over HTTPS with a token: the repo
-   is private), check each against the pinned sum (`sha256sum -c`, or the language's own SHA-256),
+   Ignibyte/tessera --pattern 'tessera.csp.*'`, or the same files over plain HTTPS from
+   `https://github.com/Ignibyte/tessera/releases/download/v0.1.0/<file>`), check each against the pinned sum (`sha256sum -c`, or the language's own SHA-256),
    and fail the build on any mismatch.
 3. Copy the files into the public assets, under a path that changes with the version
    (`/assets/tessera-0.1.0/tessera.csp.iife.js`) or with a content hash, and serve them with a long

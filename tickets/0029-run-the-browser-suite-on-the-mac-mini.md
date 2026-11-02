@@ -13,7 +13,7 @@ closed: 2026-10-21T04:04:15Z
 
 Chad approved the Mac mini for Tessera's tests on 2026-10-20 (driver). Playwright's WebKit on macOS uses Apple's network stack, so a run there settles whether the byte hold seen in Linux WebKit (#27) happens on macOS.
 
-- Reach the Mac with `ssh macmini` (key-based; use BatchMode).
+- Reach the Mac with SSH (key-based; use BatchMode).
 - Work only in a scratch directory, for example `~/scratch/tessera`, filled by rsync or a git clone over ssh. Run `npm ci` and `npx playwright install webkit` inside it, then the reference servers and the browser suite there.
 - Real Safari through `safaridriver` only if it is already enabled.
 - Never run `sudo`. Do not touch the Mac's launchd agents or its existing Playwright install. Stop every server the scratch directory started when done.

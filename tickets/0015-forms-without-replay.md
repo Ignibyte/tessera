@@ -12,7 +12,7 @@ closed: 2026-10-21T00:51:11Z
 ---
 
 jqstar 0027's contract, implemented on the transport from #11. Read the ticket in
-`/srv/stacks/jqstar/docs/tickets/0027-*.md`.
+`../jqstar/docs/tickets/0027-*.md`.
 
 - Enhance only same-origin forms; a form can opt out.
 - The real submitter, `formaction` and friends (from #11).

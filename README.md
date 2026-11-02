@@ -125,3 +125,7 @@ dependency, and the build bundles it.
 off, and the warning it raises fails lint), and skipped or focused Vitest tests. Playwright
 refuses a focused test with `forbidOnly`. One rule is off for one file: `no-implied-eval` in
 `src/expression.ts`, the trusted expression engine (`docs/decisions.md`).
+
+## License
+
+MIT (`LICENSE`). Tessera includes code ported from jqstar, also MIT; `NOTICE` names it.

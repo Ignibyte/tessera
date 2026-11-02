@@ -11,7 +11,7 @@ phase: "docs"
 closed: 2026-10-21T03:09:57Z
 ---
 
-Port jqstar's navigation acceptance fixture (`/srv/stacks/jqstar/test/fixtures/navigation-decision/`,
+Port jqstar's navigation acceptance fixture (`../jqstar/test/fixtures/navigation-decision/`,
 1,607 lines, 28 frozen scenarios each with a no-JS baseline) to the reference server and Tessera.
 
 - Every scenario runs twice: JavaScript off (the baseline) and with Tessera; the final URL, the

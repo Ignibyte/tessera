@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Tessera is MIT licensed (`LICENSE`), ready for the repo to open with AIC's public release.
+  `docs/consumers.md` names the plain HTTPS download URL; the dev-box handoff note is gone.
+
 ## 0.3.1 (2026-10-29)
 
 Protocol version 2, as in 0.3.0; nothing a server must change. A server that sends `@NAME` in

@@ -5,7 +5,7 @@ or component at a time, over responses and Server-Sent Events, with Datastar-sty
 local state. Read `docs/design.md` first, then `docs/decisions.md` and, once it exists,
 `docs/protocol.md`.
 
-The repo is private, `Ignibyte/tessera`. **Nothing from this repo goes into a public one.**
+The repo is `Ignibyte/tessera`, MIT licensed (`LICENSE`; `NOTICE` credits jqstar).
 
 ## How work runs here
 
@@ -29,8 +29,8 @@ stopped mid-ticket), else `bin/ticket.sh next`. Never work two tickets at once.
 
 ### 2. Plan
 
-- Read the ticket, the docs it names, and the jqstar source it cites (`/srv/stacks/jqstar`,
-  read-only, at `f17952b`).
+- Read the ticket, the docs it names, and the jqstar source it cites (`Ignibyte/jqstar` at
+  `f17952b`, checked out read-only beside this repo as `../jqstar`).
 - `bin/ticket.sh update <n> --status in-progress --phase plan`.
 - Post the plan as a ticket comment (`bin/ticket.sh comment <n>`): the approach, the files, how
   each acceptance criterion will be shown, and any decision you take. A decision that changes the
@@ -94,9 +94,9 @@ split off, what to look at. With a driver, wait for it to name the next ticket; 
 
 ## Rules
 
-- Work only in this repo. `/srv/stacks/jqstar` is read-only. Never touch AIC
-  (`/srv/stacks/aic-nextgen`), the elephc compiler or any other checkout.
-- Push only to `origin` (`Ignibyte/tessera`). Never publish to npm, never make the repo public,
+- Work only in this repo. The jqstar checkout is read-only. Never touch AIC,
+  the elephc compiler or any other checkout.
+- Push only to `origin` (`Ignibyte/tessera`). Never publish to npm, never change the repo's visibility,
   never open issues or PRs on other repositories.
 - No secrets, keys, tokens or passwords in any file.
 - Dependencies: dev dependencies as needed, pinned exactly in `package.json` and locked. Runtime

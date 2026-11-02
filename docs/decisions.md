@@ -20,8 +20,8 @@ default so work could go on; Chad confirms or changes it, and until then the cod
 - **Regions are elements, components and control-flow blocks are comment pairs** (AIC #37,
   2026-10-20). **Superseded** by "Protocol 1: components are elements" below (ticket #33): regions
   and components are both elements, and blocks are gone.
-- **The repo is private**, `Ignibyte/tessera` (2026-10-20, the default recommended to Chad; he can
-  make it public later).
+- **The repo was private at first**, `Ignibyte/tessera` (2026-10-20, the default recommended to Chad).
+  It opens with AIC's public release, under the MIT license (2026-11-02, Chad).
 - **Tessera keeps tests** (2026-10-20): a browser runtime's correctness is behaviour across
   engines that static analysis cannot see. Unit tests with Vitest, property tests with fast-check
   for parsers, and Playwright browser tests, with jqstar's navigation matrix (28 scenarios with
