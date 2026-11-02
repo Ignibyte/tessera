@@ -23,6 +23,7 @@ Tessera layer; the application behind it never sees most of this.
 10. Worked examples
 11. Server checklist
 12. Coverage of the design's request table
+13. What a page can observe
 
 ## 1. Versions
 
@@ -1165,3 +1166,29 @@ A server layer speaks version 2 when it:
 | `Vary` on Tessera's request headers | 8 |
 | A missing region on a read falls back to a full visit; a write never replays | 4.5, 5.3, 5.6, 6 |
 | Head changes: a changed tracked asset forces a full load; fetched scripts never run | 9 |
+
+## 13. What a page can observe
+
+Nothing here is on the wire: a server need not do anything for it, and the version stays 2. It
+says what Tessera shows the page about each exchange, so a server knows what its own debug
+headers reach.
+
+- **`tessera:exchange`**, raised on the document, not cancelable, once for every exchange that
+  settles: a visit, a submit, an action, a refresh, a poll, a lazy load, a prefetch, a stream's
+  connection and each event a stream delivers. Its `detail` names the kind (with `poll`, `lazy`,
+  `prefetch` and `stream-event` told apart from the `Tessera-Request` kinds of section 4.1), the
+  URL, the method, the targets sent, the status, the media type, the bytes of the body Tessera
+  read, the response headers, the time to the answer's headers and to settling, and the outcome.
+  The headers are those fetch lets a page read: for a same-origin answer, every header but
+  `Set-Cookie`. A server that adds its own header to an answer (a profile id, a timing) reaches a
+  listener with no change to Tessera; an event carries its connection's status and headers, since
+  an event has none of its own.
+- **`tessera:patched`**, raised on each region or component element a fragment or a stream event
+  patched, and on `<body>` for a whole document, after the change: `detail.target` as the answer
+  named it (`page` for a whole document) and `detail.mode` (`morph`, `inner`, `append` or
+  `prepend`). A `remove` raises none.
+- **`<meta name="tessera-debug" content="highlight">`**: when the page carries it, each patched
+  element holds `data-tessera-patched` for 600 ms. A server renders it only in development; a page
+  without it gets nothing added.
+
+`README.md` ("Devtools hooks") lists every field of the detail.

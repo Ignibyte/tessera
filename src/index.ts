@@ -7,10 +7,12 @@ import type { Runtime, StartOptions } from "./start.ts";
 
 export { version } from "./version.ts";
 export { ERROR_EVENT } from "./attributes.ts";
+export { EXCHANGE_EVENT, PATCHED_EVENT } from "./devtools.ts";
 export { EXPIRED_EVENT } from "./transport.ts";
 export { INDETERMINATE_EVENT } from "./forms.ts";
 export type { Runtime, StartOptions } from "./start.ts";
 export type { Interceptor, RequestOutcome, TesseraRequest } from "./transport.ts";
+export type { ExchangeDetail, ExchangeKind, ExchangeOutcome, PatchedDetail } from "./devtools.ts";
 
 /** Starts Tessera on the page. Call it once the document has a `<body>`. */
 export function start(options?: StartOptions): Runtime {

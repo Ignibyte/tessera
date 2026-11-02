@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- Devtools hooks, for a profiler or a debug toolbar; nothing on the wire changes and the
+  protocol stays 2 (#36). `tessera:exchange` is raised on the document when any exchange
+  settles (a visit, submit, action, refresh, poll, lazy load or prefetch, a stream's connection
+  and each stream event), its `detail` holding the kind, URL, method, targets, status, media
+  type, body bytes, the response headers the page may read (so a server's own debug header
+  reaches a listener), the time to the answer's headers and to settling, and the outcome.
+  `tessera:patched` is raised on each element a fragment, a stream event or a whole-document morph
+  changed, with the target and the mode. `<meta name="tessera-debug" content="highlight">` puts
+  `data-tessera-patched` on each patched element for 600 ms. The builds export
+  `EXCHANGE_EVENT` and `PATCHED_EVENT`.
 - Tessera is MIT licensed (`LICENSE`), ready for the repo to open with AIC's public release.
   `docs/consumers.md` names the plain HTTPS download URL; the dev-box handoff note is gone.
 
