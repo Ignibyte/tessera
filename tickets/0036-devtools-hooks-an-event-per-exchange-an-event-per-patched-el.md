@@ -9,7 +9,7 @@ created: 2026-11-02T18:01:08Z
 updated: 2026-11-02T18:01:08Z
 ---
 
-AIC is building a web profiler (AIC #229 to #232) whose toolbar shows each Tessera exchange live
+AIC is building a web profiler (AIC #229 to #231) whose toolbar shows each Tessera exchange live
 and lets a developer see what a response changed. Tessera knows those facts; nothing outside it
 can read them today: `intercept().after` gives the outcome, not the response's size, timing or
 what was patched.
