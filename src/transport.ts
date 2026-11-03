@@ -695,6 +695,12 @@ export function createTransport(options: TransportOptions): Transport {
           continue;
         }
         patcher.patchElements(target, markup, mode);
+        // A removed target touches only what it removed: touching the page would make every later
+        // fragment of this answer stale (#41).
+        if (mode === "remove") {
+          generations.touch(found);
+          continue;
+        }
         const after = resolveTarget(document, target);
         if (after) {
           generations.touch(after);

@@ -577,6 +577,17 @@ describe("the protocol's answers", () => {
     expect(mount.scopes.document).toEqual({ unread: 4 });
   });
 
+  it("lands every fragment after a remove in the same answer (#41)", async () => {
+    const { transport, respond, find } = setup(`<ul><li data-region="first">1</li><li data-region="second">2</li></ul>${content}`);
+    respond(() =>
+      fragments(`<template data-target="first" data-mode="remove"></template><template data-target="second" data-mode="remove"></template>
+        ${contentFragment("new")}`),
+    );
+    expect((await transport.request({ kind: "refresh", url: "/r", targets: ["first", "second", "content"] })).status).toBe("committed");
+    expect(find("ul").children).toHaveLength(0);
+    expect(find("#text").textContent).toBe("new");
+  });
+
   it("commits nothing for a malformed response or overlapping targets", async () => {
     const { transport, respond, find } = setup(content);
     respond(
