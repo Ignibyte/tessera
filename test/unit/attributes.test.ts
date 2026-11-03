@@ -274,6 +274,29 @@ describe("data-on", () => {
     expect(recorder.calls.map(({ method, url }) => `${method} ${url}`)).toEqual(["post /items/4"]);
   });
 
+  it("gives a dragstart that carries no data an empty text/plain, so Firefox starts the drag (#40)", () => {
+    const { find, doc, signals } = setup(`<p draggable="true" data-on:dragstart="$dragging = true">drag</p>`);
+    const stub = (types: string[]) => {
+      const set = vi.fn((type: string) => {
+        types.push(type);
+      });
+      return { types, setData: set };
+    };
+    const start = (dataTransfer: unknown): void => {
+      const event = new (doc.defaultView as Window & typeof globalThis).Event("dragstart", { bubbles: true });
+      Object.defineProperty(event, "dataTransfer", { value: dataTransfer });
+      find("p").dispatchEvent(event);
+    };
+    const empty = stub([]);
+    start(empty);
+    expect(empty.setData).toHaveBeenCalledWith("text/plain", "");
+    const carried = stub(["text/uri-list"]);
+    start(carried);
+    expect(carried.setData).not.toHaveBeenCalled();
+    start(null);
+    expect(signals.dragging).toBe(true);
+  });
+
   it("__prevent and __stop", () => {
     const { find, doc } = setup(`<div id="outer"><a href="#x" data-on:click__prevent__stop="$n = 1">x</a></div>`);
     const outer = vi.fn();

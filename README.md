@@ -86,7 +86,8 @@ What a server renders for navigation, regions and requests is in `docs/protocol.
 `data-text`, `data-show`, `data-class`, `data-attr`, `data-style`, `data-bind`, `data-effect`,
 `data-init`, `data-on` (with `__prevent`, `__outside`, `__debounce`, `__case` and the rest),
 `data-ignore` and `data-ignore-morph`. Expressions call `@get`, `@post`, `@put`, `@patch` and
-`@delete`, with the options `target` and `form`.
+`@delete`, with the options `target` and `form`. A `data-on:dragstart` drag that carries no data
+gets an empty `text/plain`, so Firefox starts it.
 
 While a request is out, its targets carry `aria-busy="true"` and the element that started it
 `data-loading`; a visit that takes a moment shows a progress bar (`[data-tessera-progress]`).
