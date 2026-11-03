@@ -3,7 +3,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { resolveTarget } from "../../src/coordination.ts";
 import type { TargetNode } from "../../src/coordination.ts";
-import { chooseFocus, createHistory, focusKey, readEntry, stateWith } from "../../src/history.ts";
+import { chooseFocus, createHistory, focusKey, readEntry, replacedTargets, stateWith } from "../../src/history.ts";
 import type { Entry } from "../../src/history.ts";
 import type { HistoryMode, RequestInput, RequestOutcome, TesseraRequest, Transport } from "../../src/transport.ts";
 import { disposeTransport, setup } from "./transport-fixture.ts";
@@ -116,6 +116,36 @@ describe("owning history", () => {
     const before = window.history.state as unknown;
     history.commit(window.location.href, request("pop"), [at("content")]);
     expect(window.history.state).toBe(before);
+  });
+});
+
+describe("replacing", () => {
+  it("replaces the entry, keeping its stored scroll and focus, and moves neither focus nor scroll", async () => {
+    const { kernel, find } = setup(`<main data-region="content"><h1>Search</h1><input id="q"><section data-region="results"><p>old</p></section></main>`);
+    const history = createHistory({ kernel, settleMs: 20 });
+    // The entry a visit of content made; a replacing visit of results inside it keeps content.
+    window.history.replaceState({ tessera: entry({ targets: ["content"] }) }, "");
+    const length = window.history.length;
+    find("#q").focus();
+    history.capture(request("replace", ["results"]));
+    find("[data-region=results]").innerHTML = "<h1>Results</h1>";
+    history.commit(`${window.location.origin}/search?q=c`, request("replace", ["results"]), [at("results")]);
+    expect([window.history.length, window.location.pathname, window.location.search]).toEqual([length, "/search", "?q=c"]);
+    expect(readEntry(window.history.state)).toEqual(entry({ targets: ["content"], scroll: { x: 0, y: 0 }, focus: "q" }));
+    await new Promise((resolve) => setTimeout(resolve, 40));
+    expect(document.activeElement).toBe(find("#q"));
+    expect(scrollTo).not.toHaveBeenCalled();
+    expect(scrollIntoView).not.toHaveBeenCalled();
+  });
+
+  it("records the targets that made the entry and the replacing visit's, the outer ones only", () => {
+    setup(`<main data-region="content"><section data-region="results"></section></main><nav data-region="sidebar"></nav>`);
+    expect(replacedTargets(document, ["content"], ["results"])).toEqual(["content"]);
+    expect(replacedTargets(document, ["results"], ["content"])).toEqual(["content"]);
+    expect(replacedTargets(document, ["results"], ["sidebar"])).toEqual(["results", "sidebar"]);
+    expect(replacedTargets(document, [], ["results"])).toEqual([]);
+    expect(replacedTargets(document, ["results"], [])).toEqual([]);
+    expect(replacedTargets(document, ["gone"], ["results"])).toEqual(["gone", "results"]);
   });
 });
 

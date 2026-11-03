@@ -33,7 +33,8 @@ export interface Runtime {
   readonly signals: Record<string, unknown>;
   /**
    * Visits `url` as a click on a link to it would: `targets` names the regions or components to
-   * update (none: the page), `history` is `push` (the default), `replace` or `none`.
+   * update (none: the page), `history` is `push` (the default), `replace` (the current entry,
+   * with focus and scroll left where they are) or `none`.
    */
   visit(url: string, options?: { readonly targets?: readonly string[]; readonly history?: "push" | "replace" | "none" }): Promise<RequestOutcome>;
   /** Adds an interceptor to every request; the function returned removes it. */

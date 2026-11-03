@@ -1,8 +1,8 @@
 // History, focus and scroll for visits: jqstar 0026's ordering (declined there, never built),
 // prepare → capture the current entry → mutate body and head → push or replace URL and state →
-// enhance → focus → scroll. The transport calls `capture` and `commit` around a visit's commit;
+// enhance → focus → scroll. A replacing visit stops after the URL and state, as a refresh would. The transport calls `capture` and `commit` around a visit's commit;
 // back and forward fetch fresh content through the transport.
-import { busyElements } from "./coordination.ts";
+import { busyElements, relation, resolveTarget } from "./coordination.ts";
 import type { TargetNode } from "./coordination.ts";
 import type { Kernel } from "./kernel.ts";
 import type { TesseraRequest, Transport, VisitHistory } from "./transport.ts";
@@ -112,6 +112,22 @@ export function chooseFocus(options: {
   const heading = within("h1");
   if (heading) return { reason: "heading", element: heading };
   return { reason: "body", element: null };
+}
+
+/**
+ * The targets a replaced entry records, so Back or Forward from another page still fetches what it
+ * shows: those that made the entry and the replacing visit's, the page when either is the page,
+ * and none that lies inside another, since a response carries the outer one only.
+ */
+export function replacedTargets(document: Document, kept: readonly string[], next: readonly string[]): string[] {
+  if (kept.length === 0 || next.length === 0) return [];
+  const all = [...new Set([...kept, ...next])];
+  const nodes = all.map((target) => resolveTarget(document, target));
+  return all.filter((_target, index) => {
+    const node = nodes[index];
+    if (node === undefined) return true;
+    return !nodes.some((other, at) => other !== undefined && at !== index && (relation(node, other) === "inside" || (relation(node, other) === "same" && at < index)));
+  });
 }
 
 function focus(element: HTMLElement): void {
@@ -242,8 +258,14 @@ export function createHistory(options: HistoryOptions): History {
       if (request.history === "push") {
         window.history.pushState(stateWith(null, entry), "", url);
       } else if (request.history === "replace") {
-        const next = stateWith(window.history.state, entry);
+        // The entry stays the one the user is on: it keeps the scroll and focus `capture` stored,
+        // and Tessera moves neither, as after a refresh.
+        const current = readEntry(window.history.state);
+        const targets = current ? replacedTargets(document, current.targets, entry.targets) : entry.targets;
+        const next = stateWith(window.history.state, { ...entry, targets, scroll: current?.scroll ?? null, focus: current?.focus ?? null });
         window.history.replaceState(next ?? window.history.state, "", url);
+        rendered = withoutHash(window.location.href);
+        return;
       } else if (request.history === "pop") {
         restoring = popped;
         popped = undefined;

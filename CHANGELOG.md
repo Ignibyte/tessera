@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- `data-push="replace"` on a link, a form or a submitter: the visit commits as usual and its URL
+  replaces the current history entry instead of pushing a new one, so a search box that submits
+  as the user types keeps `?q=` in the address while one Back returns to the page before the
+  search. Focus and scroll stay where they are. `off` and the default are unchanged (#37).
+- `visit(url, { history: "replace" })` no longer moves focus or scroll, as `data-push="replace"`
+  does not, and a replaced entry keeps its scroll, its focus and the targets that reached it (#37).
 - A GET form submitted again while its first submission is in flight sends the newer one, which
   supersedes the older as overlapping visits do; the older answer, should it arrive, is dropped.
   The block on a second submission holds writes only, as protocol 4.5 meant. Before, a search box
