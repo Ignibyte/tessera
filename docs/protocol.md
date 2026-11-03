@@ -461,7 +461,8 @@ dropped and reported, so a late response never overwrites a newer one. A fragmen
 around a newer commit stays valid, since it replaces that commit's target anyway: a visit of
 `content` still lands after a stream event committed to `events` inside it, while a late fragment
 for `events` after a commit to `content` is dropped. This holds for targets a response brings
-without the request naming them.
+without the request naming them. A `remove` touches only what it removed, so the fragments after
+it in the same answer still land.
 
 While a request is queued or in flight, its targets carry `aria-busy="true"` (a region or a
 component on its element; for `page`, `<body>`), and the element

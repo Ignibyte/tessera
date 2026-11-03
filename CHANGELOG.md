@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- One answer may remove several targets and patch others after them. Before, a removed target
+  marked the whole page changed, so every later fragment of the same answer was dropped as stale:
+  a bulk delete of two rows removed the first and left the second and the totals as they were
+  (#41).
+
 ## 0.4.1 (2026-11-02)
 
 Protocol version 2, as in 0.3.0; nothing a server must change. A server may render
