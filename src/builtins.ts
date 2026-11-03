@@ -417,6 +417,15 @@ function parseEvent(attribute: DirectiveAttribute): EventOptions {
   return { event: spell(attribute.key ?? ""), flags, key, debounce, throttle };
 }
 
+/**
+ * Firefox starts an HTML5 drag only when its dragstart sets some data, and an expression cannot
+ * call `dataTransfer.setData()` (#40): a drag that carries none yet carries an empty `text/plain`.
+ */
+function startDrag(event: Event): void {
+  const transfer = (event as DragEvent).dataTransfer as DataTransfer | null | undefined;
+  if (transfer && transfer.types.length === 0) transfer.setData("text/plain", "");
+}
+
 const on: Directive<EventOptions> = {
   name: "on",
   key: "required",
@@ -443,6 +452,7 @@ const on: Directive<EventOptions> = {
       if (key !== undefined && (event as KeyboardEvent).key !== key) return;
       if (flags.has("prevent")) event.preventDefault();
       if (flags.has("stop")) event.stopPropagation();
+      if (type === "dragstart") startDrag(event);
       if (debounce !== undefined) {
         clearTimeout(timer);
         timer = setTimeout(() => {

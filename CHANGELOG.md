@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- A drag with a `data-on:dragstart` listener now starts in Firefox: when the drag carries no data
+  yet, Tessera sets an empty `text/plain`, which Firefox requires and an expression cannot set (#40).
+
 - `data-prefetch="hover"` also prefetches a link a keyboard focus stays on for 60 ms, as a resting
   pointer does, so a keyboard user gets the same head start. A click's own focus does not prefetch
   again: its press already did (#42).

@@ -33,4 +33,6 @@
       <div data-ignore><span id="ignored" data-text="'changed'">untouched</span></div>
       <p id="init" data-init="el.textContent = 'initialized'"></p>
       <p id="effect" data-effect="el.textContent = 'count is ' + $count"></p>
+      <p id="drag" draggable="true" data-signals="{dropped: 'no'}" data-on:dragstart="$dropped = 'dragging'">Drag me</p>
+      <div id="drop" data-on:dragover__prevent="$dropped = $dropped" data-on:drop__prevent="$dropped = 'yes'" data-text="$dropped">no</div>
     </section>

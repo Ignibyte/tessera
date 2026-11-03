@@ -52,6 +52,19 @@ for (const variant of VARIANTS) {
       expect(await page.evaluate(() => (window as unknown as HarnessWindow).violations)).toEqual([]);
     });
 
+    test("a data-on:dragstart drag starts and drops, Firefox included (#40)", async ({ page }) => {
+      // Firefox refuses a drag whose dragstart sets no data; Playwright's drag does not, so the look
+      // reads what the drag carried once Tessera's listener ran.
+      await page.evaluate(() => {
+        document.addEventListener("dragstart", (event) => {
+          document.body.dataset.dragTypes = [...(event.dataTransfer?.types ?? [])].join(" ");
+        });
+      });
+      await page.locator("#drag").dragTo(page.locator("#drop"));
+      await expect(page.locator("#drop")).toHaveText("yes");
+      expect(await page.evaluate(() => document.body.dataset.dragTypes)).toContain("text/plain");
+    });
+
     test("form fields bind both ways", async ({ page }) => {
       await expect(page.locator("#greeting")).toHaveText("Hello, Ada");
       await expect(page.locator("#name")).toHaveValue("Ada");
