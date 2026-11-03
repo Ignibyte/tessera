@@ -149,7 +149,16 @@ describe("prefetching links", () => {
     const leave = (selector: string): void => {
       fixture.find(selector).dispatchEvent(new MouseEvent("mouseout", { bubbles: true, relatedTarget: document.body }));
     };
-    return { ...fixture, prefetch, press, hover, leave };
+    const key = (): void => {
+      document.dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, key: "Tab" }));
+    };
+    const focus = (selector: string): void => {
+      fixture.find(selector).dispatchEvent(new FocusEvent("focusin", { bubbles: true }));
+    };
+    const blur = (selector: string): void => {
+      fixture.find(selector).dispatchEvent(new FocusEvent("focusout", { bubbles: true, relatedTarget: document.body }));
+    };
+    return { ...fixture, prefetch, press, hover, leave, key, focus, blur };
   }
 
   it("prefetches an eligible link on mousedown, with its targets", () => {
@@ -184,5 +193,34 @@ describe("prefetching links", () => {
     vi.advanceTimersByTime(60);
     expect(prefetch).toHaveBeenCalledOnce();
     expect(prefetch.mock.calls[0]?.[0]).toMatchObject({ url: "http://localhost:3000/h", press: false });
+  });
+
+  it("prefetches a data-prefetch=hover link a keyboard focus stays on, unless it moves first (#42)", () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    const { prefetch, key, focus, blur } = links(`<a id="h" href="/h" data-prefetch="hover">h</a><a id="m" href="/m">m</a>`);
+    key();
+    focus("#m");
+    vi.advanceTimersByTime(100);
+    expect(prefetch).not.toHaveBeenCalled();
+    focus("#h");
+    vi.advanceTimersByTime(30);
+    blur("#h");
+    vi.advanceTimersByTime(100);
+    expect(prefetch).not.toHaveBeenCalled();
+    focus("#h");
+    vi.advanceTimersByTime(60);
+    expect(prefetch).toHaveBeenCalledOnce();
+    expect(prefetch.mock.calls[0]?.[0]).toMatchObject({ url: "http://localhost:3000/h", press: false });
+  });
+
+  it("leaves a click's own focus alone: only a press prefetches it (#42)", () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    const { prefetch, key, press, focus } = links(`<a id="h" href="/h" data-prefetch="hover">h</a>`);
+    key();
+    press("#h");
+    focus("#h");
+    vi.advanceTimersByTime(100);
+    expect(prefetch).toHaveBeenCalledOnce();
+    expect(prefetch.mock.calls[0]?.[0]).toMatchObject({ press: true });
   });
 });

@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- `data-prefetch="hover"` also prefetches a link a keyboard focus stays on for 60 ms, as a resting
+  pointer does, so a keyboard user gets the same head start. A click's own focus does not prefetch
+  again: its press already did (#42).
+
 ## 0.4.2 (2026-11-03)
 
 Protocol version 2, as in 0.3.0; nothing a server must change. Two known issues, older than this
