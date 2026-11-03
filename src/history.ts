@@ -214,7 +214,10 @@ export function createHistory(options: HistoryOptions): History {
       return;
     }
     popped = entry;
-    void transport.request({ kind: "visit", url, targets: entry.targets, history: "pop" }).then((outcome) => {
+    // An entry pushed by a nested region's visit names a region this page may lack: ask for the
+    // whole page then, rather than drop its fragment and leave the address on the wrong page (#39).
+    const targets = entry.targets.every((target) => resolveTarget(document, target) !== undefined) ? entry.targets : [];
+    void transport.request({ kind: "visit", url, targets, history: "pop" }).then((outcome) => {
       if (outcome.status !== "committed" && outcome.status !== "superseded" && outcome.status !== "full-load") reload();
     });
   });

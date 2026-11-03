@@ -164,6 +164,15 @@ describe("back and forward", () => {
     expect(requested).toHaveBeenCalledWith({ kind: "visit", url: `${window.location.origin}/about`, targets: ["content"], history: "pop" });
   });
 
+  it("asks for the page when an entry's targets are not all on this page (#39)", () => {
+    const { kernel } = setup(`<main data-region="content"></main>`);
+    const history = createHistory({ kernel });
+    const { transport, requested } = fakeTransport();
+    history.attach(transport);
+    pop("/search?q=c", { tessera: entry({ targets: ["results"] }) });
+    expect(requested).toHaveBeenCalledWith({ kind: "visit", url: `${window.location.origin}/search?q=c`, targets: [], history: "pop" });
+  });
+
   it("leaves a change of fragment alone to the browser", () => {
     const { kernel } = setup(`<main data-region="content"></main>`);
     const reload = vi.fn();

@@ -258,7 +258,9 @@ entry's (`history.replaceState`), so Back goes to the page before it however man
 the entry. A search box whose GET form submits on each pause in typing keeps `?q=` in the address,
 so reload, Back and Forward agree, without an entry per query. The entry keeps the targets of the
 visit that made it, widened to take in the replacing visit's (the page when either is the page), so
-Back and Forward from another page fetch everything it shows. Tessera moves neither focus nor
+Back and Forward from another page fetch everything it shows. A pushed entry keeps its visit's
+targets as they were; when Back or Forward finds one of them missing from the page it leaves (a
+region nested in a page it has since left), it asks for the page instead (#39). Tessera moves neither focus nor
 scroll after such a visit, as with `off`, and the entry keeps the scroll and focus it had. A
 `Tessera-Location` answer replaces the entry too; full loads, a `Tessera-Location` on another
 origin and `Tessera-Full-Visit` are the browser's, which pushes. With JavaScript off the browser
