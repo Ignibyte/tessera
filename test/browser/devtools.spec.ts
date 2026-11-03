@@ -141,6 +141,17 @@ test("a link pressed prefetches, and its visit takes the prefetched answer", asy
   expect((await exchanges(page)).map(({ kind }) => kind)).toEqual(["prefetch", "visit"]);
 });
 
+test("a keyboard focus on a hover link prefetches it, as a hover does (#42)", async ({ page, baseURL }) => {
+  await open(page, "/");
+  await page.locator('nav a[href="/about"]').evaluate((link) => {
+    link.setAttribute("data-prefetch", "hover");
+  });
+  await page.keyboard.press("Shift");
+  await page.locator('nav a[href="/about"]').focus();
+  const [prefetch] = await settled(page, "prefetch");
+  expect(prefetch).toMatchObject({ url: `${baseURL ?? ""}/about`, targets: ["content"], status: 200, outcome: "prefetched" });
+});
+
 test("a form submit raises its exchange after the visit its Tessera-Location leads to", async ({ page, baseURL }) => {
   await open(page, "/form");
   await page.locator("#name").fill("Ada");

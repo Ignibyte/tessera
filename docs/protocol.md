@@ -239,7 +239,7 @@ column builds the browser behaviour; the name and the meaning are fixed here.
 | `data-permanent` | an element with an `id` | Kept as the same live node, its content not morphed, across whole-document visits and fragments (`morph` and `inner`), when the incoming markup has an element with the same `id` and `data-permanent`. | #13, #17 |
 | `data-lazy="URL"` | any element | Load the element's target (section 4.1) from a same-origin GET once it is rendered, once. `data-lazy__visible="URL"` waits until the element scrolls into view. The answer should not carry `data-lazy` again. | #17 |
 | `data-poll="URL"` | any element | Refresh the element's target from a same-origin GET on an interval: 2 seconds, or the duration modifier (`data-poll__5s`, `data-poll__750ms`; at least 100 ms). Polls with the same interval fire together; while the window does not have focus only every 20th tick fires; none fire while the page is hidden or the browser offline. | #17 |
-| `data-prefetch="hover"` or `"off"` | an `<a>` or any element around links | Enhanced links prefetch their visit on mousedown; `hover` also prefetches after the pointer rests on the link for 60 ms, and `off` never prefetches. The nearest one wins. | #17 |
+| `data-prefetch="hover"` or `"off"` | an `<a>` or any element around links | Enhanced links prefetch their visit on mousedown; `hover` also prefetches after the pointer rests on the link for 60 ms, or a keyboard focus stays on it as long (#42), and `off` never prefetches. The nearest one wins. | #17 |
 | `data-stream="URL"` | any element | Open a stream (section 7) that lives as long as the element. | #16 |
 | `data-signals__region`, `data-signals__document` | any element | Declare signals into the enclosing region's scope or the document's scope instead of the nearest one. | #8 |
 
@@ -802,7 +802,7 @@ the props tokens, so props are covered too. The server adds its own `Vary` value
 - A prefetch is the visit's own request, sent early: the visit with the same URL, targets and
   layout takes its answer once, within 30 seconds, and at most 8 wait at once. A prefetch made by
   a press (mousedown) is the click's own request, so its answer is used whatever its
-  `Cache-Control`. A prefetch made by a hover can wait longer, so its answer is not used when it
+  `Cache-Control`. A prefetch made by a hover or a keyboard focus can wait longer, so its answer is not used when it
   says `no-store`, and that visit sends its request again; `data-prefetch="off"` avoids the
   second request.
 

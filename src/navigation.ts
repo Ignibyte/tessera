@@ -32,7 +32,11 @@ export function linkEligibility(event: MouseEvent, document: Document): LinkElig
   if (event.button !== 0) return { refused: "button" };
   if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return { refused: "modifier" };
   const node = event.target as Node | null;
-  const element = node?.nodeType === 1 ? (node as Element) : (node?.parentElement ?? null);
+  return elementEligibility(node?.nodeType === 1 ? (node as Element) : (node?.parentElement ?? null), document);
+}
+
+/** The link checks of `linkEligibility`, for an element no mouse event names: a focused link (#42). */
+export function elementEligibility(element: Element | null, document: Document): LinkEligibility {
   const link = element?.closest("a[href]");
   if (!link || link.namespaceURI !== HTML || link.ownerDocument !== document) return { refused: "not-a-link" };
   const anchor = link as HTMLAnchorElement;
@@ -140,33 +144,81 @@ export function interceptLinks(options: LinkOptions): Navigation {
     prefetch(event, ["mousedown", "hover"]);
   });
 
-  let hovered: { readonly link: Element; readonly cancel: () => void } | undefined;
+  /**
+   * One link waiting `hoverMs` for its prefetch, as a pointer rests on it or a keyboard focus stays
+   * on it (#42): arming another link, or leaving this one, cancels the wait.
+   */
+  const waiter = (name: string) => {
+    let armed: { readonly link: Element; readonly cancel: () => void } | undefined;
+    const drop = (): void => {
+      armed?.cancel();
+      armed = undefined;
+    };
+    return {
+      holds: (link: Element): boolean => armed?.link === link,
+      drop,
+      arm(link: Element, fire: () => void): void {
+        drop();
+        const timer = setTimeout(() => {
+          cancel();
+          fire();
+        }, hoverMs);
+        const release = kernel.own("task", name, () => {
+          clearTimeout(timer);
+        });
+        const cancel = (): void => {
+          release();
+          if (armed?.link === link) armed = undefined;
+        };
+        armed = { link, cancel };
+      },
+      leave(next: Node | null): void {
+        if (armed && !(next && armed.link.contains(next))) drop();
+      },
+    };
+  };
+
+  const hovered = waiter("navigation:hover");
   kernel.listen("navigation:hover", kernel.document, "mouseover", (event) => {
     const node = event.target as Node | null;
     const link = (node?.nodeType === 1 ? (node as Element) : node?.parentElement)?.closest("a[href]");
-    if (!link || hovered?.link === link) return;
-    hovered?.cancel();
-    hovered = undefined;
+    if (!link || hovered.holds(link)) return;
+    hovered.drop();
     if (prefetchMode(link) !== "hover") return;
-    const timer = setTimeout(() => {
-      cancel();
+    hovered.arm(link, () => {
       prefetch(event, ["hover"]);
-    }, hoverMs);
-    const release = kernel.own("task", "navigation:hover", () => {
-      clearTimeout(timer);
     });
-    const cancel = (): void => {
-      release();
-      if (hovered?.link === link) hovered = undefined;
-    };
-    hovered = { link, cancel };
   });
   kernel.listen("navigation:hover", kernel.document, "mouseout", (event) => {
-    const next = (event as MouseEvent).relatedTarget as Node | null;
-    if (hovered && !(next && hovered.link.contains(next))) {
-      hovered.cancel();
-      hovered = undefined;
-    }
+    hovered.leave((event as MouseEvent).relatedTarget as Node | null);
+  });
+
+  // A keyboard focus prefetches as a hover does; a click's own focus does not, since its press
+  // prefetched already and the click may have taken that answer (#42).
+  let keyboard = false;
+  kernel.listen("navigation:focus", kernel.document, "keydown", () => {
+    keyboard = true;
+  });
+  kernel.listen("navigation:focus", kernel.document, "pointerdown", () => {
+    keyboard = false;
+  });
+  kernel.listen("navigation:focus", kernel.document, "mousedown", () => {
+    keyboard = false;
+  });
+  const focused = waiter("navigation:focus");
+  kernel.listen("navigation:focus", kernel.document, "focusin", (event) => {
+    const node = event.target as Node | null;
+    const link = (node?.nodeType === 1 ? (node as Element) : node?.parentElement)?.closest("a[href]");
+    focused.drop();
+    if (!keyboard || !link || prefetchMode(link) !== "hover") return;
+    focused.arm(link, () => {
+      const eligibility = elementEligibility(link, kernel.document);
+      if ("refused" in eligibility) return;
+      transport.prefetch({ url: eligibility.url.href, targets: elementTargets(eligibility.link), element: eligibility.link, press: false });
+    });
+  });
+  kernel.listen("navigation:focus", kernel.document, "focusout", (event) => {
+    focused.leave((event as FocusEvent).relatedTarget as Node | null);
   });
   return { visit };
 }
