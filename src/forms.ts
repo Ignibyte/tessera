@@ -1,7 +1,8 @@
 // Forms without replay: same-origin form submissions go through the transport, which sends the
 // real submitter and never resends a write. jqstar 0027's contract (declined there, never built):
-// eligibility, a blocked second submit, focus on the errors after a 422 or 409, and a visible
-// message when a write's fate is unknown.
+// eligibility, a blocked second write, focus on the errors after a 422 or 409, and a visible
+// message when a write's fate is unknown. A GET form's submission is a visit, a read: a newer one
+// goes and supersedes the older (protocol 4.6), so search as you type ends on the last query.
 import { busyElements, resolveTarget } from "./coordination.ts";
 import type { Kernel } from "./kernel.ts";
 import { resolveAnchors } from "./patch.ts";
@@ -11,7 +12,7 @@ import type { RequestOutcome, Transport } from "./transport.ts";
 export type FormRefusal = "prevented" | "not-a-form" | "method" | "target" | "scheme" | "origin" | "opted-out";
 
 export type FormEligibility =
-  | { readonly form: HTMLFormElement; readonly submitter: HTMLElement | null }
+  | { readonly form: HTMLFormElement; readonly submitter: HTMLElement | null; readonly method: "get" | "post" }
   | { readonly refused: FormRefusal };
 
 /** The event an indeterminate submission raises on its form; cancel it to show your own message. */
@@ -43,7 +44,7 @@ export function formEligibility(event: SubmitEvent, document: Document): FormEli
   if (action.origin !== new URL(document.URL).origin) return { refused: "origin" };
   const enhance = (submitter ?? form).closest("[data-enhance]")?.getAttribute("data-enhance");
   if (enhance === "off") return { refused: "opted-out" };
-  return { form: form as HTMLFormElement, submitter };
+  return { form: form as HTMLFormElement, submitter, method: method === "get" ? "get" : "post" };
 }
 
 export interface FormOptions {
@@ -99,12 +100,17 @@ export function interceptForms(options: FormOptions): void {
   kernel.listen("forms:submit", document, "submit", (event) => {
     const eligibility = formEligibility(event as SubmitEvent, document);
     if ("refused" in eligibility) return;
-    const { form, submitter } = eligibility;
+    const { form, submitter, method } = eligibility;
     event.preventDefault();
-    if (inFlight.has(form)) return;
-    inFlight.add(form);
-    messages.get(form)?.remove();
-    messages.delete(form);
+    // Only a write is held to one at a time (protocol 4.5). A GET submission is a read: it goes,
+    // and the transport supersedes the older visit and drops its late answer (protocol 4.6).
+    const write = method !== "get";
+    if (write) {
+      if (inFlight.has(form)) return;
+      inFlight.add(form);
+      messages.get(form)?.remove();
+      messages.delete(form);
+    }
     // The paths the request names; an anchor that does not resolve fails the submission itself.
     let targets: string[] = [];
     try {
@@ -115,12 +121,12 @@ export function interceptForms(options: FormOptions): void {
     void transport
       .submit(form, submitter)
       .then(async (outcome) => {
-        inFlight.delete(form);
+        if (write) inFlight.delete(form);
         if (outcome.status === "indeterminate") indeterminate(form, outcome);
         else if (outcome.status === "committed" && (outcome.httpStatus === 422 || outcome.httpStatus === 409)) await focusErrors(targets);
       })
       .catch(() => {
-        inFlight.delete(form);
+        if (write) inFlight.delete(form);
       });
   });
 }

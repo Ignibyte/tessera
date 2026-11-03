@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- A GET form submitted again while its first submission is in flight sends the newer one, which
+  supersedes the older as overlapping visits do; the older answer, should it arrive, is dropped.
+  The block on a second submission holds writes only, as protocol 4.5 meant. Before, a search box
+  submitting its GET form on a debounced input dropped the later query while a slow answer was
+  out, and the list stayed on the earlier one (#38).
+
 ## 0.4.0 (2026-11-02)
 
 Protocol version 2, as in 0.3.0; nothing a server must change. A server may add its own header
