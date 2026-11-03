@@ -3,11 +3,12 @@ number: 39
 uuid: cfa3940f-ff91-4eca-a03a-7410c2a57bec
 title: "Back to an entry pushed by a nested-region visit, from a page without that region, lands nothing"
 type: bug
-status: in-progress
+status: done
 tags: ["navigation","history"]
 created: 2026-11-03T03:07:16Z
-updated: 2026-11-03T23:42:27Z
+updated: 2026-11-03T23:46:22Z
 phase: "code"
+closed: 2026-11-03T23:46:22Z
 ---
 
 Found while building #37 (2026-11-02). An entry records the targets of the visit that pushed it, and Back or Forward fetches those targets again (`src/history.ts`, popstate). When the entry was pushed by a visit of a region nested inside another, and the user pops to it from a page that lacks that region, the fragment for it is dropped as "left the page while its request was in flight" and the outcome is `committed`, so nothing reloads: the address names the entry while the page shows the other one.
@@ -21,3 +22,7 @@ Reproduced on the reference server: from Home, visit `/search` (target `content`
 ### 2026-11-03T23:42:27Z
 
 Plan: option 1. A Back or Forward visit whose recorded targets are not all on the current page asks for the page (no Tessera-Targets), as a visit from another layout does; the whole document then commits in place. Unit test in history.test.ts, the ticket's steps as a browser test in history.spec.ts, protocol and CHANGELOG.
+
+### 2026-11-03T23:46:22Z
+
+Delivered via PR (9476aa5). A pop visit with a target missing from the page asks for the page.
