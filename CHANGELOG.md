@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+## 0.4.2 (2026-11-03)
+
+Protocol version 2, as in 0.3.0; nothing a server must change. Two known issues, older than this
+release: Back or Forward to an entry pushed by a visit of a nested region, from a page that lacks
+that region, changes the address and leaves the page as it was (#39); and in Firefox a drag does
+not start, since an expression cannot call `dataTransfer.setData()` (#40).
+
 - One answer may remove several targets and patch others after them. Before, a removed target
   marked the whole page changed, so every later fragment of the same answer was dropped as stale:
   a bulk delete of two rows removed the first and left the second and the totals as they were
