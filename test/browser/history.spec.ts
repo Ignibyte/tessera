@@ -50,6 +50,26 @@ test.describe("history", () => {
     expect(await historyLength(page)).toBe(length + 1);
   });
 
+  test("back to an entry a nested region's visit pushed, from a page without that region, lands it (#39)", async ({ page }) => {
+    await ready(page, "/search");
+    await page.locator("#search").evaluate((form) => {
+      form.removeAttribute("data-push");
+    });
+    await page.locator("#q").fill("c");
+    await page.locator("#q").press("Enter");
+    await expect(page).toHaveURL(/\/search\?q=c$/);
+    await expect(page.locator("#shown")).toHaveText("Results for c");
+
+    await page.locator("[data-region=sidebar] a", { hasText: "About" }).click();
+    await expect(page.locator("main h1")).toHaveText("About");
+
+    await page.goBack();
+    await expect(page).toHaveURL(/\/search\?q=c$/);
+    await expect(page.locator("main h1")).toHaveText("Search");
+    await expect(page.locator("#shown")).toHaveText("Results for c");
+    expect(await marked(page)).toBe(true);
+  });
+
   test("a replacing visit changes the URL without a new entry", async ({ page }) => {
     await ready(page, "/");
     const length = await historyLength(page);
