@@ -3,11 +3,12 @@ number: 41
 uuid: c3e7f870-65c7-4d97-8a77-e204b0d7634d
 title: "A removed target marks the whole page changed, so later fragments of the same answer are dropped"
 type: bug
-status: in-progress
+status: done
 tags: ["transport","coordination"]
 created: 2026-11-03T20:38:50Z
-updated: 2026-11-03T20:38:50Z
+updated: 2026-11-03T20:41:39Z
 phase: "code"
+closed: 2026-11-03T20:41:39Z
 ---
 
 Found by Lotline (aic-demo #42) on 0.4.1. A fragment answer with two `data-mode="remove"` templates and
@@ -26,3 +27,9 @@ Acceptance:
 - One answer may remove several targets and patch others after them; every fragment lands.
 - A unit test in `test/unit/transport.test.ts` holds it (fails on 0.4.1's loop).
 - `npm run check` and `npm run test:browser` exit 0. CHANGELOG under Unreleased.
+
+## Comments
+
+### 2026-11-03T20:41:39Z
+
+Delivered via PR #48 (22741f4). A removed target touches only what it removed.
