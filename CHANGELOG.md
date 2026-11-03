@@ -2,13 +2,16 @@
 
 ## Unreleased
 
+## 0.4.3 (2026-11-03)
+
+Protocol version 2, as in 0.3.0; nothing a server must change. No known issues: #39 and #40,
+named in 0.4.2, are fixed here.
+
 - Back or Forward to an entry a nested region's visit pushed, from a page without that region, now
   lands the entry: the visit asks for the whole page when any of its recorded targets is missing,
   instead of dropping the fragment and leaving the address on the wrong page (#39).
-
 - A drag with a `data-on:dragstart` listener now starts in Firefox: when the drag carries no data
   yet, Tessera sets an empty `text/plain`, which Firefox requires and an expression cannot set (#40).
-
 - `data-prefetch="hover"` also prefetches a link a keyboard focus stays on for 60 ms, as a resting
   pointer does, so a keyboard user gets the same head start. A click's own focus does not prefetch
   again: its press already did (#42).
