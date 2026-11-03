@@ -405,7 +405,10 @@ form's data in the form's encoding. A GET or DELETE action has no body.
   themselves when a reused keep-alive connection closes before any answer, on the view that the
   server never saw it (WebKit does not, and Tessera then reports the write indeterminate). That
   repeat carries the first one's `Tessera-Write-Id`, so a server can tell it apart (section 5.8).
-- No second submission of a form while its first is in flight.
+- No second write from a form while its first is in flight: a POST form's repeated submit sends
+  nothing, even after the first settles. A GET form's submission is a visit, a read, so this rule
+  does not hold it: a newer submission is sent and supersedes the older one (section 4.6), and a
+  search box that submits its form as the user types ends on the last query.
 - No CSRF header on a GET, or to another origin.
 - No signals except on actions, and never `_`-prefixed ones.
 - No HTML, DOM state, scroll position or component state. A component is identified by its path
@@ -433,6 +436,9 @@ a write anything else, a poll a refresh from `data-poll`):
 | apart | runs alongside | runs alongside | runs alongside |
 
 To supersede is to abort the older request; one still queued or in its 5 ms wait is never sent.
+A GET form's submission is a read like any visit: submitted again with the same targets, it
+supersedes its own older submission, whose answer, should it still arrive, is dropped by the
+generations below.
 A write is never superseded: what overlaps it waits until it settles, in arrival order, so writes
 to overlapping targets go one at a time. Polls yield to everything. Across several pairs of
 targets, a queue wins over a supersession.

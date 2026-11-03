@@ -557,6 +557,13 @@ default so work could go on; Chad confirms or changes it, and until then the cod
     reads; only a stream event encodes its data once to count it. Measured with the hooks: the
     default build 32,533 bytes gzipped (31,717 before), the csp build 40,395 (39,573); the
     budgets are unchanged.
+- **A GET form's newer submit goes** (ticket #38, 2026-11-02; the driver's brief, from Lotline's
+  search as you type). #15's blocked second submit now holds writes only. A GET submission is a
+  visit: it neither waits on nor marks the form's in-flight state, so the transport's 4.6 rules
+  apply to it as to any read. The newer one supersedes the older on the same target and a late
+  answer is dropped; a GET submitter on a POST form whose write is out queues behind the write.
+  Only a write's submit clears an earlier indeterminate message. Protocol 4.5 and 4.6 say so; the
+  wire is unchanged.
 
 ## Open
 

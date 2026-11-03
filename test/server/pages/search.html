@@ -1,0 +1,11 @@
+<!--page {"title":"Search","layout":"app"}-->
+<!--slot content-->
+    <h1>Search</h1>
+    <form id="search" action="/search" data-target="results">
+      <label for="q">Query</label>
+      <input id="q" name="q" value="{{q}}" autocomplete="off" data-on:input__debounce.150ms="el.form.requestSubmit()">
+      <button id="search-go">Search</button>
+    </form>
+    <section data-region="results">
+      <p id="shown">Results for {{q}}</p>
+    </section>

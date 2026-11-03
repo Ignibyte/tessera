@@ -1,5 +1,6 @@
-// Forms without replay: which submits Tessera takes, the blocked second submit, focus after a 422
-// or 409, the message for an indeterminate write, and the encoding guard. In jsdom's own document.
+// Forms without replay: which submits Tessera takes, the blocked second write, a GET form's newer
+// submit superseding the older, focus after a 422 or 409, the message for an indeterminate write,
+// and the encoding guard. In jsdom's own document.
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { formEligibility, INDETERMINATE_EVENT, INDETERMINATE_MESSAGE, interceptForms } from "../../src/forms.ts";
 import type { FormEligibility } from "../../src/forms.ts";
@@ -107,6 +108,53 @@ describe("taking over submits", () => {
     await vi.waitFor(() => {
       expect(calls).toHaveLength(2);
     });
+  });
+
+  it("sends a GET form's newer submit while the older is in flight, and the newer one wins", async () => {
+    const search = `<main data-region="content"><form id="f" action="/search" data-target="results"><input id="q" name="q" value="c"><button id="go">Search</button></form><section data-region="results"><p id="shown">none</p></section></main>`;
+    const results = (query: string): Response => fragments(`<template data-target="results"><section data-region="results"><p id="shown">${query}</p></section></template>`);
+    let older: (response: Response) => void = () => undefined;
+    // The older answer arrives late whatever its signal says, as from a server that ignores the abort.
+    const { submit, calls, find } = forms(search, [() => new Promise<Response>((resolve) => { older = resolve; }), () => results("cr")]);
+    submit();
+    await vi.waitFor(() => {
+      expect(calls).toHaveLength(1);
+    });
+    (find("#q") as HTMLInputElement).value = "cr";
+    submit();
+    await vi.waitFor(() => {
+      expect(calls).toHaveLength(2);
+    });
+    expect(calls.map(({ method, url }) => [method, url])).toEqual([
+      ["GET", "http://localhost:3000/search?q=c"],
+      ["GET", "http://localhost:3000/search?q=cr"],
+    ]);
+    expect(calls[0]?.signal.aborted).toBe(true);
+    await vi.waitFor(() => {
+      expect(find("#shown").textContent).toBe("cr");
+    });
+    older(results("c"));
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(find("#shown").textContent).toBe("cr");
+  });
+
+  it("sends a GET submission while a write of the same form is in flight, after the write", async () => {
+    const both = `<main data-region="content"><form id="f" method="post" action="/save"><input name="name" value="Ada"><button id="go">Send</button><button id="find" formmethod="get" formaction="/find">Find</button></form></main>`;
+    let answer: (response: Response) => void = () => undefined;
+    const { submit, calls, find } = forms(both, [() => new Promise<Response>((resolve) => { answer = resolve; }), () => empty(204)]);
+    submit();
+    await vi.waitFor(() => {
+      expect(calls).toHaveLength(1);
+    });
+    (find("#f") as HTMLFormElement).requestSubmit(find("#find"));
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    // The read queues behind the write (protocol 4.6); it is not dropped.
+    expect(calls).toHaveLength(1);
+    answer(empty(204));
+    await vi.waitFor(() => {
+      expect(calls).toHaveLength(2);
+    });
+    expect(calls[1]).toMatchObject({ method: "GET", url: "http://localhost:3000/find?name=Ada" });
   });
 
   it("focuses the error summary after a 422", async () => {
