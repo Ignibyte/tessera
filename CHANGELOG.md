@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+## 0.4.1 (2026-11-02)
+
+Protocol version 2, as in 0.3.0; nothing a server must change. A server may render
+`data-push="replace"` once its pages pin this release. One known issue, older than this release:
+Back or Forward to an entry pushed by a visit of a nested region, from a page that lacks that
+region, changes the address and leaves the page as it was (#39). Replaced entries are not
+affected.
+
 - `data-push="replace"` on a link, a form or a submitter: the visit commits as usual and its URL
   replaces the current history entry instead of pushing a new one, so a search box that submits
   as the user types keeps `?q=` in the address while one Back returns to the page before the
