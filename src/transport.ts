@@ -362,12 +362,13 @@ export function elementTargets(element: Element, submitter?: Element | null): st
 }
 
 /**
- * What a link's or a form's visit does to history: `none` under `data-push="off"` on the submitter,
- * else on the element, else `push`. A submitter's `data-push`, whatever its value, overrides the form's.
+ * What a link's or a form's visit does to history, from `data-push` on the submitter, else on the
+ * element: `off` is `none`, `replace` is `replace`, anything else or nothing is `push`. A
+ * submitter's `data-push`, whatever its value, overrides the form's.
  */
 export function elementHistory(element: Element, submitter?: Element | null): HistoryMode {
   const push = submitter?.getAttribute("data-push") ?? element.getAttribute("data-push");
-  return push === "off" ? "none" : "push";
+  return push === "off" ? "none" : push === "replace" ? "replace" : "push";
 }
 
 // --- The transport ------------------------------------------------------------------------

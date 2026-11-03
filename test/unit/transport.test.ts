@@ -218,6 +218,40 @@ describe("forms: the submitter and its overrides", () => {
     expect(pushed).toEqual([`${ORIGIN}/tabs`, `${ORIGIN}/tabs`]);
   });
 
+  it("takes data-push=\"replace\" from the submitter, then the form, for a visit and a Tessera-Location", async () => {
+    const modes: [string, string][] = [];
+    const { transport, respond, find, form } = setup(
+      `<nav><form id="get" action="/search" data-target="content" data-push="replace"><button id="replace">Replace</button><button id="push" data-push="on">Push</button></form>` +
+        `<form id="plain" action="/search" data-target="content"><button id="step" data-push="replace">Step</button></form>` +
+        `<form id="post" method="post" action="/save" data-target="content" data-push="replace"><button id="save">Save</button></form></nav>${content}`,
+      {
+        history: {
+          capture: () => undefined,
+          commit: (url, request) => {
+            modes.push([url, request.history]);
+          },
+        },
+      },
+    );
+    respond(
+      () => fragments(contentFragment("a")),
+      () => fragments(contentFragment("b")),
+      () => fragments(contentFragment("c")),
+      () => empty(200, { "Tessera-Location": "/saved", "Tessera-Protocol": "2" }),
+      () => fragments(contentFragment("d")),
+    );
+    for (const [selector, submitter] of [["#get", "#replace"], ["#get", "#push"], ["#plain", "#step"], ["#post", "#save"]] as const) {
+      expect((await transport.submit(form(selector), find(submitter))).status).toBe("committed");
+    }
+    expect(modes).toEqual([
+      [`${ORIGIN}/search`, "replace"],
+      [`${ORIGIN}/search`, "push"],
+      [`${ORIGIN}/search`, "replace"],
+      [`${ORIGIN}/saved`, "replace"],
+    ]);
+    expect(find("#text").textContent).toBe("d");
+  });
+
   it("takes data-target from the submitter, then the form", async () => {
     const { transport, calls, find, form } = setup(
       `<main data-region="content"><form id="f" method="post" action="/s" data-target="content sidebar"><button id="b" data-target="sidebar">Go</button></form></main><nav data-region="sidebar"></nav>`,

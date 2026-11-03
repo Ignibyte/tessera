@@ -245,6 +245,22 @@ describe("link interception", () => {
     expect(request.mock.calls.map(([input]) => input.history)).toEqual(["none", "push"]);
   });
 
+  it("visits replacing the current entry from a link under data-push=\"replace\"", () => {
+    const fixture = setup(`<main data-region="content"><a id="step" href="/search?q=c" data-target="content" data-push="replace">c</a></main>`);
+    const { transport, request } = fakeTransport();
+    interceptLinks({ kernel: fixture.kernel, transport });
+    const after = (event: Event): void => {
+      event.preventDefault();
+    };
+    window.addEventListener("click", after);
+    try {
+      fixture.find("#step").click();
+    } finally {
+      window.removeEventListener("click", after);
+    }
+    expect(request.mock.calls.map(([input]) => input.history)).toEqual(["replace"]);
+  });
+
   it("stops listening when the kernel is disposed", () => {
     const fixture = setup(`<a id="a" href="/x">x</a>`);
     const { transport, request } = fakeTransport();

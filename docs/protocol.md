@@ -229,7 +229,7 @@ column builds the browser behaviour; the name and the meaning are fixed here.
 | `data-t-props="TOKEN"` | a component element | The component's props token, sent back with its path (sections 2.5 and 4.3). | #33 |
 | `data-t-anchor="NAME"` | a component element | Names the component as `@NAME` for `data-target` and the other places the page names targets, and is sent with the component's entry in `Tessera-Targets` (sections 2.7 and 4.3). | #33, #34 |
 | `data-target="TARGETS"` | `<a>`, `<form>`, a submit `<button>` or `<input>` | The targets a visit or submission updates, space-separated (`content`, `content sidebar`, `page`, `@cart`). On a submitter it overrides the form's. Without it: the innermost region containing the element, or `page` when there is none. | #13 |
-| `data-push="off"` | `<a>`, `<form>`, a submit `<button>` or `<input>` | The visit, or the visit a submission's `Tessera-Location` leads to, commits as usual and leaves history as it was: no entry, the URL unchanged. For tab-like swaps. On a submitter, `data-push` with any value overrides the form's, so `data-push="on"` there pushes. Any value but `off` pushes, which is the default. | #28 |
+| `data-push="off"` or `"replace"` | `<a>`, `<form>`, a submit `<button>` or `<input>` | What the visit, or the visit a submission's `Tessera-Location` leads to, does to history once it commits as usual. `off` leaves history as it was: no entry, the URL unchanged, for tab-like swaps. `replace` writes the visit's URL into the current entry instead of pushing a new one, for search as you type. Any other value pushes, which is the default. On a submitter, `data-push` with any value overrides the form's, so `data-push="on"` there pushes. | #28, #37 |
 | `data-enhance="off"` | any element | Links and forms inside it, and the element itself, are left to the browser. `data-enhance="on"` inside an `off` element turns enhancement back on; the nearest one wins. | #13 |
 | `data-track` | `<script src>`, `<link href>` in `<head>` | A tracked asset. Any change to the set of tracked assets forces a full load (section 9). The value is optional and is compared too, so `data-track="v42"` can carry a build id. | #13 |
 | `autofocus` | a focusable element in a fragment | The server's choice of focus after an update. | #14 |
@@ -252,6 +252,17 @@ Tessera moves neither focus nor scroll after such a visit, as after a refresh. A
 in a full load (section 5.6), a `Tessera-Location` on another origin and `Tessera-Full-Visit`
 change the address regardless, since the browser loads the URL itself. With JavaScript off the
 link or form is a plain one and the browser pushes as usual.
+
+`data-push="replace"` changes only which entry a visit writes: its URL replaces the current
+entry's (`history.replaceState`), so Back goes to the page before it however many visits replaced
+the entry. A search box whose GET form submits on each pause in typing keeps `?q=` in the address,
+so reload, Back and Forward agree, without an entry per query. The entry keeps the targets of the
+visit that made it, widened to take in the replacing visit's (the page when either is the page), so
+Back and Forward from another page fetch everything it shows. Tessera moves neither focus nor
+scroll after such a visit, as with `off`, and the entry keeps the scroll and focus it had. A
+`Tessera-Location` answer replaces the entry too; full loads, a `Tessera-Location` on another
+origin and `Tessera-Full-Visit` are the browser's, which pushes. With JavaScript off the browser
+pushes as usual.
 
 Tessera also reads three `<meta>` elements in `<head>`:
 
@@ -559,8 +570,9 @@ Vary: Tessera-Request, Tessera-Protocol, Tessera-Targets, Tessera-Layout
 - The value is a URL, absolute or relative to the request's URL, as in `Location`.
 - Tessera follows it with a fresh GET: a `visit` with the original request's `Tessera-Targets`.
   The body of the original request is never sent again. A same-origin URL becomes an enhanced
-  visit and its URL is pushed to history, unless the link or form opted out with
-  `data-push="off"` (section 3); a URL on another origin becomes a full load.
+  visit and its URL is pushed to history, or replaces the current entry when the link or form
+  carries `data-push="replace"`, or leaves history alone under `data-push="off"` (section 3); a URL
+  on another origin becomes a full load.
 - A server must not send `307` or `308` to a Tessera write. Tessera sends writes with
   `redirect: "manual"`, so any real redirect reaching it, from the server or from a proxy in
   front of it, arrives without a location: Tessera reports the write as indeterminate and follows

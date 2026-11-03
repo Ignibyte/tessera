@@ -77,7 +77,7 @@ entry's `@NAME` must be the anchor its target's component carries, or the answer
 | `GET /form` | A form posting `name` and `_token` to `/form` |
 | `POST /form` | `419` on a CSRF token matching neither `X-CSRF-Token` nor `_token`; `422` with the errors for an empty name; `409` for the name `taken`; else `303` to `/form/done?name=…`, or `200` with `Tessera-Location` for a Tessera request |
 | `GET /form/done?name=` | The page after a successful post |
-| `GET /search?q=` | A GET form `#search` targeting region `results` (inside `content`), submitted 150 ms after each input; `results` shows the query |
+| `GET /search?q=` | A GET form `#search` with `data-push="replace"`, targeting region `results` (inside `content`), submitted 150 ms after each input; `results` shows the query |
 | `GET /events` | Region `events` and `#also`, both with `data-stream="/events/stream"` plus this URL's query; component `content/latest`; component `content/panel/Bell.2:count`, anchored `bell`; `$received` in the document scope |
 | `GET /events/stream` | The stream, below |
 | `GET /events/log?key=K` | `{connections: [{key, lastEventId, closed}]}`: each connection to the stream that named `key`, in arrival order |

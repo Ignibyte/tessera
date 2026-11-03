@@ -564,6 +564,21 @@ default so work could go on; Chad confirms or changes it, and until then the cod
   answer is dropped; a GET submitter on a POST form whose write is out queues behind the write.
   Only a write's submit clears an earlier indeterminate message. Protocol 4.5 and 4.6 say so; the
   wire is unchanged.
+- **`data-push="replace"`: a visit that replaces the current entry** (**Provisional**, ticket #37,
+  2026-11-02; the ticket names the value and the scroll and focus, the rest is the agent's). The
+  value joins `off` on the same attribute, with the same reach: a link, a form, a submitter (whose
+  `data-push` overrides the form's), and the visit a POST's `Tessera-Location` leads to. It maps to
+  the history mode `replace` the API already had. Three choices:
+  - A `replace` moves neither focus nor scroll, as after a refresh, and that now holds for the
+    API's `visit(url, { history: "replace" })` too, which until 0.4.0 focused and scrolled as a
+    push did. One rule for both: a replacing visit stays on the entry the user is on.
+  - The replaced entry keeps the scroll and focus `capture` stored, so Back and Forward to it
+    restore them, rather than starting at the top.
+  - The replaced entry records the targets of the visit that made it together with the replacing
+    visit's, the page when either is the page, and none that lies inside another. Recording only
+    the replacing visit's targets lost the page: a search entry reached by a visit of `content`
+    and replaced by visits of `results` inside it, popped from Home, asked for `results`, which
+    Home lacks, and its fragment was dropped.
 
 ## Open
 
