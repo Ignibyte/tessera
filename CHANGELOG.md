@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 0.4.4 (2026-11-03)
+
+Protocol version 2, as in 0.3.0; nothing a server must change. No known issues.
+
 - A press on a `data-prefetch="hover"` link cancels its waiting hover or focus prefetch: the press
   prefetched already, and the timer sent a second, unused prefetch of the page the click opened (#43).
 
