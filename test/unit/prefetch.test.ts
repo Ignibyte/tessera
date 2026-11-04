@@ -223,4 +223,15 @@ describe("prefetching links", () => {
     expect(prefetch).toHaveBeenCalledOnce();
     expect(prefetch.mock.calls[0]?.[0]).toMatchObject({ press: true });
   });
+
+  it("lets a press cancel a waiting hover: the press prefetched already", () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    const { prefetch, hover, press } = links(`<a id="h" href="/h" data-prefetch="hover">h</a>`);
+    hover("#h");
+    vi.advanceTimersByTime(20);
+    press("#h");
+    vi.advanceTimersByTime(100);
+    expect(prefetch).toHaveBeenCalledOnce();
+    expect(prefetch.mock.calls[0]?.[0]).toMatchObject({ press: true });
+  });
 });
