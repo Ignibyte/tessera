@@ -236,14 +236,105 @@ describe("the morph", () => {
     expect(find("main").textContent).toBe("Saved.Your order");
   });
 
-  it("keeps data-ignore-morph nodes as they are, even when the new markup lacks them", () => {
+  it("keeps data-ignore-morph nodes the new markup brings again as they are", () => {
     const { patcher, find } = fixture(`<main data-region="content"><div id="kept" data-ignore-morph>client</div><p>old</p></main>`);
     const kept = find("#kept");
     patcher.patchElements("content", `<main data-region="content"><div id="kept" data-ignore-morph>server</div><p>new</p></main>`);
     expect(find("#kept")).toBe(kept);
     expect(kept.textContent).toBe("client");
+    expect(find("p").textContent).toBe("new");
+  });
+
+  it("removes a data-ignore-morph node the new markup drops, without an error (#44)", () => {
+    const { patcher, find } = fixture(`<main data-region="content"><div id="kept" data-ignore-morph>client</div><p>old</p></main>`);
     patcher.patchElements("content", `<main data-region="content"><p>newer</p></main>`);
-    expect(find("#kept")).toBe(kept);
+    expect(document.querySelector("#kept")).toBeNull();
+    expect(find("main").textContent).toBe("newer");
+  });
+
+  it("keeps an id-less data-ignore-morph field and its typed value through a morph that keeps it (#44)", () => {
+    const { patcher, find } = fixture(
+      `<main data-region="content"><div data-t-c="chat"><form><textarea name="body" data-ignore-morph></textarea></form></div></main>`,
+    );
+    const box = find("textarea") as HTMLTextAreaElement;
+    box.value = "typed";
+    patcher.patchElements(
+      "content",
+      `<main data-region="content"><p class="notice">Sent.</p><div data-t-c="chat"><form><textarea name="body" data-ignore-morph>server</textarea></form></div></main>`,
+    );
+    expect(find("textarea")).toBe(box);
+    expect(box.value).toBe("typed");
+    expect(box.hasAttribute("id")).toBe(false);
+    expect(find(".notice").textContent).toBe("Sent.");
+  });
+
+  it("keeps a data-ignore-morph field where the markup brings it, when a like element comes first (#44)", () => {
+    const { patcher, find } = fixture(`<main data-region="content"><form><textarea data-ignore-morph></textarea></form></main>`);
+    const box = find("textarea") as HTMLTextAreaElement;
+    box.value = "typed";
+    patcher.patchElements(
+      "content",
+      `<main data-region="content"><form class="search"></form><form class="chat"><textarea data-ignore-morph></textarea></form></main>`,
+    );
+    expect(document.querySelectorAll("textarea")).toHaveLength(1);
+    expect(find("form.chat textarea")).toBe(box);
+    expect(box.value).toBe("typed");
+    expect(find("form.search").childNodes).toHaveLength(0);
+  });
+
+  it("drops a data-ignore-morph field with its parent when a component's markup no longer holds it (#44)", () => {
+    const { patcher, find } = fixture(`<div data-t-c="x"><form><textarea data-ignore-morph></textarea></form></div>`);
+    patcher.patchElements("page/x", `<div data-t-c="x"><p>Closed.</p></div>`);
+    expect(document.querySelector("textarea")).toBeNull();
+    expect(find("[data-t-c=x]").textContent).toBe("Closed.");
+  });
+
+  it("drops a data-ignore-morph field a different form takes the place of (#44)", () => {
+    const { patcher, find } = fixture(
+      `<main data-region="content"><form class="chat"><textarea data-ignore-morph></textarea><button>Send</button></form></main>`,
+    );
+    patcher.patchElements("content", `<main data-region="content"><form class="rate"><input name="stars"><button>Rate</button></form></main>`);
+    expect(document.querySelector("textarea")).toBeNull();
+    expect(find("form").className).toBe("rate");
+    expect(find("input").getAttribute("name")).toBe("stars");
+  });
+
+  it("drops a data-ignore-morph field an inner patch replaces the parent's children of (#44)", () => {
+    const { patcher, find } = fixture(`<div data-t-c="chat"><form><textarea data-ignore-morph></textarea></form></div>`);
+    patcher.patchElements("page/chat", `<p>Thanks.</p>`, "inner");
+    expect(document.querySelector("textarea")).toBeNull();
+    expect(find("[data-t-c=chat]").textContent).toBe("Thanks.");
+  });
+
+  it("keeps a data-ignore-morph field through an inner patch that brings it again (#44)", () => {
+    const { patcher, find } = fixture(`<div data-t-c="chat"><form><textarea data-ignore-morph></textarea></form></div>`);
+    const box = find("textarea") as HTMLTextAreaElement;
+    box.value = "typed";
+    patcher.patchElements("page/chat", `<p>Reply below.</p><form><textarea data-ignore-morph></textarea></form>`, "inner");
+    expect(find("textarea")).toBe(box);
+    expect(box.value).toBe("typed");
+    expect(find("p").textContent).toBe("Reply below.");
+  });
+
+  it("removes a component holding a data-ignore-morph field without an error (#44)", () => {
+    const { patcher } = fixture(`<div data-t-c="chat"><textarea data-ignore-morph></textarea></div>`);
+    patcher.patchElements("page/chat", "", "remove");
+    expect(document.querySelector("[data-t-c=chat]")).toBeNull();
+  });
+
+  it("keeps or drops data-ignore-morph fields across a whole-document visit (#44)", () => {
+    const { patcher, find } = fixture(`<main><textarea data-ignore-morph></textarea></main><aside><textarea data-ignore-morph></textarea></aside>`);
+    const kept = find("main textarea") as HTMLTextAreaElement;
+    kept.value = "typed";
+    const incoming = new DOMParser()
+      .parseFromString(`<!doctype html><html><body><main><textarea data-ignore-morph></textarea></main><aside><p>none</p></aside></body></html>`, "text/html")
+      .querySelector("body");
+    if (!incoming) throw new Error("no body");
+    patcher.patchBody(incoming);
+    expect(find("main textarea")).toBe(kept);
+    expect(kept.value).toBe("typed");
+    expect(document.querySelector("aside textarea")).toBeNull();
+    expect(find("aside").textContent).toBe("none");
   });
 
   it("keeps a data-permanent element the fragment brings again as the same node, unmorphed", () => {

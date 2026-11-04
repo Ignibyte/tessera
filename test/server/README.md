@@ -69,6 +69,7 @@ entry's `@NAME` must be the anchor its target's component carries, or the answer
 | `GET /lazy/content` | The same regions, loaded |
 | `GET /poll?key=K` | Region `ticker` polling `/poll/tick?key=K` every 200 ms, showing the ticks so far |
 | `GET /poll/tick?key=K` | Adds one tick for `K` and answers as `/poll` |
+| `GET /chat`, `/chat-sent`, `/chat-rate`, `/chat-closed` | Component `content/chat`: on `chat` and `chat-sent` a form whose textarea has `data-ignore-morph`, `chat-sent` with a notice above it; on `chat-rate` a different form in its place; `chat-closed` has no component (#44) |
 | `GET /persist-a`, `/persist-b`, `/persist-c` | `#player` with `data-permanent` on each; B wraps it in a `<section>`, C is on the `bare` layout |
 | `/navigation/…` | The navigation matrix's site (`navigation.ts`, `docs/navigation-matrix.md`): jqstar's routes on the `navigation` layout, a session per `tessera-nav-session` cookie, and `/navigation/metrics` with what each session's requests carried |
 | `GET /focus-server` | A page whose field has `autofocus` |
