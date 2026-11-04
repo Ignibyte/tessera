@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## 0.4.5 (2026-11-04)
+
+Protocol version 2, as in 0.3.0; nothing a server must change. A `data-ignore-morph` element the
+incoming markup no longer holds is now removed instead of failing the render; `docs/protocol.md`
+section 3 states when one is kept. No known issues.
+
 - A morph, an inner patch or a whole-document visit whose markup no longer holds a
   `data-ignore-morph` element now removes it like any other node. Tessera promised to keep every
   such element under the target, so when the parent went the render failed with "did not retain 1
