@@ -3,11 +3,12 @@ number: 44
 uuid: 7693a41f-4a52-4b94-8b31-302b1c09727f
 title: "A dropped data-ignore-morph element fails the render"
 type: bug
-status: in-progress
+status: done
 tags: 
 created: 2026-11-04T09:08:17Z
-updated: 2026-11-04T09:18:55Z
+updated: 2026-11-04T09:19:25Z
 phase: "docs"
+closed: 2026-11-04T09:19:25Z
 ---
 
 Found by Lotline #32 on 0.4.4. A morph or inner patch, or a visit's body morph, adds every [data-ignore-morph] element under the target to the render's preserveRoots (src/patch.ts, patchElements and patchBody), whether or not the incoming markup still holds it. When the new markup has no such element, the kernel (src/kernel.ts) tears it down and raises 'Tessera render operation N did not retain 1 promised preserved root.', and a visit does not land.
@@ -25,3 +26,7 @@ Plan. Cause: patchElements and patchBody promise every [data-ignore-morph] eleme
 ### 2026-11-04T09:18:55Z
 
 Check: npm run check passed (810 unit and property tests). npm run test:browser: the first run failed one test, Firefox history #39 (Back to /search?q=c stayed on /about) at load average 16; alone it passed 3 of 3, and the full suite passed on the rerun, 270 of 270. That failure is load. Bite: with src/patch.ts from main, 6 of the new unit tests fail and the 6 dropping browser tests (3 cases, Chromium and Firefox) fail with 'Tessera render operation 1 did not retain 1 promised preserved root.'; the keeping tests pass on both, as they should. With the temporary ids switched off, the unit test where a like form comes first fails.
+
+### 2026-11-04T09:19:25Z
+
+Delivered via PR #56 (e086da3). The patcher promises and keeps only the data-ignore-morph elements the incoming markup brings again; a dropped one goes with its parent, without an error.
