@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- A morph, an inner patch or a whole-document visit whose markup no longer holds a
+  `data-ignore-morph` element now removes it like any other node. Tessera promised to keep every
+  such element under the target, so when the parent went the render failed with "did not retain 1
+  promised preserved root" and the visit did not land. An element the markup brings again (the same
+  tag and `id`, or without an `id` the same place) still stays the same live node with what the user
+  typed (#44).
+
 ## 0.4.4 (2026-11-03)
 
 Protocol version 2, as in 0.3.0; nothing a server must change. No known issues.

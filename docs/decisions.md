@@ -175,8 +175,10 @@ default so work could go on; Chad confirms or changes it, and until then the cod
   must use the same tag (now in `docs/protocol.md` section 5.3). A component morphs by morphing
   its markers' parent against a copy of the parent's children in which only the component's run
   is new, since Idiomorph's public `morph` takes one node; the cost grows with the parent's
-  size, not only the component's. `data-ignore-morph` nodes are neither morphed nor removed and
-  are the render's preserved roots. After a morph, the directives on every morphed element run
+  size, not only the component's. `data-ignore-morph` nodes the incoming markup brings again
+  are neither morphed nor removed and are the render's preserved roots; one the markup drops goes
+  like any other node (amended by #44: they were kept and promised even when the markup dropped
+  them, and the render failed once the parent took them along). After a morph, the directives on every morphed element run
   again, so what the server's markup undid (`data-text`'s text, `data-class`'s classes) comes
   back. An unknown target, a duplicate and a fragment that does not fit its mode are errors, and
   nothing changes.

@@ -237,6 +237,7 @@ column builds the browser behaviour; the name and the meaning are fixed here.
 | `data-error-summary` | the element listing a form's errors | After a `422` or `409`, Tessera focuses it; without one, the first field with `aria-invalid="true"`. | #15 |
 | `aria-invalid="true"` | a form field | The standard attribute; Tessera uses it as the focus fallback above. | #15 |
 | `data-permanent` | an element with an `id` | Kept as the same live node, its content not morphed, across whole-document visits and fragments (`morph` and `inner`), when the incoming markup has an element with the same `id` and `data-permanent`. | #13, #17 |
+| `data-ignore-morph` | any element | Kept as the same live node, its attributes and content not morphed (a field keeps what the user typed), across whole-document visits and fragments (`morph` and `inner`), while the incoming markup brings it again: an element with `data-ignore-morph` and the same tag and `id`, or, for an element without an `id`, one with `data-ignore-morph` in the same place (the same tags and `id`s from the target down to it, and the same position among the `data-ignore-morph` elements there). Without one, it goes like any other node, with its parent when that goes. An `id` pins the pairing when the markup around the element moves. An `inner` fragment for such an element, or a fragment for a target inside one, changes nothing. | #9, #44 |
 | `data-lazy="URL"` | any element | Load the element's target (section 4.1) from a same-origin GET once it is rendered, once. `data-lazy__visible="URL"` waits until the element scrolls into view. The answer should not carry `data-lazy` again. | #17 |
 | `data-poll="URL"` | any element | Refresh the element's target from a same-origin GET on an interval: 2 seconds, or the duration modifier (`data-poll__5s`, `data-poll__750ms`; at least 100 ms). Polls with the same interval fire together; while the window does not have focus only every 20th tick fires; none fire while the page is hidden or the browser offline. | #17 |
 | `data-prefetch="hover"` or `"off"` | an `<a>` or any element around links | Enhanced links prefetch their visit on mousedown; `hover` also prefetches after the pointer rests on the link for 60 ms, or a keyboard focus stays on it as long (#42), and `off` never prefetches. The nearest one wins. | #17 |
@@ -825,7 +826,8 @@ the props tokens, so props are covered too. The server adds its own `Vary` value
    incoming values.
 4. The body is morphed in place. An element with `data-permanent` and an `id` stays the same live
    node, untouched, when the incoming body has an element with the same `id` and `data-permanent`;
-   without one, it goes like any other.
+   without one, it goes like any other. An element with `data-ignore-morph` stays as it is when
+   the incoming body brings it again (section 3), and goes like any other otherwise.
 
 **On a fragment response**, tracked assets are compared when the body carries copies of them
 (section 5.3), with the same full-load rule, before anything commits. A server should include

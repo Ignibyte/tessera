@@ -6,6 +6,10 @@
 // A region and a component are both one element (`data-region`, `data-t-c`), so every mode acts
 // on that element the same way: a morph is Idiomorph on the element itself, the other modes act
 // on its children. After each patch the changed element raises `tessera:patched` (src/devtools.ts).
+//
+// A `data-permanent` element and a `data-ignore-morph` element stay the same live nodes, unmorphed,
+// only while the incoming markup brings them again; each one kept is a preserved root of the render.
+// One the markup drops is removed like any other node, with its parent if that goes (#44).
 import { Idiomorph } from "idiomorph";
 import type { IdiomorphCallbacks } from "idiomorph";
 import { createPatchedSignal } from "./devtools.ts";
@@ -21,6 +25,8 @@ export const PATCH_MODES: readonly PatchMode[] = ["morph", "inner", "append", "p
 const REGION_NAME = /^[a-z][a-z0-9]*(-[a-z0-9]+)*$/;
 const COMPONENT_KEY = /^[A-Za-z0-9_.:]+(-[A-Za-z0-9_.:]+)*$/;
 const OWNER = "[data-t-c], [data-region]";
+const IGNORE_MORPH = "[data-ignore-morph]";
+const PERMANENT = "[data-permanent][id]";
 
 /** A patch that names a target the page lacks, or brings markup that does not fit its mode. */
 export class PatchError extends Error {
@@ -141,10 +147,6 @@ function checkMorph(target: string, resolved: Target, nodes: readonly Node[]): v
   }
 }
 
-function ignored(node: Node): boolean {
-  return node.nodeType === 1 && (node as Element).closest("[data-ignore-morph]") !== null;
-}
-
 /** Every scope owner in a tree (the tree itself included), outside the skipped subtrees. */
 export function ownersWithin(root: Node, skip: readonly Node[]): Element[] {
   const owners: Element[] = [];
@@ -176,7 +178,8 @@ export interface Patcher {
   patchSignals(target: string, patch: Record<string, unknown>, options?: { onlyIfMissing?: boolean }): void;
   /**
    * Morphs `<body>` in place into an incoming document's body (a whole-document visit), keeping
-   * each element with `data-permanent` and an `id` the incoming body also has as the same node.
+   * each element with `data-permanent` and an `id` the incoming body also has as the same node,
+   * and each `data-ignore-morph` element the incoming body brings again.
    */
   patchBody(incoming: HTMLBodyElement): void;
 }
@@ -206,22 +209,100 @@ export function mergeSignalPatch(
   }
 }
 
-/** The elements with `data-permanent` and an `id` in a run of nodes, the nodes included. */
-function permanents(nodes: Iterable<Node>): Element[] {
+/** The elements matching `selector` in a run of nodes, the nodes included, in document order. */
+function within(nodes: Iterable<Node>, selector: string): Element[] {
   const found: Element[] = [];
   for (const node of nodes) {
     if (node.nodeType !== 1) continue;
     const element = node as Element;
-    if (element.matches("[data-permanent][id]")) found.push(element);
-    found.push(...Array.from(element.querySelectorAll("[data-permanent][id]")));
+    if (element.matches(selector)) found.push(element);
+    found.push(...Array.from(element.querySelectorAll(selector)));
   }
   return found;
 }
 
 /** The permanent elements among `current` that the incoming nodes also bring, by `id`. */
 function keptPermanents(current: Iterable<Node>, incoming: Iterable<Node>): Set<Element> {
-  const ids = new Set(permanents(incoming).map((element) => element.id));
-  return new Set(permanents(current).filter((element) => ids.has(element.id)));
+  const ids = new Set(within(incoming, PERMANENT).map((element) => element.id));
+  return new Set(within(current, PERMANENT).filter((element) => ids.has(element.id)));
+}
+
+/** Where an element sits below `top`: the tag and the id of each element from there down to it. */
+function placeOf(element: Element, top: Element | null): string[] {
+  const steps: string[] = [];
+  for (let at: Element | null = element; at && at !== top; at = at.parentElement) {
+    const id = at.getAttribute("id");
+    steps.unshift(id ? `${at.localName}#${id}` : at.localName);
+  }
+  return steps;
+}
+
+/**
+ * The outermost `data-ignore-morph` elements in a run of nodes, each under the key its
+ * counterpart in other markup has: its tag and id when it has an id no other element in the run
+ * shares, else its place below `top` and its order among the elements in that place. An element
+ * whose id is not unique gets no key: Idiomorph pairs nothing by such an id.
+ */
+function ignorePlaces(nodes: readonly Node[], top: Element | null): Map<string, Element> {
+  const all = within(nodes, IGNORE_MORPH);
+  const ids = within(nodes, "[id]").map((element) => element.getAttribute("id"));
+  const places = new Map<string, Element>();
+  const orders = new Map<string, number>();
+  for (const element of all) {
+    if (all.some((other) => other !== element && other.contains(element))) continue;
+    const id = element.getAttribute("id");
+    if (id) {
+      if (ids.indexOf(id) === ids.lastIndexOf(id)) places.set(JSON.stringify([element.localName, id]), element);
+      continue;
+    }
+    const place = JSON.stringify(placeOf(element, top));
+    const order = orders.get(place) ?? 0;
+    orders.set(place, order + 1);
+    places.set(JSON.stringify([place, order]), element);
+  }
+  return places;
+}
+
+/**
+ * The `data-ignore-morph` elements among `current` (below `currentTop`) that the incoming nodes
+ * (below `incomingTop`) bring again, each with its counterpart there. Idiomorph pairs an id-less
+ * element with a counterpart only by tag and sibling position, which the patcher cannot read
+ * back, so `apply` makes it pair these by a temporary id, as it pairs permanents by theirs.
+ */
+function keptIgnored(
+  current: readonly Node[],
+  currentTop: Element | null,
+  incoming: readonly Node[],
+  incomingTop: Element | null,
+): Map<Element, Element> {
+  const theirs = ignorePlaces(incoming, incomingTop);
+  const pairs = new Map<Element, Element>();
+  for (const [key, element] of ignorePlaces(current, currentTop)) {
+    const counterpart = theirs.get(key);
+    if (counterpart) pairs.set(element, counterpart);
+  }
+  return pairs;
+}
+
+/**
+ * Gives each id-less kept element and its counterpart one temporary id for the morph, so
+ * Idiomorph pairs them wherever they sit; the returned function takes the ids off again.
+ */
+function stampPairs(pairs: ReadonlyMap<Element, Element>, operationId: number): () => void {
+  const stamped: [Element, string | null][] = [];
+  for (const [element, counterpart] of pairs) {
+    if (element === counterpart || element.getAttribute("id")) continue;
+    const id = `tessera-ignore-morph-${operationId}-${stamped.length}`;
+    stamped.push([element, element.getAttribute("id")]);
+    element.setAttribute("id", id);
+    counterpart.setAttribute("id", id);
+  }
+  return () => {
+    for (const [element, id] of stamped) {
+      if (id === null) element.removeAttribute("id");
+      else element.setAttribute("id", id);
+    }
+  };
 }
 
 export function createPatcher(options: PatcherOptions): Patcher {
@@ -235,8 +316,10 @@ export function createPatcher(options: PatcherOptions): Patcher {
     mode: PatchMode,
     transaction: RenderTransaction,
     kept: ReadonlySet<Element> = new Set(),
+    ignoredKept: ReadonlyMap<Element, Element> = new Map(),
   ): void => {
-    const keep = (node: Node): boolean => ignored(node) || (node.nodeType === 1 && kept.has(node as Element));
+    const keep = (node: Node): boolean =>
+      node.nodeType === 1 && (kept.has(node as Element) || [...ignoredKept.keys()].some((element) => element.contains(node)));
     const removeNode = (node: Node): void => {
       transaction.beforeRemove(node);
       scopes?.release(node);
@@ -286,10 +369,15 @@ export function createPatcher(options: PatcherOptions): Patcher {
     };
 
     const [element] = significant(nodes);
-    if (mode === "morph" && element) {
-      Idiomorph.morph(resolved.element, element, { morphStyle: "outerHTML", restoreFocus: true, callbacks });
-    } else {
-      Idiomorph.morph(resolved.element, nodes, { morphStyle: "innerHTML", restoreFocus: true, callbacks });
+    const unstamp = stampPairs(ignoredKept, transaction.operationId);
+    try {
+      if (mode === "morph" && element) {
+        Idiomorph.morph(resolved.element, element, { morphStyle: "outerHTML", restoreFocus: true, callbacks });
+      } else {
+        Idiomorph.morph(resolved.element, nodes, { morphStyle: "innerHTML", restoreFocus: true, callbacks });
+      }
+    } finally {
+      unstamp();
     }
 
     if (scopes) {
@@ -315,16 +403,23 @@ export function createPatcher(options: PatcherOptions): Patcher {
       if (mode === "morph") checkMorph(target, resolved, nodes);
 
       const root = resolved.element;
-      // A permanent element the fragment brings again stays the same live node, unmorphed.
-      const kept = mode === "morph" || mode === "inner" ? keptPermanents([root], nodes) : new Set<Element>();
-      const preserveRoots = [
-        ...(root.matches("[data-ignore-morph]") ? [root] : []),
-        ...Array.from(root.querySelectorAll("[data-ignore-morph]")),
-        ...kept,
-      ];
+      const morphing = mode === "morph" || mode === "inner";
+      // A permanent element the fragment brings again stays the same live node, unmorphed, and
+      // so does a data-ignore-morph element; one the fragment drops goes like any other node.
+      // A target inside such an element, or an inner patch of one, changes nothing.
+      const kept = morphing ? keptPermanents([root], nodes) : new Set<Element>();
+      let ignoredKept = new Map<Element, Element>();
+      if (morphing && (root.parentElement?.closest(IGNORE_MORPH) || (mode === "inner" && root.matches(IGNORE_MORPH)))) {
+        ignoredKept = new Map([[root, root]]);
+      } else if (mode === "morph") {
+        ignoredKept = keptIgnored([root], root.parentElement, nodes, null);
+      } else if (mode === "inner") {
+        ignoredKept = keptIgnored(Array.from(root.childNodes), root, nodes, null);
+      }
+      const preserveRoots = [...ignoredKept.keys(), ...kept];
       const transaction = kernel.beginRender(root, { preserveRoots });
       try {
-        apply(resolved, nodes, mode, transaction, kept);
+        apply(resolved, nodes, mode, transaction, kept, ignoredKept);
       } catch (error) {
         transaction.fail(error);
       }
@@ -340,10 +435,11 @@ export function createPatcher(options: PatcherOptions): Patcher {
       const kept = new Set(
         Array.from(body.querySelectorAll("[data-permanent][id]")).filter((element) => incomingIds.has(element.id)),
       );
-      const preserveRoots = [...kept, ...Array.from(body.querySelectorAll("[data-ignore-morph]"))];
+      const ignoredKept = keptIgnored([body], body.parentElement, [incoming], incoming.parentElement);
+      const preserveRoots = [...kept, ...ignoredKept.keys()];
       const transaction = kernel.beginRender(body, { preserveRoots });
       try {
-        apply({ kind: "region", element: body }, [incoming], "morph", transaction, kept);
+        apply({ kind: "region", element: body }, [incoming], "morph", transaction, kept, ignoredKept);
       } catch (error) {
         transaction.fail(error);
       }
