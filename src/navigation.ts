@@ -206,6 +206,12 @@ export function interceptLinks(options: LinkOptions): Navigation {
     keyboard = false;
   });
   const focused = waiter("navigation:focus");
+  // A press prefetches the link itself, so a hover or focus still waiting would only send a
+  // second, unused prefetch of the page the click opens.
+  kernel.listen("navigation:press", kernel.document, "mousedown", () => {
+    hovered.drop();
+    focused.drop();
+  });
   kernel.listen("navigation:focus", kernel.document, "focusin", (event) => {
     const node = event.target as Node | null;
     const link = (node?.nodeType === 1 ? (node as Element) : node?.parentElement)?.closest("a[href]");
