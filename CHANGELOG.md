@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- `data-mount="URL"` mounts a same-origin module script on its element, for a client library such
+  as a chart, a map or an editor. Tessera imports the module once per URL, only when an element
+  names it, and calls its `mount(element, data)` with `data-mount-data` parsed as JSON (or `null`).
+  Before the element leaves the page it calls the cleanup `mount` returned, then the module's
+  `unmount(element)`. A changed `data-mount` or `data-mount-data` mounts again; a morph updates the
+  element's attributes and keeps its children, which are the library's. Both builds carry it, and
+  it needs no `'unsafe-eval'` (#45).
+
 ## 0.4.5 (2026-11-04)
 
 Protocol version 2, as in 0.3.0; nothing a server must change. A `data-ignore-morph` element the

@@ -10,6 +10,8 @@
 // A `data-permanent` element and a `data-ignore-morph` element stay the same live nodes, unmorphed,
 // only while the incoming markup brings them again; each one kept is a preserved root of the render.
 // One the markup drops is removed like any other node, with its parent if that goes (#44).
+// A `data-mount` element the markup brings again with `data-mount` takes the incoming attributes
+// and keeps its children, which belong to the module mounted on it (#45).
 import { Idiomorph } from "idiomorph";
 import type { IdiomorphCallbacks } from "idiomorph";
 import { createPatchedSignal } from "./devtools.ts";
@@ -27,6 +29,7 @@ const COMPONENT_KEY = /^[A-Za-z0-9_.:]+(-[A-Za-z0-9_.:]+)*$/;
 const OWNER = "[data-t-c], [data-region]";
 const IGNORE_MORPH = "[data-ignore-morph]";
 const PERMANENT = "[data-permanent][id]";
+const MOUNTED = "[data-mount]";
 
 /** A patch that names a target the page lacks, or brings markup that does not fit its mode. */
 export class PatchError extends Error {
@@ -169,6 +172,11 @@ export interface PatcherOptions {
   readonly scopes?: Scopes;
   /** Re-applies directives to the elements a patch morphed (the attributes mount's `refresh`). */
   readonly refresh?: (elements: readonly Element[]) => void;
+  /**
+   * Releases one directive on an element now (the attributes mount's `release`): a morph of a
+   * `data-mount` element whose markup drops `data-mount` unmounts it before its children change.
+   */
+  readonly release?: (element: Element, attribute: string) => void;
 }
 
 export interface Patcher {
@@ -305,8 +313,20 @@ function stampPairs(pairs: ReadonlyMap<Element, Element>, operationId: number): 
   };
 }
 
+/** Gives `element` the attributes of `incoming`, leaving its children alone. */
+function copyAttributes(element: Element, incoming: Element): void {
+  for (const { name, value } of Array.from(incoming.attributes)) {
+    if (element.getAttribute(name) !== value) element.setAttribute(name, value);
+  }
+  for (const { name } of Array.from(element.attributes)) if (!incoming.hasAttribute(name)) element.removeAttribute(name);
+}
+
+function mounted(node: Node): node is Element {
+  return node.nodeType === 1 && (node as Element).matches(MOUNTED);
+}
+
 export function createPatcher(options: PatcherOptions): Patcher {
-  const { kernel, scopes, refresh } = options;
+  const { kernel, scopes, refresh, release } = options;
   const { document } = kernel;
   const patched = createPatchedSignal(kernel);
 
@@ -352,7 +372,18 @@ export function createPatcher(options: PatcherOptions): Patcher {
       // field keeps the value the user is typing.
       beforeAttributeUpdated: (name, element) =>
         name === "value" && element === document.activeElement && ["input", "textarea", "select"].includes(element.localName) ? false : undefined,
-      beforeNodeMorphed: (oldNode) => (keep(oldNode) ? false : undefined),
+      beforeNodeMorphed: (oldNode, newNode) => {
+        if (keep(oldNode)) return false;
+        if (!mounted(oldNode)) return undefined;
+        // The module's DOM is its own: unmounted first when the markup drops data-mount, else kept.
+        if (!mounted(newNode)) {
+          release?.(oldNode, "data-mount");
+          return undefined;
+        }
+        copyAttributes(oldNode, newNode);
+        morphed.push(oldNode);
+        return false;
+      },
       afterNodeMorphed: (oldNode) => {
         if (oldNode.nodeType === 1) morphed.push(oldNode as Element);
         return undefined;

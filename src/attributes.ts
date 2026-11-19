@@ -53,6 +53,11 @@ export interface AttributesMount extends Mount {
    * to the server's markup (a morph empties what `data-text` wrote, drops what `data-class` added).
    */
   refresh(elements: Iterable<Element>): void;
+  /**
+   * Releases the directive of one attribute on an element now, reporting what its cleanup
+   * throws, for a patch about to change the element under it (#45).
+   */
+  release(element: Element, attribute: string): void;
 }
 
 interface MountedDirective {
@@ -62,6 +67,8 @@ interface MountedDirective {
   readonly element: Element;
   /** The element's scope chain when it mounted; a move that changes it remounts. */
   readonly owners: readonly ScopeOwner[];
+  /** The values of the directive's `remountOn` attributes when it mounted. */
+  readonly watched: ReadonlyMap<string, string | null>;
   readonly releases: (() => void)[];
   readonly effects: ReactiveEffect[];
 }
@@ -232,6 +239,7 @@ class Attributes implements AttributesMount, MountLifecycle {
       directive,
       element,
       owners: this.scopes.owners(element),
+      watched: new Map((directive.remountOn ?? []).map((watched) => [watched, element.getAttribute(watched)])),
       releases: [],
       effects: [],
     };
@@ -376,6 +384,7 @@ class Attributes implements AttributesMount, MountLifecycle {
           continue;
         }
         attempt(errors, () => { this.#reconcile(element, name); });
+        attempt(errors, () => { this.#remountWatching(element, name); });
         continue;
       }
       for (const node of Array.from(mutation.removedNodes)) {
@@ -403,6 +412,15 @@ class Attributes implements AttributesMount, MountLifecycle {
       }
     }
     for (const error of errors) this.#report(error, this.root, "", "");
+  }
+
+  /** Remounts the element's directives that read attribute `name` beside their own, when it changed. */
+  #remountWatching(element: Element, name: string): void {
+    for (const record of [...(this.#byElement.get(element)?.values() ?? [])]) {
+      if (!record.watched.has(name) || record.watched.get(name) === element.getAttribute(name)) continue;
+      this.#release(record);
+      this.#reconcile(element, record.attribute.name);
+    }
   }
 
   /** Releases the directives in a moved subtree whose scope chain or ignored state changed. */
@@ -433,6 +451,16 @@ class Attributes implements AttributesMount, MountLifecycle {
           }
         }
       }
+    }
+  }
+
+  release(element: Element, attribute: string): void {
+    const record = this.#byElement.get(element)?.get(attribute);
+    if (!record) return;
+    try {
+      this.#release(record);
+    } catch (error) {
+      this.#report(error, element, attribute, record.attribute.value);
     }
   }
 

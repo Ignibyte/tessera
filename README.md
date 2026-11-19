@@ -81,7 +81,9 @@ Most of it is markup the server renders (`docs/protocol.md`, section 3):
 What a server renders for navigation, regions and requests is in `docs/protocol.md` section 3:
 `data-region`, `data-target`, `data-push` (`off` or `replace`), `data-enhance="off"`, `data-track`,
 `data-permanent`, `data-lazy`, `data-poll`, `data-prefetch`, `data-stream`, `data-focus-key`,
-`data-error-summary`. Local state and behaviour use Datastar's vocabulary, with explicit scopes
+`data-error-summary`, and `data-mount` with `data-mount-data`: a same-origin module script whose
+`mount(element, data)` starts a client library on the element, whose cleanup and `unmount(element)`
+stop it before the element leaves, and whose element keeps its children through a morph. Local state and behaviour use Datastar's vocabulary, with explicit scopes
 (`docs/design.md`): `data-signals` (with `__region` and `__document`), `data-computed`, `data-ref`,
 `data-text`, `data-show`, `data-class`, `data-attr`, `data-style`, `data-bind`, `data-effect`,
 `data-init`, `data-on` (with `__prevent`, `__outside`, `__debounce`, `__case` and the rest),

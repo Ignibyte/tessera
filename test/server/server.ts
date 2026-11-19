@@ -26,6 +26,7 @@ const assets: Readonly<Record<string, string>> = {
   "/assets/fixture.css": resolve(root, "assets/fixture.css"),
   "/assets/start-esm.js": resolve(root, "assets/start-esm.js"),
   "/assets/start-csp-esm.js": resolve(root, "assets/start-csp-esm.js"),
+  "/assets/mount-widget.js": resolve(root, "assets/mount-widget.js"),
   // Built by test/browser/global-setup.ts.
   "/assets/harness.js": resolve(repo, "node_modules/.cache/tessera-harness/harness.js"),
   ...Object.fromEntries(RELEASE_FILES.map((file) => [`/assets/${file}`, resolve(repo, "dist", file)])),
@@ -98,6 +99,8 @@ const simplePages: Readonly<Record<string, string>> = {
   "/lazy": "lazy",
   "/lazy/content": "lazy-content",
   "/long": "long",
+  "/mount": "mount",
+  "/mount-more": "mount-more",
   "/persist-a": "persist-a",
   "/persist-b": "persist-b",
   "/persist-c": "persist-c",
