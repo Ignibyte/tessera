@@ -3,11 +3,12 @@ number: 45
 uuid: 16b275e0-43ce-4e71-9bc9-9d9e946c626f
 title: "data-mount: a module script mounted on an element, again after each patch"
 type: feature
-status: in-progress
+status: done
 tags: 
 created: 2026-11-19T23:42:30Z
-updated: 2026-11-19T23:55:18Z
+updated: 2026-11-19T23:56:04Z
 phase: "check"
+closed: 2026-11-19T23:56:04Z
 ---
 
 A server-rendered app that mounts a client library on an element (a chart, a map, an editor, a calendar) has no way to start it on an element a fragment brings, or to stop it before the element goes: a page script loads everywhere and runs once.
@@ -31,3 +32,7 @@ Plan. A built-in directive data-mount in src/builtins.ts (key forbidden, no modi
 ### 2026-11-19T23:55:18Z
 
 Check: npm run check passed (828 unit and property tests; default build 33,962 bytes gzipped, csp 41,760, budgets unchanged). npm run test:browser passed, 282 of 282 (Chromium and Firefox) at load average 36. Firefox would not launch at first: its install directory held a stale lock symlink from 2026-11-03 (a dead process), so every Firefox test failed with 'ENOENT ... firefox-1538/firefox/lock', on main's smoke spec too; npx playwright install --force firefox fixed it. Bite: with src/ from main, 17 of the 18 unit tests and all 12 browser tests fail (the one left asserts nothing is called after an early removal). With src/patch.ts alone from main, the 4 children-kept tests fail; without the remountOn handling in src/attributes.ts, the 2 data-mount-data remount tests fail. One change from the plan: a morph whose incoming element drops data-mount now releases the directive before Idiomorph morphs the children (a patcher option, release(element, attribute), wired to a new AttributesMount.release), since releasing after the morph handed unmount the server's children.
+
+### 2026-11-19T23:56:04Z
+
+Delivered via PR #58 (67235db). data-mount mounts a same-origin module script on its element, unmounts it before the element leaves, remounts on a data change, and keeps its children through a morph.
