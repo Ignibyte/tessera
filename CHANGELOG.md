@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+## 0.4.6 (2026-11-19)
+
+Protocol version 2, as in 0.3.0; nothing a server must change. One new attribute, `data-mount`,
+with `data-mount-data`; `docs/protocol.md` section 3 states its contract. No known issues.
+
 - `data-mount="URL"` mounts a same-origin module script on its element, for a client library such
   as a chart, a map or an editor. Tessera imports the module once per URL, only when an element
   names it, and calls its `mount(element, data)` with `data-mount-data` parsed as JSON (or `null`).
