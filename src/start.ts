@@ -67,6 +67,9 @@ export function startWith(expressions: ExpressionEngine, options: StartOptions =
       refresh: (elements) => {
         mount.refresh(elements);
       },
+      release: (element, attribute) => {
+        mount.release(element, attribute);
+      },
     });
     const history = createHistory({ kernel });
     const transport = createTransport({ kernel, patcher, scopes: mount.scopes, history, commitDocument: createDocumentCommitter({ kernel, patcher }) });

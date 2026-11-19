@@ -58,6 +58,8 @@ export interface Directive<Parsed = string> {
   readonly key: KeyRule;
   /** The modifier names this directive accepts; any other is an error. */
   readonly modifiers?: readonly string[];
+  /** Other attributes of the element its mount reads: a changed value of one remounts it. */
+  readonly remountOn?: readonly string[];
   /** Higher runs first; the default is 0. */
   readonly priority?: number;
   /** Starts the directive on an element; may return its cleanup. */
@@ -195,6 +197,7 @@ function snapshotDirective<Parsed>(directive: Directive<Parsed>): Directive<Pars
   return Object.freeze({
     ...directive,
     modifiers: Object.freeze([...(directive.modifiers ?? [])]),
+    remountOn: Object.freeze([...(directive.remountOn ?? [])]),
     priority,
   });
 }

@@ -582,6 +582,35 @@ default so work could go on; Chad confirms or changes it, and until then the cod
     and replaced by visits of `results` inside it, popped from Home, asked for `results`, which
     Home lacks, and its fragment was dropped.
 
+- **`data-mount`: a module script mounted on its element** (**Provisional**, ticket #45,
+  2026-11-19; the ticket names the attributes, the exports and when each runs, the rest is the
+  agent's). A built-in directive in `src/builtins.ts`, so the attributes' mount, update and
+  cleanup lifecycle carries it. No wire change.
+  - The URL resolves against the element's base URL and must be same-origin; another origin, an
+    empty value or `data-mount-data` that is not JSON is reported and imports nothing. One import
+    promise per absolute URL per runtime (the browser's module map would dedupe too); a failed
+    import leaves it, so a later element tries again.
+  - `mount` returning anything but a function or `undefined` is reported; `unmount` still runs on
+    release, since `mount` ran. `mount` throwing is reported and registers nothing. A cleanup that
+    throws does not stop `unmount`; its error goes where any directive cleanup's goes (a patch
+    that removes the element throws it at commit).
+  - A directive may name `remountOn` attributes: a changed value of one, by a morph or a script,
+    remounts it. `data-mount` names `data-mount-data`; a changed `data-mount` remounts as any
+    directive without `update` does.
+  - The patcher keeps a `data-mount` element's children through a morph only when the incoming
+    element has `data-mount` too, and copies its attributes itself (Idiomorph's
+    `beforeNodeMorphed` returning `false` skips both). When the incoming element has none, the
+    patcher releases the directive first (the attributes mount's new `release(element,
+    attribute)`, a patcher option), so `unmount` sees the library's DOM, not the server's. An
+    `inner`, `append` or `prepend` patch of the element itself acts on its children as asked.
+  - Directives inside a mounted element still apply. A library that writes attributes Tessera
+    reads as directives (`data-text`, `data-on`) inside it needs `data-ignore` on its own
+    container.
+  - Removed by a patch, the element is still connected when the cleanup and `unmount` run; removed
+    by a script, they run once the attributes' observer sees it go.
+  - Cost: the default build 33,962 bytes gzipped (33,400 before), the csp build 41,760 (41,187); the
+    budgets are unchanged.
+
 ## Open
 
 Nothing open.

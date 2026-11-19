@@ -238,6 +238,8 @@ column builds the browser behaviour; the name and the meaning are fixed here.
 | `aria-invalid="true"` | a form field | The standard attribute; Tessera uses it as the focus fallback above. | #15 |
 | `data-permanent` | an element with an `id` | Kept as the same live node, its content not morphed, across whole-document visits and fragments (`morph` and `inner`), when the incoming markup has an element with the same `id` and `data-permanent`. | #13, #17 |
 | `data-ignore-morph` | any element | Kept as the same live node, its attributes and content not morphed (a field keeps what the user typed), across whole-document visits and fragments (`morph` and `inner`), while the incoming markup brings it again: an element with `data-ignore-morph` and the same tag and `id`, or, for an element without an `id`, one with `data-ignore-morph` in the same place (the same tags and `id`s from the target down to it, and the same position among the `data-ignore-morph` elements there). Without one, it goes like any other node, with its parent when that goes. An `id` pins the pairing when the markup around the element moves. An `inner` fragment for such an element, or a fragment for a target inside one, changes nothing. | #9, #44 |
+| `data-mount="URL"` | any element | Mount a module script on the element (below): Tessera imports the same-origin module at `URL`, once per URL, and calls its `mount(element, data)` export, with `data` parsed as JSON from `data-mount-data`, or `null` without it. A function `mount` returns is the cleanup. Before the element leaves the page (a morph or an inner patch that drops it, a `remove`, a whole-document visit), Tessera calls the cleanup, then the module's `unmount(element)` export if it has one. A changed `data-mount` or `data-mount-data` unmounts and mounts again. A morph that brings the element again with `data-mount` updates its attributes and keeps its children. | #45 |
+| `data-mount-data="JSON"` | an element with `data-mount` | The `data` the module's `mount` receives, parsed with `JSON.parse`. | #45 |
 | `data-lazy="URL"` | any element | Load the element's target (section 4.1) from a same-origin GET once it is rendered, once. `data-lazy__visible="URL"` waits until the element scrolls into view. The answer should not carry `data-lazy` again. | #17 |
 | `data-poll="URL"` | any element | Refresh the element's target from a same-origin GET on an interval: 2 seconds, or the duration modifier (`data-poll__5s`, `data-poll__750ms`; at least 100 ms). Polls with the same interval fire together; while the window does not have focus only every 20th tick fires; none fire while the page is hidden or the browser offline. | #17 |
 | `data-prefetch="hover"` or `"off"` | an `<a>` or any element around links | Enhanced links prefetch their visit on mousedown; `hover` also prefetches after the pointer rests on the link for 60 ms, or a keyboard focus stays on it as long (#42), and `off` never prefetches. The nearest one wins. | #17 |
@@ -266,6 +268,39 @@ scroll after such a visit, as with `off`, and the entry keeps the scroll and foc
 `Tessera-Location` answer replaces the entry too; full loads, a `Tessera-Location` on another
 origin and `Tessera-Full-Visit` are the browser's, which pushes. With JavaScript off the browser
 pushes as usual.
+
+`data-mount` is for a client library that owns an element (a chart, a map, an editor, a
+calendar): the page loads the library only where an element names it, and starts and stops it as
+fragments bring and take the element. On start every `data-mount` element on the page mounts, and
+after each patch every one the patch brought. The module is a same-origin ES module, so the page's
+policy allows it under `script-src 'self'` or `'strict-dynamic'` and needs no `'unsafe-eval'`;
+both builds carry it. Its exports:
+
+```js
+// /assets/sales-chart.js
+export function mount(element, data) {
+  const chart = new Chart(element, data); // the library writes the element's children
+  return () => chart.destroy();           // the cleanup, optional
+}
+export function unmount(element) {        // optional, called after the cleanup
+  element.replaceChildren();
+}
+```
+
+```html
+<div id="sales" data-mount="/assets/sales-chart.js" data-mount-data='{"points":[3,5,8]}'></div>
+```
+
+The element's children are the library's. A morph (a fragment's or a whole-document visit's) that
+brings the element again with `data-mount` sets its attributes to the incoming ones and leaves its
+children alone, so the server may render it empty or with a placeholder that shows until the module
+mounts. A changed `data-mount-data` remounts with the new data. When the incoming element has no
+`data-mount`, Tessera unmounts first and then morphs the children to the server's. An `inner`,
+`append` or `prepend` fragment for the element itself changes its children as asked, under the
+library. Give the element a stable `id`, so a morph pairs it when the markup around it moves. A
+mount that fails (the import, a module with no `mount` export, `mount` throwing, data that is not
+JSON, a URL on another origin) is reported as a `tessera:error` on the element; the rest of the
+page goes on. An element removed before its import settles is never mounted.
 
 Tessera also reads three `<meta>` elements in `<head>`:
 

@@ -45,6 +45,9 @@ const patcher = createPatcher({
   refresh: (elements) => {
     mount.refresh(elements);
   },
+  release: (element, attribute) => {
+    mount.release(element, attribute);
+  },
 });
 
 const requestErrors: string[] = [];

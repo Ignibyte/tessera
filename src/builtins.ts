@@ -2,6 +2,7 @@
 // jqstar `src/declarative.ts` (`bindEvent`, `bindModel`, `bindValue`, `loadSignals`,
 // `initializeComputed` and the attribute branches of `initializeDirective`) against the DOM.
 // `data-html` is left out: server HTML arrives through fragments, never through a signal.
+// `data-mount` (#45) is new: a same-origin module script mounted on its element.
 import { DirectiveSyntaxError } from "./directive.ts";
 import type { Directive, DirectiveAttribute, DirectiveContext, DirectiveRegistry } from "./directive.ts";
 import { computed, notifyPropertyChange, toRaw } from "./reactivity.ts";
@@ -477,6 +478,76 @@ const on: Directive<EventOptions> = {
   },
 };
 
+// --- Module scripts -----------------------------------------------------------------------
+
+/** Imports a module script by its absolute URL; `import()` in the builds, a fake in unit tests. */
+export type ModuleLoader = (url: string) => Promise<unknown>;
+
+interface MountModule {
+  readonly mount?: unknown;
+  readonly unmount?: unknown;
+}
+
+function callable(value: unknown): value is (...args: unknown[]) => unknown {
+  return typeof value === "function";
+}
+
+/**
+ * `data-mount="URL"`: imports the same-origin module at URL, once per URL, and calls its
+ * `mount(element, data)`, with `data` parsed from `data-mount-data` (null without it). Released,
+ * it calls the cleanup `mount` returned, then the module's `unmount(element)`. A changed
+ * `data-mount` or `data-mount-data` remounts; the patcher keeps the element's children (#45).
+ */
+function mountScript(load: ModuleLoader): Directive<unknown> {
+  const modules = new Map<string, Promise<unknown>>();
+  const importOnce = (url: string): Promise<unknown> => {
+    let module = modules.get(url);
+    if (!module) {
+      module = load(url);
+      modules.set(url, module);
+      // A failed import is not kept, so a later element tries again.
+      module.catch(() => modules.delete(url));
+    }
+    return module;
+  };
+  return {
+    name: "mount",
+    key: "forbidden",
+    remountOn: ["data-mount-data"],
+    mount({ attribute, cleanup, element, report, task }) {
+      const window = element.ownerDocument.defaultView;
+      if (attribute.value.trim() === "" || !window) throw new TypeError("data-mount names a module script URL.");
+      const url = new URL(attribute.value, element.baseURI);
+      if (url.origin !== window.location.origin) throw new TypeError(`data-mount takes a same-origin module script: ${url.href}`);
+      const raw = element.getAttribute("data-mount-data");
+      let data: unknown = null;
+      try {
+        if (raw !== null) data = JSON.parse(raw);
+      } catch (error) {
+        throw new TypeError(`data-mount-data is not JSON: ${error instanceof Error ? error.message : String(error)}`, { cause: error });
+      }
+      task(async (signal) => {
+        const module = (await importOnce(url.href)) as MountModule;
+        if (signal.aborted) return;
+        const { mount, unmount } = module;
+        if (!callable(mount)) throw new TypeError(`${url.href} has no mount export.`);
+        const stop: unknown = mount(element, data);
+        cleanup(() => {
+          try {
+            if (callable(stop)) stop();
+          } finally {
+            if (callable(unmount)) unmount(element);
+          }
+        });
+        if (stop !== undefined && !callable(stop)) {
+          report(new TypeError(`The mount of ${url.href} must return a cleanup function or nothing.`));
+        }
+      });
+      return undefined;
+    },
+  };
+}
+
 // --- Markers ------------------------------------------------------------------------------
 
 /** `data-ignore` and `data-ignore__self` are read by the scanner; the directive reserves them. */
@@ -502,6 +573,7 @@ export const BUILTIN_DIRECTIVES: readonly Directive<unknown>[] = [
   ignoreMorph,
 ] as Directive<unknown>[];
 
-export function registerBuiltins(registry: DirectiveRegistry): void {
-  for (const directive of BUILTIN_DIRECTIVES) registry.register(directive);
+/** Registers the built-ins; `load` imports `data-mount`'s modules (a test passes its own). */
+export function registerBuiltins(registry: DirectiveRegistry, load: ModuleLoader = (url) => import(url)): void {
+  for (const directive of [...BUILTIN_DIRECTIVES, mountScript(load)]) registry.register(directive);
 }
